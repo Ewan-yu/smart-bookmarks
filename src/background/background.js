@@ -185,6 +185,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleApplyCategories(request, sendResponse);
       return true;
 
+    case 'IMPORT_FROM_BROWSER':
+      handleImportFromBrowser(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -409,6 +413,35 @@ async function handleApplyCategories(request, sendResponse) {
   } catch (error) {
     console.error('Failed to apply categories:', error);
     sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * 从浏览器导入收藏
+ */
+async function handleImportFromBrowser(request, sendResponse) {
+  try {
+    await initDatabase();
+
+    // 执行导入
+    await importBrowserBookmarks();
+
+    // 获取导入后的收藏数量
+    const bookmarks = await getAllBookmarks();
+    const categories = await getAllCategories();
+
+    sendResponse({
+      success: true,
+      imported: bookmarks.length,
+      categories: categories.length,
+      message: `成功导入 ${bookmarks.length} 个收藏和 ${categories.length} 个分类`
+    });
+  } catch (error) {
+    console.error('Failed to import from browser:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
   }
 }
 

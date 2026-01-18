@@ -103,14 +103,89 @@ async function loadBookmarks() {
   try {
     const response = await chrome.runtime.sendMessage({ type: 'GET_BOOKMARKS' });
 
-    if (response.bookmarks) {
+    if (response && response.error) {
+      showEmptyState('加载失败', response.error + '，请刷新重试');
+      return;
+    }
+
+    if (response.bookmarks && response.bookmarks.length > 0) {
       state.bookmarks = response.bookmarks;
+      state.categories = response.categories || [];
+      state.tags = response.tags || [];
       renderBookmarks();
+    } else {
+      // 检查是否是首次使用（没有导入过）
+      if (!response || response.bookmarks === undefined) {
+        showWelcomeState();
+      } else {
+        showEmptyState('暂无收藏', '您还没有添加任何收藏');
+      }
     }
   } catch (error) {
     console.error('Failed to load bookmarks:', error);
     showEmptyState('加载失败', error.message);
   }
+}
+
+/**
+ * 显示欢迎/首次使用状态
+ */
+function showWelcomeState() {
+  const welcomeContainer = document.createElement('div');
+  welcomeContainer.className = 'welcome-container';
+
+  welcomeContainer.innerHTML = `
+    <div class="welcome-content">
+      <div class="welcome-icon">📚</div>
+      <h2>欢迎使用 Smart Bookmarks!</h2>
+      <p class="welcome-desc">这是您第一次使用，让我们先导入浏览器收藏吧</p>
+
+      <div class="welcome-actions">
+        <button id="welcomeImportBtn" class="btn btn-primary">
+          📥 导入浏览器收藏
+        </button>
+        <p class="welcome-note">
+          💡 <strong>不会覆盖</strong>您现有的浏览器收藏<br>
+          只会创建一个副本供插件管理
+        </p>
+      </div>
+
+      <div class="welcome-features">
+        <h3>插件功能预览：</h3>
+        <ul class="feature-list">
+          <li>🤖 <strong>AI 智能分类</strong> - 自动整理收藏到合适的分类</li>
+          <li>⚠️ <strong>失效检测</strong> - 一键扫描失效链接</li>
+          <li>🔍 <strong>智能搜索</strong> - 支持语义理解搜索</li>
+          <li>💾 <strong>备份导出</strong> - 支持多种格式备份</li>
+        </ul>
+      </div>
+    </div>
+  `;
+
+  elements.bookmarkList.innerHTML = '';
+  elements.bookmarkList.appendChild(welcomeContainer);
+
+  // 绑定导入按钮事件
+  document.getElementById('welcomeImportBtn').addEventListener('click', async () => {
+    welcomeImportBtn.textContent = '正在导入...';
+    welcomeImportBtn.disabled = true;
+
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'IMPORT_FROM_BROWSER' });
+
+      if (response.success) {
+        Toast.success(response.message || `成功导入 ${response.imported || 0} 个收藏！`);
+        await loadBookmarks();
+      } else if (response.error) {
+        Toast.error('导入失败：' + response.error);
+      }
+    } catch (error) {
+      Toast.error('导入失败：' + error.message);
+    } finally {
+      welcomeImportBtn.textContent = '📥 导入浏览器收藏';
+      welcomeImportBtn.disabled = false;
+    }
+  });
 }
 
 /**

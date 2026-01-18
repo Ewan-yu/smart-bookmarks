@@ -1709,3 +1709,90 @@ button:disabled:hover {
   background: var(--primary-hover);
 }
 
+
+/* 欢迎状态样式 */
+.welcome-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: 20px;
+}
+
+.welcome-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.welcome-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.welcome-content h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.welcome-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.welcome-actions {
+  margin-bottom: 24px;
+}
+
+.welcome-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 16px;
+}
+
+.welcome-note strong {
+  color: var(--primary-color);
+}
+
+.welcome-features {
+  text-align: left;
+  background: var(--bg-color);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.welcome-features h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  margin-top: 0;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feature-list li {
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.feature-list li::before {
+  content: '✓';
+  color: var(--success-color);
+  font-weight: bold;
+}
