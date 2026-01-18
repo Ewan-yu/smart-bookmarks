@@ -18,8 +18,8 @@ class TreeRenderer {
 
   /**
    * 渲染树形结构
-   * @param {Array} items - 树形数据
-   * @param {string} parentId - 父节点 ID
+   * @param {Array} items - 树形数据（已经是构建好的树形结构）
+   * @param {string} parentId - 父节点 ID（已弃用，保留用于兼容）
    * @param {number} level - 层级深度
    */
   render(items, parentId = null, level = 0) {
@@ -30,11 +30,8 @@ class TreeRenderer {
       return container;
     }
 
-    // 构建树形结构
-    const tree = this.buildTree(items, parentId);
-
-    // 渲染树
-    const treeElement = this.renderTreeLevel(tree, level);
+    // items 已经是树形结构，直接渲染
+    const treeElement = this.renderTreeLevel(items, level);
     container.appendChild(treeElement);
 
     return container;
@@ -232,13 +229,33 @@ class TreeRenderer {
    * 切换节点展开/收起状态
    */
   toggleNode(nodeId) {
+    const nodeEl = this.container?.querySelector(`[data-id="${nodeId}"]`);
+    if (!nodeEl) return;
+
+    const childrenContainer = nodeEl.querySelector('.tree-children');
+    const toggle = nodeEl.querySelector('.tree-toggle');
+
     if (this.expandedNodes.has(nodeId)) {
+      // 收起
       this.expandedNodes.delete(nodeId);
+      if (childrenContainer) {
+        childrenContainer.style.display = 'none';
+      }
+      if (toggle) {
+        toggle.textContent = '▶';
+      }
       if (this.onCollapse) {
         this.onCollapse(nodeId);
       }
     } else {
+      // 展开
       this.expandedNodes.add(nodeId);
+      if (childrenContainer) {
+        childrenContainer.style.display = 'block';
+      }
+      if (toggle) {
+        toggle.textContent = '▼';
+      }
       if (this.onExpand) {
         this.onExpand(nodeId);
       }

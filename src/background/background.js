@@ -10,12 +10,22 @@ import {
   addCategory,
   get,
   addTag,
+  clearAllData,
   STORES
 } from '../db/indexeddb.js';
 import { checkBookmarks, batchMoveToPendingCleanup } from '../utils/link-checker.js';
 import { analyzeBookmarks } from '../api/openai.js';
 
 console.log('Smart Bookmarks background service worker loaded');
+
+// 监听扩展图标点击事件
+chrome.action.onClicked.addListener(async (tab) => {
+  // 打开主界面（全屏页面）
+  await chrome.tabs.create({
+    url: 'src/popup/popup.html',
+    active: true
+  });
+});
 
 // 数据库实例
 let db = null;
@@ -61,26 +71,33 @@ async function initializeData() {
 async function importBrowserBookmarks() {
   try {
     const tree = await chrome.bookmarks.getTree();
-    const bookmarks = flattenBookmarkTree(tree);
+    const browserBookmarks = flattenBookmarkTree(tree);
 
-    console.log(`Found ${bookmarks.length} browser bookmarks`);
+    console.log(`Found ${browserBookmarks.length} browser bookmarks`);
 
-    // 检查是否已有导入过的数据
+    // 获取已存在的书签
     const existingBookmarks = await getAllBookmarks();
-    if (existingBookmarks.length > 0) {
-      console.log('Bookmarks already imported, skipping...');
+    const existingIds = new Set(existingBookmarks.map(b => b.id));
+
+    // 过滤出需要导入的书签（不存在的）
+    const newBookmarks = browserBookmarks.filter(bm => !existingIds.has(bm.id));
+
+    if (newBookmarks.length === 0) {
+      console.log('All bookmarks already imported, nothing new to add');
       return;
     }
 
+    console.log(`Importing ${newBookmarks.length} new bookmarks (skipping ${existingIds.size} existing)`);
+
     // 存储到 IndexedDB
-    for (const bm of bookmarks) {
+    for (const bm of newBookmarks) {
       const bookmark = {
         id: bm.id,
         title: bm.title,
         url: bm.url,
         description: '',
         tags: [],
-        categoryId: null,
+        categoryId: bm.parentCategoryId || null, // 使用所属文件夹ID
         status: 'active',
         createdAt: bm.dateAdded || Date.now(),
         updatedAt: Date.now()
@@ -91,39 +108,60 @@ async function importBrowserBookmarks() {
 
     // 提取并保存现有分类
     const categories = extractCategoriesFromTree(tree);
+    let newCategoryCount = 0;
     for (const cat of categories) {
-      await addCategory(cat);
+      // 检查分类是否已存在
+      const existing = await get(STORES.CATEGORIES, cat.id);
+      if (!existing) {
+        await addCategory(cat);
+        newCategoryCount++;
+      }
     }
 
-    console.log(`Imported ${bookmarks.length} bookmarks and ${categories.length} categories`);
+    console.log(`Imported ${newBookmarks.length} new bookmarks and ${newCategoryCount} new categories`);
   } catch (error) {
     console.error('Failed to import browser bookmarks:', error);
+    throw error;
   }
 }
 
 /**
  * 扁平化收藏树
+ * 遍历书签树，收集所有书签及其所属文件夹信息
  */
-function flattenBookmarkTree(nodes) {
+function flattenBookmarkTree(nodes, parentCategoryId = null) {
   const bookmarks = [];
 
-  function traverse(node) {
+  function traverse(node, currentFolderId = null) {
     if (node.url) {
-      // 这是一个收藏
+      // 这是一个书签
       bookmarks.push({
         id: node.id,
-        title: node.title,
+        title: node.title || '未命名书签',
         url: node.url,
-        dateAdded: node.dateAdded
+        dateAdded: node.dateAdded,
+        // 保存所属文件夹ID
+        parentCategoryId: currentFolderId
       });
     }
 
+    // 递归遍历子节点
     if (node.children && node.children.length > 0) {
-      node.children.forEach(child => traverse(child));
+      node.children.forEach(child => {
+        if (!child.url && child.title) {
+          // 子节点是文件夹，更新 currentFolderId
+          const folderId = `cat_${child.id}`;
+          traverse(child, folderId);
+        } else {
+          // 子节点不是文件夹，保持 currentFolderId
+          traverse(child, currentFolderId);
+        }
+      });
     }
   }
 
-  nodes.forEach(node => traverse(node));
+  // 从根节点开始遍历
+  nodes.forEach(node => traverse(node, null));
   return bookmarks;
 }
 
@@ -157,7 +195,7 @@ function extractCategoriesFromTree(nodes) {
 
 // 监听来自 popup 和 content script 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Received message:', request);
+  console.log('Received message:', JSON.stringify(request));
 
   // 处理不同类型的消息
   switch (request.type) {
@@ -189,6 +227,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleImportFromBrowser(request, sendResponse);
       return true;
 
+    case 'CLEAR_DATA':
+      handleClearData(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -201,7 +243,13 @@ async function handleGetBookmarks(request, sendResponse) {
   try {
     const database = await initDatabase();
     const bookmarks = await getAllBookmarks();
-    sendResponse({ bookmarks });
+    const categories = await getAllCategories();
+
+    sendResponse({
+      bookmarks,
+      categories,
+      tags: [] // TODO: 实现获取标签的功能
+    });
   } catch (error) {
     console.error('Failed to get bookmarks:', error);
     sendResponse({ error: error.message });
@@ -421,14 +469,19 @@ async function handleApplyCategories(request, sendResponse) {
  */
 async function handleImportFromBrowser(request, sendResponse) {
   try {
+    console.log('[IMPORT] Starting import from browser...');
     await initDatabase();
+    console.log('[IMPORT] Database initialized');
 
     // 执行导入
     await importBrowserBookmarks();
+    console.log('[IMPORT] importBrowserBookmarks completed');
 
     // 获取导入后的收藏数量
     const bookmarks = await getAllBookmarks();
     const categories = await getAllCategories();
+
+    console.log(`[IMPORT] Total bookmarks in DB: ${bookmarks.length}, Total categories: ${categories.length}`);
 
     sendResponse({
       success: true,
@@ -437,7 +490,31 @@ async function handleImportFromBrowser(request, sendResponse) {
       message: `成功导入 ${bookmarks.length} 个收藏和 ${categories.length} 个分类`
     });
   } catch (error) {
-    console.error('Failed to import from browser:', error);
+    console.error('[IMPORT] Failed to import from browser:', error);
+    console.error('[IMPORT] Error stack:', error.stack);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 清空所有数据
+ */
+async function handleClearData(request, sendResponse) {
+  try {
+    console.log('[CLEAR] Starting data clear...');
+    await initDatabase();
+    await clearAllData();
+    console.log('[CLEAR] All data cleared');
+
+    sendResponse({
+      success: true,
+      message: '数据已清空'
+    });
+  } catch (error) {
+    console.error('[CLEAR] Failed to clear data:', error);
     sendResponse({
       success: false,
       error: error.message

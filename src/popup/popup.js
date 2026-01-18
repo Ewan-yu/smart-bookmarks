@@ -103,23 +103,25 @@ async function loadBookmarks() {
   try {
     const response = await chrome.runtime.sendMessage({ type: 'GET_BOOKMARKS' });
 
+    // response.bookmarks 可能是 undefined（未初始化）、[]（已初始化但无数据）、或有数据
+    const hasBookmarks = response && response.bookmarks && response.bookmarks.length > 0;
+
     if (response && response.error) {
       showEmptyState('加载失败', response.error + '，请刷新重试');
       return;
     }
 
-    if (response.bookmarks && response.bookmarks.length > 0) {
+    if (hasBookmarks) {
       state.bookmarks = response.bookmarks;
       state.categories = response.categories || [];
       state.tags = response.tags || [];
       renderBookmarks();
+    } else if (response && Array.isArray(response.bookmarks)) {
+      // bookmarks 是空数组，说明已初始化但没有数据
+      showEmptyState('暂无收藏', '您还没有添加任何收藏，点击下方按钮导入浏览器收藏', true, true);
     } else {
-      // 检查是否是首次使用（没有导入过）
-      if (!response || response.bookmarks === undefined) {
-        showWelcomeState();
-      } else {
-        showEmptyState('暂无收藏', '您还没有添加任何收藏');
-      }
+      // bookmarks 是 undefined 或 response 不存在，说明首次使用
+      showWelcomeState();
     }
   } catch (error) {
     console.error('Failed to load bookmarks:', error);
@@ -145,19 +147,8 @@ function showWelcomeState() {
           📥 导入浏览器收藏
         </button>
         <p class="welcome-note">
-          💡 <strong>不会覆盖</strong>您现有的浏览器收藏<br>
-          只会创建一个副本供插件管理
+          💡 <strong>不会覆盖</strong>您现有的浏览器收藏，只会创建一个副本
         </p>
-      </div>
-
-      <div class="welcome-features">
-        <h3>插件功能预览：</h3>
-        <ul class="feature-list">
-          <li>🤖 <strong>AI 智能分类</strong> - 自动整理收藏到合适的分类</li>
-          <li>⚠️ <strong>失效检测</strong> - 一键扫描失效链接</li>
-          <li>🔍 <strong>智能搜索</strong> - 支持语义理解搜索</li>
-          <li>💾 <strong>备份导出</strong> - 支持多种格式备份</li>
-        </ul>
       </div>
     </div>
   `;
@@ -191,15 +182,99 @@ function showWelcomeState() {
 /**
  * 显示空状态
  */
-function showEmptyState(title = '暂无收藏', description = '点击浏览器右上角的收藏按钮添加收藏') {
-  const emptyState = new EmptyState({
-    icon: '📚',
-    title: title,
-    description: description
-  });
-
+function showEmptyState(title = '暂无收藏', description = '点击浏览器右上角的收藏按钮添加收藏', showImportButton = true, showClearButton = false) {
   elements.bookmarkList.innerHTML = '';
-  elements.bookmarkList.appendChild(emptyState.create());
+
+  const emptyContainer = document.createElement('div');
+  emptyContainer.className = 'welcome-container';
+
+  let buttonsHtml = '';
+  if (showImportButton) {
+    buttonsHtml = `
+      <div class="welcome-actions">
+        <button id="emptyImportBtn" class="btn btn-primary">
+          📥 导入浏览器收藏
+        </button>
+        ${showClearButton ? `<button id="emptyClearBtn" class="btn" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">🗑️ 清空数据并重新导入</button>` : ''}
+      </div>
+    `;
+  }
+
+  emptyContainer.innerHTML = `
+    <div class="welcome-content">
+      <div class="welcome-icon">📚</div>
+      <h2>${title}</h2>
+      <p class="welcome-desc">${description}</p>
+      ${buttonsHtml}
+    </div>
+  `;
+
+  elements.bookmarkList.appendChild(emptyContainer);
+
+  // 如果有导入按钮，绑定事件
+  if (showImportButton) {
+    const importBtn = document.getElementById('emptyImportBtn');
+    if (importBtn) {
+      importBtn.addEventListener('click', async () => {
+        importBtn.textContent = '正在导入...';
+        importBtn.disabled = true;
+
+        try {
+          const response = await chrome.runtime.sendMessage({ type: 'IMPORT_FROM_BROWSER' });
+
+          if (response.success) {
+            Toast.success(response.message || `成功导入 ${response.imported || 0} 个收藏！`);
+            await loadBookmarks();
+          } else if (response.error) {
+            Toast.error('导入失败：' + response.error);
+          }
+        } catch (error) {
+          Toast.error('导入失败：' + error.message);
+        } finally {
+          importBtn.textContent = '📥 导入浏览器收藏';
+          importBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  // 如果有清空按钮，绑定事件
+  if (showClearButton) {
+    const clearBtn = document.getElementById('emptyClearBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!confirm('确定要清空所有数据吗？这将删除所有收藏、分类和标签。')) {
+          return;
+        }
+
+        clearBtn.textContent = '正在清空...';
+        clearBtn.disabled = true;
+
+        try {
+          const response = await chrome.runtime.sendMessage({ type: 'CLEAR_DATA' });
+
+          if (response.success) {
+            Toast.success('数据已清空，正在重新导入...');
+            // 自动重新导入
+            setTimeout(async () => {
+              const importResponse = await chrome.runtime.sendMessage({ type: 'IMPORT_FROM_BROWSER' });
+              if (importResponse.success) {
+                Toast.success(importResponse.message || '导入成功！');
+                await loadBookmarks();
+              }
+            }, 500);
+          } else if (response.error) {
+            Toast.error('清空失败：' + response.error);
+          }
+        } catch (error) {
+          Toast.error('清空失败：' + error.message);
+        } finally {
+          clearBtn.textContent = '🗑️ 清空数据并重新导入';
+          clearBtn.disabled = false;
+        }
+      });
+    }
+  }
 }
 
 /**
@@ -259,7 +334,19 @@ function buildTreeData(bookmarks) {
   // 创建 ID 到节点的映射
   const itemMap = new Map();
 
-  // 第一遍：创建所有节点
+  // 先添加所有分类
+  if (state.categories && state.categories.length > 0) {
+    state.categories.forEach(category => {
+      itemMap.set(category.id, {
+        ...category,
+        title: category.name, // 统一使用 title 字段
+        type: 'folder',
+        children: []
+      });
+    });
+  }
+
+  // 添加所有书签
   bookmarks.forEach(bookmark => {
     itemMap.set(bookmark.id, {
       ...bookmark,
@@ -268,26 +355,23 @@ function buildTreeData(bookmarks) {
     });
   });
 
-  // 如果有分类数据，也加入映射
-  if (state.categories && state.categories.length > 0) {
-    state.categories.forEach(category => {
-      if (!itemMap.has(category.id)) {
-        itemMap.set(category.id, {
-          ...category,
-          type: 'folder',
-          children: []
-        });
-      }
-    });
-  }
-
-  // 第二遍：构建父子关系
+  // 构建父子关系
   const rootItems = [];
 
   itemMap.forEach(item => {
-    if (item.parentId && itemMap.has(item.parentId)) {
+    // 确定父节点ID
+    let parentId = null;
+    if (item.type === 'folder') {
+      // 分类使用 parentId
+      parentId = item.parentId;
+    } else {
+      // 书签使用 categoryId
+      parentId = item.categoryId;
+    }
+
+    if (parentId && itemMap.has(parentId)) {
       // 有父节点，添加到父节点的 children 中
-      const parent = itemMap.get(item.parentId);
+      const parent = itemMap.get(parentId);
       if (!parent.children) {
         parent.children = [];
       }
@@ -364,7 +448,9 @@ function renderCategories() {
 
     const categoryHeader = document.createElement('div');
     categoryHeader.className = 'category-header';
+    categoryHeader.style.cursor = 'pointer';
     categoryHeader.innerHTML = `
+      <span class="category-toggle">▶</span>
       <span class="category-icon">📁</span>
       <span class="category-name">${escapeHtml(category.name)}</span>
       <span class="category-count">${categoryBookmarks.length}</span>
@@ -372,11 +458,24 @@ function renderCategories() {
 
     const categoryList = document.createElement('div');
     categoryList.className = 'category-list';
+    categoryList.style.display = 'none'; // 默认折叠
 
     categoryBookmarks.forEach(bookmark => {
       const bookmarkEl = createBookmarkElement(bookmark);
       categoryList.appendChild(bookmarkEl);
     });
+
+    // 点击标题展开/收起
+    categoryHeader.onclick = () => {
+      const toggle = categoryHeader.querySelector('.category-toggle');
+      if (categoryList.style.display === 'none') {
+        categoryList.style.display = 'block';
+        toggle.textContent = '▼';
+      } else {
+        categoryList.style.display = 'none';
+        toggle.textContent = '▶';
+      }
+    };
 
     categoryElement.appendChild(categoryHeader);
     categoryElement.appendChild(categoryList);
