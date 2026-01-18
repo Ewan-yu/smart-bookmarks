@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Bookmarks</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="title">
+        <h1>Smart Bookmarks</h1>
+      </div>
+      <div class="actions">
+        <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
+      </div>
+    </header>
+
+    <div class="search-section">
+      <div class="search-input-wrapper">
+        <input type="text" id="searchInput" placeholder="搜索收藏..." autocomplete="off" />
+        <div class="search-suggestions" id="searchSuggestions" style="display: none;"></div>
+      </div>
+      <div class="search-stats" id="searchStats" style="display: none;"></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="all">全部</button>
+      <button class="tab" data-tab="categories">分类</button>
+      <button class="tab" data-tab="tags">标签</button>
+    </div>
+
+    <div class="toolbar">
+      <button id="analyzeBtn" class="tool-btn">🤖 一键分析</button>
+      <button id="checkBrokenBtn" class="tool-btn">⚠️ 失效检测</button>
+      <button id="syncBtn" class="tool-btn">🔄 同步</button>
+    </div>
+
+    <!-- 进度显示 -->
+    <div class="progress-section" id="progressSection" style="display: none;">
+      <div class="progress-info">
+        <span id="progressMessage">正在分析...</span>
+        <span id="progressCount" class="progress-count">0/0</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="bookmarkList" class="bookmark-list">
+        <!-- 收藏列表将动态渲染 -->
+        <div class="empty-state">
+          <p>正在加载收藏...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button id="exportBtn">导出</button>
+      <button id="importBtn">导入</button>
+    </div>
+  </div>
+
+  <!-- 确认对话框将通过 JS 动态创建 -->
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

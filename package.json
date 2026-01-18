@@ -1,0 +1,17 @@
+{
+  "name": "smart-bookmarks",
+  "version": "1.0.0",
+  "description": "智能收藏夹管理浏览器插件 - 支持AI分类、失效检测、快速搜索",
+  "scripts": {
+    "build": "echo 'Build functionality to be added'",
+    "dev": "echo 'Development mode to be implemented'"
+  },
+  "keywords": [
+    "bookmarks",
+    "chrome-extension",
+    "ai",
+    "productivity"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

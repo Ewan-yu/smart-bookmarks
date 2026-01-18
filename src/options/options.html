@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Bookmarks - 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>⚙️ 设置</h1>
+    </header>
+
+    <main class="main">
+      <section class="section">
+        <h2>AI 配置</h2>
+        <p class="section-desc">
+          配置 OpenAI 兼容的 API 来启用智能分类和语义搜索功能。
+        </p>
+
+        <form id="aiConfigForm" class="form">
+          <div class="form-group">
+            <label for="apiUrl">API 地址</label>
+            <input
+              type="url"
+              id="apiUrl"
+              placeholder="https://api.openai.com/v1"
+              required
+            />
+            <small>支持 OpenAI 兼容的 API 地址</small>
+          </div>
+
+          <div class="form-group">
+            <label for="apiKey">API 密钥</label>
+            <input
+              type="password"
+              id="apiKey"
+              placeholder="sk-..."
+              required
+            />
+            <small>密钥仅存储在本地，不会上传到其他服务器</small>
+          </div>
+
+          <div class="form-group">
+            <label for="model">模型名称</label>
+            <input
+              type="text"
+              id="model"
+              placeholder="gpt-3.5-turbo"
+              value="gpt-3.5-turbo"
+              required
+            />
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">保存配置</button>
+            <button type="button" id="testBtn" class="btn btn-secondary">测试连接</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="section">
+        <h2>数据管理</h2>
+        <p class="section-desc">管理收藏夹数据</p>
+
+        <div class="data-actions">
+          <button id="importBookmarks" class="btn btn-secondary">
+            📥 从浏览器导入
+          </button>
+          <button id="exportBookmarks" class="btn btn-secondary">
+            📤 导出为 JSON
+          </button>
+          <button id="clearData" class="btn btn-danger">
+            🗑️ 清空所有数据
+          </button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>关于</h2>
+        <div class="about">
+          <p><strong>Smart Bookmarks</strong> v1.0.0</p>
+          <p>智能收藏夹管理插件</p>
+          <p style="margin-top: 12px;">
+            <a href="#" id="githubLink">GitHub</a> |
+            <a href="#" id="docsLink">文档</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
