@@ -390,7 +390,7 @@ function bindEvents() {
   // 搜索
   elements.searchInput.addEventListener('input', (e) => {
     state.searchTerm = e.target.value;
-    filterBookmarks();
+    performSearch();
   });
 
   // 标签切换
@@ -1077,7 +1077,7 @@ function truncateUrl(url, maxLength) {
 }
 
 // 过滤收藏（搜索入口）
-async function filterBookmarks() {
+async function performSearch() {
   const searchTerm = state.searchTerm.trim();
 
   // 如果没有搜索词，显示所有收藏
