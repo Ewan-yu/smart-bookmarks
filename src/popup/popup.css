@@ -19,18 +19,25 @@
   box-sizing: border-box;
 }
 
+html, body {
+  width: 500px;
+  height: 600px;
+  margin: 0;
+  padding: 0;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-color);
   color: var(--text-primary);
-  min-width: 400px;
-  max-width: 600px;
+  overflow: hidden;
 }
 
 .container {
   display: flex;
   flex-direction: column;
-  height: 600px;
+  height: 100%;
+  width: 100%;
 }
 
 /* Header */
@@ -1319,12 +1326,8 @@ button:disabled:hover {
   color: var(--text-primary);
 }
 
-/* 响应式调整 */
+/* 响应式调整 - popup 窗口固定宽度，不需要响应式 */
 @media (max-width: 480px) {
-  body {
-    min-width: 100%;
-  }
-
   .dialog {
     min-width: 90%;
     margin: 20px;
