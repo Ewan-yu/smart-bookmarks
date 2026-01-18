@@ -34,8 +34,8 @@ export async function analyzeBookmarks(
     batches.push(bookmarks.slice(i, i + batchSize));
   }
 
-  const allCategories: Map<string, CategoryResult> = new Map();
-  const allTags: TagSuggestion[] = [];
+  const allCategories = new Map();
+  const allTags = [];
 
   // 逐批分析
   for (let i = 0; i < batches.length; i++) {
