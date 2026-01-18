@@ -1,6 +1,9 @@
 // Smart Bookmarks - Popup Script
 // 主入口文件 - 完整版，集成 UI 组件和渲染器
 
+import { TreeRenderer, SearchResultsRenderer, ContextMenuRenderer } from '../ui/renderers.js';
+import { Toast, ProgressBar, LoadingSpinner, EmptyState, ConfirmDialog } from '../ui/components.js';
+
 console.log('Smart Bookmarks popup loaded');
 
 // DOM 元素引用
