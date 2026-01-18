@@ -11,72 +11,21 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE = 1000;
 
 /**
- * AI 分析请求配置
- */
-interface AnalysisConfig {
-  apiUrl: string;
-  apiKey: string;
-  model: string;
-}
-
-/**
- * 分析进度回调
- */
-interface ProgressCallback {
-  (current: number, total: number, message: string): void;
-}
-
-/**
- * 分析结果中的分类
- */
-interface CategoryResult {
-  name: string;
-  confidence: number;
-  bookmarkIds: string[];
-  isNew: boolean; // 是否为建议新增的分类
-}
-
-/**
- * 标签建议
- */
-interface TagSuggestion {
-  name: string;
-  bookmarkId: string;
-}
-
-/**
- * 完整分析结果
- */
-interface AnalysisResult {
-  categories: CategoryResult[];
-  tags: TagSuggestion[];
-  summary: {
-    totalBookmarks: number;
-    categorizedCount: number;
-    newCategories: string[];
-    adjustedCategories: Array<{
-      name: string;
-      addedCount: number;
-      removedCount: number;
-    }>;
-  };
-}
-
-/**
  * 调用 AI 分析收藏（带进度回调）
- * @param config - API 配置
- * @param bookmarks - 待分析的收藏列表
- * @param existingCategories - 用户已有的分类（作为参考）
- * @param batchSize - 每批分析的收藏数量
- * @param onProgress - 进度回调
+ * @param {Object} config - API 配置
+ * @param {Array} bookmarks - 待分析的收藏列表
+ * @param {Array} existingCategories - 用户已有的分类（作为参考）
+ * @param {number} batchSize - 每批分析的收藏数量
+ * @param {Function} onProgress - 进度回调
+ * @returns {Promise<Object>} 分析结果
  */
 export async function analyzeBookmarks(
-  config: AnalysisConfig,
-  bookmarks: Array<{ id: string; title: string; url: string; description?: string }>,
-  existingCategories: string[] = [],
-  batchSize: number = 10,
-  onProgress?: ProgressCallback
-): Promise<AnalysisResult> {
+  config,
+  bookmarks,
+  existingCategories = [],
+  batchSize = 10,
+  onProgress
+) {
   const { apiUrl, apiKey, model } = config;
 
   // 分批分析，避免单次请求数据量过大
@@ -111,7 +60,7 @@ export async function analyzeBookmarks(
 
       // 处理分类结果
       if (parsed.categories && Array.isArray(parsed.categories)) {
-        parsed.categories.forEach((cat: any) => {
+        parsed.categories.forEach((cat) => {
           const key = cat.name.toLowerCase();
           if (allCategories.has(key)) {
             // 合并到已有分类
@@ -133,7 +82,7 @@ export async function analyzeBookmarks(
 
       // 处理标签建议
       if (parsed.tags && Array.isArray(parsed.tags)) {
-        parsed.tags.forEach((tag: any) => {
+        parsed.tags.forEach((tag) => {
           allTags.push({
             name: tag.name || tag,
             bookmarkId: tag.bookmarkId
@@ -159,18 +108,18 @@ export async function analyzeBookmarks(
 
 /**
  * 带重试机制的 Fetch 请求
+ * @param {Function} fetchFn - Fetch 函数
+ * @param {number} maxRetries - 最大重试次数
+ * @param {number} attempt - 当前尝试次数
+ * @returns {Promise<string>}
  */
-async function fetchWithRetry(
-  fetchFn: () => Promise<Response>,
-  maxRetries: number,
-  attempt: number = 0
-): Promise<string> {
+async function fetchWithRetry(fetchFn, maxRetries, attempt = 0) {
   try {
     const response = await fetchFn();
 
     if (!response.ok) {
       const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
-      (error as any).status = response.status;
+      error.status = response.status;
       throw error;
     }
 
@@ -182,7 +131,7 @@ async function fetchWithRetry(
     }
 
     return content;
-  } catch (error: any) {
+  } catch (error) {
     // 429 (Too Many Requests) 或 5xx 错误时重试
     const shouldRetry =
       attempt < maxRetries &&
@@ -202,13 +151,13 @@ async function fetchWithRetry(
 
 /**
  * 调用 OpenAI API
+ * @param {string} apiUrl - API 地址
+ * @param {string} apiKey - API 密钥
+ * @param {string} model - 模型名称
+ * @param {string} prompt - 提示词
+ * @returns {Promise<Response>}
  */
-async function callOpenAI(
-  apiUrl: string,
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<Response> {
+async function callOpenAI(apiUrl, apiKey, model, prompt) {
   return fetch(`${apiUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -235,8 +184,9 @@ async function callOpenAI(
 
 /**
  * 获取系统提示词
+ * @returns {string}
  */
-function getSystemPrompt(): string {
+function getSystemPrompt() {
   return `你是一个专业的收藏夹智能分类助手。你的职责是：
 1. 分析收藏的标题、URL和描述，将它们智能分类
 2. 优先使用用户已有的分类体系
@@ -248,11 +198,11 @@ function getSystemPrompt(): string {
 
 /**
  * 构建分析提示词
+ * @param {Array} bookmarks - 书签数组
+ * @param {Array} existingCategories - 现有分类
+ * @returns {string}
  */
-function buildAnalysisPrompt(
-  bookmarks: Array<{ id: string; title: string; url: string; description?: string }>,
-  existingCategories: string[]
-): string {
+function buildAnalysisPrompt(bookmarks, existingCategories) {
   const bookmarksList = bookmarks.map((bm, index) => {
     const desc = bm.description ? `\n   描述: ${bm.description}` : '';
     return `${index + 1}. [ID: ${bm.id}] ${bm.title}\n   URL: ${bm.url}${desc}`;
@@ -296,21 +246,17 @@ ${bookmarksList}
 
 /**
  * 生成分析摘要
+ * @param {Map} categories - 分类映射
+ * @param {Array} existingCategories - 现有分类列表
+ * @param {number} totalBookmarks - 总书签数
+ * @returns {Object} 分析摘要
  */
-function generateSummary(
-  categories: Map<string, CategoryResult>,
-  existingCategories: string[],
-  totalBookmarks: number
-) {
-  const newCategories: string[] = [];
-  const adjustedCategories: Array<{
-    name: string;
-    addedCount: number;
-    removedCount: number;
-  }> = [];
+function generateSummary(categories, existingCategories, totalBookmarks) {
+  const newCategories = [];
+  const adjustedCategories = [];
 
   let categorizedCount = 0;
-  const categorizedIds = new Set<string>();
+  const categorizedIds = new Set();
 
   categories.forEach((cat) => {
     cat.bookmarkIds.forEach(id => categorizedIds.add(id));
@@ -338,20 +284,22 @@ function generateSummary(
 
 /**
  * 延迟函数
+ * @param {number} ms - 延迟毫秒数
+ * @returns {Promise<void>}
  */
-function sleep(ms: number): Promise<void> {
+function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
  * 语义搜索（增强版）
  * 支持更复杂的查询理解和结果排序
+ * @param {Object} config - API 配置
+ * @param {string} query - 搜索查询
+ * @param {Array} bookmarks - 书签数组
+ * @returns {Promise<Array>} 搜索结果 ID 数组
  */
-export async function semanticSearch(
-  config: AnalysisConfig,
-  query: string,
-  bookmarks: Array<{ id: string; title: string; url: string; description?: string; tags?: string[] }>
-): Promise<string[]> {
+export async function semanticSearch(config, query, bookmarks) {
   const { apiUrl, apiKey, model } = config;
 
   // 如果收藏太多，先进行简单的本地过滤，减少 API 调用成本
@@ -457,8 +405,10 @@ ${bookmarkList}
 
 /**
  * 测试 API 连接
+ * @param {Object} config - API 配置
+ * @returns {Promise<boolean>}
  */
-export async function testConnection(config: AnalysisConfig): Promise<boolean> {
+export async function testConnection(config) {
   try {
     const response = await fetch(`${config.apiUrl}/models`, {
       method: 'GET',
