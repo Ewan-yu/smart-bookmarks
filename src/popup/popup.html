@@ -4,71 +4,133 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Bookmarks</title>
+  <link rel="stylesheet" href="tailwind.css">
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <div class="container">
-    <header class="header">
-      <div class="title">
-        <h1>Smart Bookmarks</h1>
-      </div>
-      <div class="actions">
-        <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
-      </div>
-    </header>
+<body class="bg-slate-50 text-slate-800 antialiased flex flex-col" style="width:580px;height:660px;overflow:hidden;">
 
-    <div class="search-section">
-      <div class="search-input-wrapper">
-        <input type="text" id="searchInput" placeholder="搜索收藏..." autocomplete="off" />
-        <div class="search-suggestions" id="searchSuggestions" style="display: none;"></div>
+  <!-- ===== Header ===== -->
+  <header class="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md flex-shrink-0">
+    <span class="text-xl leading-none select-none">🔖</span>
+    <h1 class="text-white font-semibold text-base flex-1 tracking-wide">Smart Bookmarks</h1>
+    <button id="settingsBtn"
+      class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200"
+      title="设置">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ===== Search Section ===== -->
+  <div class="flex-shrink-0 bg-white px-4 pt-3 pb-2.5 border-b border-slate-100 shadow-sm">
+    <div class="relative">
+      <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+        <svg class="w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
       </div>
-      <div class="search-stats" id="searchStats" style="display: none;"></div>
+      <input type="text" id="searchInput"
+        class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm
+               placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/50
+               focus:border-indigo-400 transition-all duration-200"
+        placeholder="搜索收藏... 支持 tag:标签  site:域名"
+        autocomplete="off" />
+      <div id="searchSuggestions"
+        class="search-suggestions absolute top-full left-0 right-0 bg-white border border-slate-200
+               rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
+        style="display: none;"></div>
     </div>
+    <div id="searchStats" class="mt-1.5 text-xs text-slate-500" style="display: none;"></div>
+  </div>
 
-    <div class="tabs">
-      <button class="tab active" data-tab="all">全部</button>
-      <button class="tab" data-tab="categories">分类</button>
-      <button class="tab" data-tab="tags">标签</button>
+  <!-- ===== Nav Bar: Tabs + Toolbar ===== -->
+  <div class="flex-shrink-0 flex items-center bg-white border-b border-slate-100 px-3 gap-2">
+    <div class="flex gap-0.5 flex-1 py-2">
+      <button class="tab active px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150" data-tab="all">全部</button>
+      <button class="tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-slate-500 hover:bg-slate-100" data-tab="categories">分类</button>
+      <button class="tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-slate-500 hover:bg-slate-100" data-tab="tags">标签</button>
     </div>
-
-    <div class="toolbar">
-      <button id="analyzeBtn" class="tool-btn">🤖 一键分析</button>
-      <button id="checkBrokenBtn" class="tool-btn">⚠️ 失效检测</button>
-      <button id="syncBtn" class="tool-btn">🔄 同步</button>
-    </div>
-
-    <!-- 进度显示 -->
-    <div class="progress-section" id="progressSection" style="display: none;">
-      <div class="progress-info">
-        <span id="progressMessage">正在分析...</span>
-        <div class="progress-right">
-          <span id="progressEta" class="progress-eta"></span>
-          <span id="progressCount" class="progress-count">0/0</span>
-          <button id="cancelCheckBtn" class="cancel-check-btn" style="display:none;" title="取消检测">✕ 取消</button>
-        </div>
-      </div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-sub" id="progressSub"></div>
-    </div>
-
-    <div class="content">
-      <div id="bookmarkList" class="bookmark-list">
-        <!-- 收藏列表将动态渲染 -->
-        <div class="empty-state">
-          <p>正在加载收藏...</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <button id="exportBtn">导出</button>
-      <button id="importBtn">导入</button>
+    <div class="flex items-center gap-1 py-2">
+      <button id="analyzeBtn"
+        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+               bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all duration-150
+               disabled:opacity-50 disabled:cursor-not-allowed"
+        title="AI 智能分析并分类收藏">
+        🤖 分析
+      </button>
+      <button id="checkBrokenBtn"
+        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+               bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all duration-150
+               disabled:opacity-50 disabled:cursor-not-allowed"
+        title="检测失效链接">
+        ⚠️ 检测
+      </button>
+      <button id="syncBtn"
+        class="w-7 h-7 flex items-center justify-center rounded-lg text-sm
+               text-slate-500 hover:bg-slate-100 transition-all duration-150"
+        title="同步浏览器收藏夹">
+        🔄
+      </button>
     </div>
   </div>
 
-  <!-- 确认对话框将通过 JS 动态创建 -->
+  <!-- ===== Progress Section ===== -->
+  <div id="progressSection"
+    class="flex-shrink-0 px-4 py-2.5 bg-indigo-50 border-b border-indigo-100"
+    style="display: none;">
+    <div class="flex items-center justify-between mb-1.5">
+      <span id="progressMessage" class="text-xs font-semibold text-indigo-700">正在检测...</span>
+      <div class="flex items-center gap-2">
+        <span id="progressEta" class="text-xs text-indigo-500"></span>
+        <span id="progressCount" class="text-xs font-semibold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-md tabular-nums">0/0</span>
+        <button id="cancelCheckBtn"
+          class="text-xs px-2 py-0.5 rounded-md border border-indigo-300 text-indigo-600
+                 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-150"
+          style="display: none;">✕ 取消</button>
+      </div>
+    </div>
+    <div class="h-1.5 bg-indigo-200/60 rounded-full overflow-hidden">
+      <div id="progressFill"
+        class="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-300 ease-out"
+        style="width: 0%"></div>
+    </div>
+    <div id="progressSub" class="mt-1 text-xs text-indigo-500 min-h-[14px]"></div>
+  </div>
+
+  <!-- ===== Content Area ===== -->
+  <div class="flex-1 min-h-0 overflow-y-auto" id="bookmarkList">
+    <div class="flex flex-col items-center justify-center h-full gap-3 text-slate-400 py-16">
+      <svg class="w-7 h-7 animate-spin text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span class="text-sm">正在加载收藏...</span>
+    </div>
+  </div>
+
+  <!-- ===== Footer ===== -->
+  <footer class="flex-shrink-0 flex items-center justify-between px-4 py-2.5 bg-white border-t border-slate-100">
+    <div class="flex items-center gap-1.5">
+      <button id="importBtn"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
+               hover:bg-slate-100 rounded-lg transition-all duration-150 border border-slate-200"
+        title="从 JSON 文件导入收藏">
+        📥 导入
+      </button>
+      <button id="exportBtn"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
+               hover:bg-slate-100 rounded-lg transition-all duration-150 border border-slate-200"
+        title="导出收藏到 JSON 文件">
+        📤 导出
+      </button>
+    </div>
+    <div id="footerStats" class="text-xs text-slate-400"></div>
+  </footer>
 
   <script type="module" src="popup.js"></script>
 </body>

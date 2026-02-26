@@ -118,6 +118,7 @@ async function loadBookmarks() {
       state.categories = response.categories || [];
       state.tags = response.tags || [];
       renderBookmarks();
+      updateFooterStats();
     } else if (response && Array.isArray(response.bookmarks)) {
       // bookmarks 是空数组，说明已初始化但没有数据
       showEmptyState('暂无收藏', '您还没有添加任何收藏，点击下方按钮导入浏览器收藏', true, true);
@@ -278,6 +279,18 @@ function showEmptyState(title = '暂无收藏', description = '点击浏览器�
       });
     }
   }
+}
+
+/**
+ * 更新 footer 统计数字
+ */
+function updateFooterStats() {
+  const el = document.getElementById('footerStats');
+  if (!el) return;
+  const total = state.bookmarks.length;
+  if (total === 0) { el.textContent = ''; return; }
+  const broken = state.bookmarks.filter(b => b.checkStatus === 'broken' || b.checkStatus === 'timeout' || b.checkStatus === 'dns_error').length;
+  el.textContent = broken > 0 ? `共 ${total} 条  ⚠️ ${broken} 失效` : `共 ${total} 条收藏`;
 }
 
 /**
@@ -735,7 +748,7 @@ async function handleAnalyze() {
   } finally {
     state.isAnalyzing = false;
     elements.analyzeBtn.disabled = false;
-    elements.analyzeBtn.textContent = '🤖 一键分析';
+    elements.analyzeBtn.textContent = '🤖 分析';
   }
 }
 
@@ -1103,6 +1116,9 @@ async function startBrokenLinkCheck(resume = false) {
   elements.checkBrokenBtn.disabled = true;
   elements.checkBrokenBtn.textContent = '⏳ 检测中...';
 
+  // 更新 footer 统计
+  updateFooterStats();
+
   // 显示取消按钮
   if (elements.cancelCheckBtn) {
     elements.cancelCheckBtn.style.display = '';
@@ -1150,7 +1166,7 @@ async function startBrokenLinkCheck(resume = false) {
   } finally {
     state.isChecking = false;
     elements.checkBrokenBtn.disabled = false;
-    elements.checkBrokenBtn.textContent = '⚠️ 失效检测';
+    elements.checkBrokenBtn.textContent = '⚠️ 检测';
     hideProgress();
   }
 }
