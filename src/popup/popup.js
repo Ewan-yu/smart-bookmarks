@@ -29,6 +29,7 @@ const state = {
   searchTerm: '',
   isChecking: false,
   isAnalyzing: false,
+  checkInitiatedLocally: false,  // 本实例是否是发起检测的一方
   checkProgress: {
     completed: 0,
     total: 0,
@@ -51,6 +52,7 @@ function init() {
   loadBookmarks();
   bindEvents();
   listenToMessages();
+  restoreCheckingState(); // 如果后台正在检测，恢复 UI 状态
 }
 
 /**
@@ -1105,6 +1107,7 @@ function showResumeDialog({ sessionTime, checkedCount, remaining, total, onResum
  */
 async function startBrokenLinkCheck(resume = false) {
   state.isChecking = true;
+  state.checkInitiatedLocally = true;
   state.checkStartTime = Date.now();
   state.checkProgress = {
     completed: 0,
@@ -1134,11 +1137,22 @@ async function startBrokenLinkCheck(resume = false) {
 
   showProgress('正在检测链接...', 0, state.bookmarks.length);
 
+  let preventFinallyReset = false;
+
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'CHECK_BROKEN_LINKS',
       resume   // 传递续检标志给 background
     });
+
+    if (!response.success && response.alreadyRunning) {
+      // 后台已有检测在运行（竞态： restoreCheckingState 尚未完成）
+      // 保持 UI 为“检测中”状态，由 CHECK_DONE 广播负责重置
+      state.checkInitiatedLocally = false;
+      preventFinallyReset = true;
+      Toast.info('检测已在后台运行中，请等待完成...');
+      return;
+    }
 
     if (response.success) {
       const { total, brokenCount, brokenLinks, cancelled, skippedCount } = response;
@@ -1164,10 +1178,13 @@ async function startBrokenLinkCheck(resume = false) {
     console.error('Failed to check broken links:', error);
     Toast.error(`检测失败：${error.message}`);
   } finally {
-    state.isChecking = false;
-    elements.checkBrokenBtn.disabled = false;
-    elements.checkBrokenBtn.textContent = '⚠️ 检测';
-    hideProgress();
+    if (!preventFinallyReset) {
+      state.isChecking = false;
+      state.checkInitiatedLocally = false;
+      elements.checkBrokenBtn.disabled = false;
+      elements.checkBrokenBtn.textContent = '⚠️ 检测';
+      hideProgress();
+    }
   }
 }
 
@@ -1335,12 +1352,85 @@ function listenToMessages() {
     if (message.type === 'CHECK_PROGRESS') {
       state.checkProgress = message.data;
       updateCheckProgress();
+    } else if (message.type === 'CHECK_DONE') {
+      // 后台广播：检测完成（供重新打开的 popup 实例使用）
+      handleCheckDone(message.data);
     } else if (message.type === 'ANALYSIS_PROGRESS') {
       // 更新分析进度
       const { current, total, message: msg } = message.data;
       showProgress(msg || '正在分析...', current, total);
     }
   });
+}
+
+/**
+ * popup 重新打开时，查询后台是否正在检测，若是则恢复 UI 状态
+ */
+async function restoreCheckingState() {
+  if (state.isChecking) return;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'GET_CHECK_STATUS' });
+    if (state.isChecking) return; // 竞态双重检查
+    if (!res || !res.isRunning || !res.progress) return;
+
+    // 恢复检测中的 UI
+    state.isChecking = true;
+    state.checkInitiatedLocally = false;
+    state.checkStartTime = res.progress.startTime || Date.now();
+    state.checkProgress = {
+      completed:  res.progress.completed,
+      total:      res.progress.total,
+      brokenCount:res.progress.brokenCount,
+      percentage: res.progress.percentage
+    };
+
+    elements.checkBrokenBtn.disabled = true;
+    elements.checkBrokenBtn.textContent = '⏳ 检测中...';
+
+    if (elements.cancelCheckBtn) {
+      elements.cancelCheckBtn.style.display = '';
+      elements.cancelCheckBtn.disabled = false;
+      elements.cancelCheckBtn.textContent = '✕ 取消';
+      elements.cancelCheckBtn.onclick = async () => {
+        elements.cancelCheckBtn.disabled = true;
+        elements.cancelCheckBtn.textContent = '正在取消...';
+        await chrome.runtime.sendMessage({ type: 'CANCEL_CHECK' }).catch(() => {});
+      };
+    }
+
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) progressSection.style.display = '';
+    updateCheckProgress();
+  } catch (_) { /* 忽略 */ }
+}
+
+/**
+ * 处理后台广播的检测完成事件
+ * 仅用于"重新打开的 popup"场景；本实例发起的检测由 startBrokenLinkCheck.finally 处理
+ */
+function handleCheckDone({ cancelled, total, brokenCount, skippedCount }) {
+  // 本实例发起的检测，由 startBrokenLinkCheck 自己处理，此处跳过
+  if (state.checkInitiatedLocally) return;
+  // 若本实例并未处于检测中（正常不会触发），直接忽略
+  if (!state.isChecking) return;
+
+  state.isChecking = false;
+  state.checkInitiatedLocally = false;
+  elements.checkBrokenBtn.disabled = false;
+  elements.checkBrokenBtn.textContent = '⚠️ 检测';
+  hideProgress();
+  updateFooterStats();
+
+  if (cancelled) {
+    Toast.info('检测已取消。');
+  } else if (brokenCount === 0) {
+    const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
+    Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。${skipNote}`);
+  } else {
+    const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
+    Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。${skipNote}`);
+  }
+  loadBookmarks();
 }
 
 /**

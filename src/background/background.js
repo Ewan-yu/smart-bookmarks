@@ -32,6 +32,8 @@ let db = null;
 
 // 当前链接检测任务的取消令牌
 let currentCheckCancelToken = null;
+// 当前检测进度快照（popup 重新打开时用于恢复 UI）
+let currentCheckProgress = null;
 
 // 初始化数据库
 async function initDatabase() {
@@ -225,6 +227,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       return true;
 
+    case 'GET_CHECK_STATUS':
+      // 用于 popup 重新打开时查询后台检测是否仍在运行
+      sendResponse({
+        isRunning: currentCheckCancelToken !== null,
+        progress: currentCheckProgress
+      });
+      return true;
+
     case 'GET_CHECK_SESSION':
       chrome.storage.local.get('checkSession').then(result => {
         sendResponse({ session: result.checkSession || null });
@@ -309,6 +319,12 @@ async function handleSyncBookmarks(request, sendResponse) {
  */
 async function handleCheckBrokenLinks(request, sendResponse) {
   try {
+    // 防止重复启动：已有检测在运行时直接返回
+    if (currentCheckCancelToken !== null) {
+      sendResponse({ success: false, alreadyRunning: true });
+      return;
+    }
+
     await initDatabase();
 
     const allBookmarks = await getAllBookmarks();
@@ -364,14 +380,17 @@ async function handleCheckBrokenLinks(request, sendResponse) {
       retries:     1,
       cancelToken: currentCheckCancelToken,
       onProgress: (completed, total, brokenLinks) => {
+        const progressData = {
+          completed: completed + skippedCount,
+          total: allBookmarks.length,
+          brokenCount: brokenLinks.length,
+          percentage: Math.round(((completed + skippedCount) / allBookmarks.length) * 100),
+          startTime: sessionStart   // 供 popup 恢复时计算 ETA
+        };
+        currentCheckProgress = progressData;
         chrome.runtime.sendMessage({
           type: 'CHECK_PROGRESS',
-          data: {
-            completed: completed + skippedCount,
-            total: allBookmarks.length,
-            brokenCount: brokenLinks.length,
-            percentage: Math.round(((completed + skippedCount) / allBookmarks.length) * 100)
-          }
+          data: progressData
         }).catch(() => { /* popup 可能已关闭 */ });
       },
       // 增量保存：每条书签检测完立即写入 DB
@@ -384,6 +403,13 @@ async function handleCheckBrokenLinks(request, sendResponse) {
 
     const cancelled = currentCheckCancelToken.cancelled;
     currentCheckCancelToken = null;
+    currentCheckProgress = null;
+
+    // 广播检测结束，供重新打开的 popup 实例更新 UI
+    chrome.runtime.sendMessage({
+      type: 'CHECK_DONE',
+      data: { cancelled, total: allBookmarks.length, skippedCount }
+    }).catch(() => {});
 
     if (cancelled) {
       // 记录会话为已中断，保留 sessionStart 供下次续检
