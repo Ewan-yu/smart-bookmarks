@@ -21,10 +21,10 @@ import {
  */
 export async function checkLink(url, options = {}) {
   const {
-    timeout = 10000,
+    timeout = 6000,   // 缩短超时：大多数失效站点 3~5s 内即可确认
     method = 'HEAD',
     followRedirects = true,
-    retries = 2
+    retries = 1       // 减少重试：1 次即可，避免在失效链接上浪费时间
   } = options;
 
   // 尝试多次检测以提高准确性
@@ -184,19 +184,30 @@ function isTemporaryError(error) {
 }
 
 /**
- * 批量检测链接（带并发控制和进度报告）
- * @param {Array<string>} urls - URL数组
- * @param {Object} options - 检测选项
- * @param {number} options.concurrency - 并发数，默认3（避免过多并发导致性能问题）
- * @param {Function} options.onProgress - 进度回调函数 (completed, total, brokenLinks)
- * @param {number} options.delay - 批次间延迟（毫秒），默认500
- * @returns {Promise<Array<Object>>} 检测结果数组
+ * 批量检测链接（真并发池 + 域名 DNS 缓存）
+ *
+ * 相比旧的"分批等待最慢请求"模式，改为 N 个 worker 持续从队列取任务：
+ *   - 某个请求超时不会拖慢整批，空出的槽位立即被下一个 URL 填充
+ *   - DNS 失败的域名只发一次请求，同域名的其余链接直接跳过
+ *
+ * @param {Array<string>} urls - URL 数组
+ * @param {Object} options
+ * @param {number}   options.concurrency       - 最大并发数，默认 10
+ * @param {Function} options.onProgress        - 进度回调 (completed, total, brokenLinks[])
+ * @param {Function} options.onItemComplete    - 单条完成回调 (result)，立即触发
+ * @param {number}   options.delay             - 每条完成后的可选延迟（ms），默认 0
+ * @param {boolean}  options.enableDomainCache - 启用域名级 DNS 缓存，默认 true
+ * @param {Object}   options.cancelToken       - 取消令牌，设 .cancelled=true 可中止
+ * @returns {Promise<Array<Object>>}
  */
 export async function checkLinks(urls, options = {}) {
   const {
-    concurrency = 3,
+    concurrency = 10,
     onProgress,
-    delay = 500,
+    onItemComplete,
+    delay = 0,
+    enableDomainCache = true,
+    cancelToken = null,
     ...checkOptions
   } = options;
 
@@ -205,36 +216,70 @@ export async function checkLinks(urls, options = {}) {
   const total = urls.length;
   const brokenLinks = [];
 
-  // 分批处理以控制并发
-  for (let i = 0; i < urls.length; i += concurrency) {
-    const batch = urls.slice(i, i + concurrency);
+  // 只缓存 DNS 失败的域名，避免因域名正常但 URL 404 而误判
+  const deadDomains = new Set();
 
-    // 并发检测当前批次
-    const batchResults = await Promise.all(
-      batch.map(url => checkLink(url, checkOptions))
-    );
+  function getHostname(url) {
+    try { return new URL(url).hostname; } catch { return null; }
+  }
 
-    results.push(...batchResults);
+  async function processUrl(url) {
+    if (cancelToken && cancelToken.cancelled) return null;
 
-    // 统计失效链接
-    for (const result of batchResults) {
-      if (result.status !== 'ok' && result.status !== 'unknown') {
-        brokenLinks.push(result);
+    let result;
+    const hostname = getHostname(url);
+
+    if (enableDomainCache && hostname && deadDomains.has(hostname)) {
+      // 域名已确认 DNS 失败，无需发请求
+      result = {
+        url,
+        status: 'dns_error',
+        statusCode: 0,
+        error: 'DNS 解析失败（域名不可达）',
+        attempt: 0,
+        fromCache: true
+      };
+    } else {
+      result = await checkLink(url, checkOptions);
+      // 缓存 DNS 失败域名
+      if (enableDomainCache && hostname && result.status === 'dns_error') {
+        deadDomains.add(hostname);
       }
     }
 
-    completed += batch.length;
-
-    // 报告进度
-    if (onProgress) {
-      onProgress(completed, total, brokenLinks);
+    results.push(result);
+    if (result.status !== 'ok' && result.status !== 'unknown') {
+      brokenLinks.push(result);
     }
+    completed++;
 
-    // 批次间延迟，避免过于频繁的请求
-    if (i + concurrency < urls.length && delay > 0) {
-      await new Promise(resolve => setTimeout(resolve, delay));
+    if (onItemComplete) {
+      await onItemComplete(result);
+    }
+    if (onProgress) {
+      onProgress(completed, total, [...brokenLinks]);
+    }
+    return result;
+  }
+
+  // Worker 池：N 个 worker 并发从队列持续取任务
+  // JS 单线程保证 queue.shift() 是原子的，无竞争条件
+  const queue = [...urls];
+
+  async function worker() {
+    while (queue.length > 0) {
+      if (cancelToken && cancelToken.cancelled) break;
+      const url = queue.shift();
+      if (url === undefined) break;
+      await processUrl(url);
+      if (delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
+
+  const workerCount = Math.min(concurrency, urls.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
 
   return results;
 }
@@ -340,51 +385,48 @@ export async function checkBookmark(bookmark, options = {}) {
  * 批量检测书签
  * @param {Array<Object>} bookmarks - 书签数组
  * @param {Object} options - 检测选项
+ * @param {Function} options.onItemChecked - 单条书签状态更新后的回调（用于增量保存）
  * @returns {Promise<Array<Object>>} 检测结果数组
  */
 export async function checkBookmarks(bookmarks, options = {}) {
   const {
     onProgress,
+    onItemChecked,
     ...checkOptions
   } = options;
 
-  // 创建URL到书签的映射
-  const urlToBookmark = {};
-  bookmarks.forEach(b => {
-    urlToBookmark[b.url] = b;
-  });
+  // 建立 url → bookmark 映射
+  const urlToBookmark = new Map(bookmarks.map(b => [b.url, b]));
 
-  // 执行检测
   const results = await checkLinks(
     bookmarks.map(b => b.url),
     {
       ...checkOptions,
-      onProgress: (completed, total, brokenLinks) => {
-        // 将URL映射回书签ID
-        const brokenWithIds = brokenLinks.map(result => ({
-          ...result,
-          bookmarkId: urlToBookmark[result.url]?.id,
-          bookmarkTitle: urlToBookmark[result.url]?.title
-        }));
-
-        if (onProgress) {
-          onProgress(completed, total, brokenWithIds);
+      // 每条 URL 检测完立即更新对应书签状态并触发增量保存
+      onItemComplete: async (result) => {
+        if (!result) return;
+        const bookmark = urlToBookmark.get(result.url);
+        if (bookmark) {
+          bookmark.status = result.status === 'ok' ? 'active' : 'broken';
+          bookmark.checkError = result.error;
+          bookmark.checkStatusCode = result.statusCode;
+          bookmark.checkStatus = result.status;
+          bookmark.lastChecked = Date.now();
+          if (onItemChecked) {
+            await onItemChecked(bookmark);
+          }
         }
+      },
+      onProgress: (completed, total, brokenLinks) => {
+        const brokenWithIds = brokenLinks.map(r => ({
+          ...r,
+          bookmarkId: urlToBookmark.get(r.url)?.id,
+          bookmarkTitle: urlToBookmark.get(r.url)?.title
+        }));
+        if (onProgress) onProgress(completed, total, brokenWithIds);
       }
     }
   );
-
-  // 更新书签状态
-  for (const result of results) {
-    const bookmark = urlToBookmark[result.url];
-    if (bookmark) {
-      bookmark.status = result.status === 'ok' ? 'active' : 'broken';
-      bookmark.checkError = result.error;
-      bookmark.checkStatusCode = result.statusCode;
-      bookmark.checkStatus = result.status;
-      bookmark.lastChecked = result.timestamp || Date.now();
-    }
-  }
 
   return results;
 }

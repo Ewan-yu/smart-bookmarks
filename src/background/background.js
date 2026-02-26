@@ -30,6 +30,9 @@ chrome.action.onClicked.addListener(async (tab) => {
 // 数据库实例
 let db = null;
 
+// 当前链接检测任务的取消令牌
+let currentCheckCancelToken = null;
+
 // 初始化数据库
 async function initDatabase() {
   if (!db) {
@@ -215,6 +218,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCheckBrokenLinks(request, sendResponse);
       return true;
 
+    case 'CANCEL_CHECK':
+      if (currentCheckCancelToken) {
+        currentCheckCancelToken.cancelled = true;
+      }
+      sendResponse({ success: true });
+      return true;
+
     case 'AI_ANALYZE':
       handleAIAnalyze(request, sendResponse);
       return true;
@@ -287,28 +297,25 @@ async function handleSyncBookmarks(request, sendResponse) {
  */
 async function handleCheckBrokenLinks(request, sendResponse) {
   try {
-    const database = await initDatabase();
+    await initDatabase();
 
-    // 获取所有书签
-    let bookmarks = await getAllBookmarks();
+    const bookmarks = await getAllBookmarks();
 
     if (bookmarks.length === 0) {
-      sendResponse({
-        success: true,
-        total: 0,
-        brokenCount: 0,
-        brokenLinks: []
-      });
+      sendResponse({ success: true, total: 0, brokenCount: 0, brokenLinks: [] });
       return;
     }
 
-    // 检测选项
+    // 创建取消令牌，支持用户中止
+    currentCheckCancelToken = { cancelled: false };
+
     const options = {
-      concurrency: request.concurrency || 3,
-      timeout: request.timeout || 10000,
-      delay: request.delay || 500,
+      concurrency: request.concurrency || 10,   // 提升并发：10 路同时检测
+      timeout:     request.timeout     || 6000, // 缩短超时：6s 足以判断失效
+      delay:       request.delay       || 0,    // 无批次延迟
+      retries:     1,                           // 1 次重试
+      cancelToken: currentCheckCancelToken,
       onProgress: (completed, total, brokenLinks) => {
-        // 发送进度更新到 popup
         chrome.runtime.sendMessage({
           type: 'CHECK_PROGRESS',
           data: {
@@ -317,21 +324,20 @@ async function handleCheckBrokenLinks(request, sendResponse) {
             brokenCount: brokenLinks.length,
             percentage: Math.round((completed / total) * 100)
           }
-        }).catch(() => {
-          // Popup 可能已关闭，忽略错误
-        });
+        }).catch(() => { /* popup 可能已关闭 */ });
+      },
+      // 增量保存：每条书签检测完立即写入 DB，无需等待全部完成
+      onItemChecked: async (bookmark) => {
+        await addBookmark(bookmark);
       }
     };
 
-    // 执行批量检测（会自动更新书签状态）
     await checkBookmarks(bookmarks, options);
 
-    // 保存更新后的书签状态到数据库
-    for (const bookmark of bookmarks) {
-      await addBookmark(bookmark);
-    }
+    const cancelled = currentCheckCancelToken.cancelled;
+    currentCheckCancelToken = null;
 
-    // 获取失效链接
+    // 获取所有已标记为 broken 的书签
     const brokenLinks = bookmarks
       .filter(b => b.status === 'broken')
       .map(b => ({
@@ -343,23 +349,22 @@ async function handleCheckBrokenLinks(request, sendResponse) {
         checkStatus: b.checkStatus
       }));
 
-    // 自动将失效链接移至"待清理"分类
+    // 将失效链接移至"待清理"分类
     const movedCount = await batchMoveToPendingCleanup(brokenLinks);
 
     sendResponse({
       success: true,
+      cancelled,
       total: bookmarks.length,
       brokenCount: brokenLinks.length,
-      movedCount: movedCount,
-      brokenLinks: brokenLinks
+      movedCount,
+      brokenLinks
     });
 
   } catch (error) {
+    currentCheckCancelToken = null;
     console.error('Failed to check broken links:', error);
-    sendResponse({
-      success: false,
-      error: error.message
-    });
+    sendResponse({ success: false, error: error.message });
   }
 }
 

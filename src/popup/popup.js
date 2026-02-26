@@ -16,6 +16,7 @@ const elements = {
   importBtn: document.getElementById('importBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
   bookmarkList: document.getElementById('bookmarkList'),
+  cancelCheckBtn: document.getElementById('cancelCheckBtn'),
   tabs: document.querySelectorAll('.tab')
 };
 
@@ -34,6 +35,7 @@ const state = {
     brokenCount: 0,
     percentage: 0
   },
+  checkStartTime: 0,      // 检测开始时间，用于计算 ETA
   expandedFolders: new Set(),
   selectedItem: null
 };
@@ -975,6 +977,17 @@ function hideProgress() {
   if (progressFill) {
     progressFill.style.width = '0%';
   }
+
+  // 隐藏取消按钮
+  if (elements.cancelCheckBtn) {
+    elements.cancelCheckBtn.style.display = 'none';
+  }
+
+  // 清空附加信息
+  const etaEl = document.getElementById('progressEta');
+  const subEl = document.getElementById('progressSub');
+  if (etaEl) etaEl.textContent = '';
+  if (subEl) subEl.textContent = '';
 }
 
 /**
@@ -1009,6 +1022,7 @@ async function handleCheckBrokenLinks() {
  */
 async function startBrokenLinkCheck() {
   state.isChecking = true;
+  state.checkStartTime = Date.now();
   state.checkProgress = {
     completed: 0,
     total: state.bookmarks.length,
@@ -1019,21 +1033,36 @@ async function startBrokenLinkCheck() {
   elements.checkBrokenBtn.disabled = true;
   elements.checkBrokenBtn.textContent = '⏳ 检测中...';
 
+  // 显示取消按钮
+  if (elements.cancelCheckBtn) {
+    elements.cancelCheckBtn.style.display = '';
+    elements.cancelCheckBtn.disabled = false;
+    elements.cancelCheckBtn.textContent = '✕ 取消';
+
+    elements.cancelCheckBtn.onclick = async () => {
+      elements.cancelCheckBtn.disabled = true;
+      elements.cancelCheckBtn.textContent = '正在取消...';
+      await chrome.runtime.sendMessage({ type: 'CANCEL_CHECK' }).catch(() => {});
+    };
+  }
+
+  showProgress('正在检测链接...', 0, state.bookmarks.length);
+
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'CHECK_BROKEN_LINKS',
-      concurrency: 3,
-      timeout: 10000,
-      delay: 500
+      type: 'CHECK_BROKEN_LINKS'
+      // 使用 background 的新默认值：concurrency=10, timeout=6000
     });
 
     if (response.success) {
-      const { total, brokenCount, brokenLinks } = response;
+      const { total, brokenCount, brokenLinks, cancelled } = response;
 
-      if (brokenCount === 0) {
+      if (cancelled) {
+        Toast.info(`检测已取消，已完成 ${state.checkProgress.completed}/${total} 个。`);
+      } else if (brokenCount === 0) {
         Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。`);
       } else {
-        Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接。`);
+        Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。`);
         if (brokenLinks && brokenLinks.length > 0) {
           showBrokenLinksDetails(brokenLinks);
         }
@@ -1050,6 +1079,7 @@ async function startBrokenLinkCheck() {
     state.isChecking = false;
     elements.checkBrokenBtn.disabled = false;
     elements.checkBrokenBtn.textContent = '⚠️ 失效检测';
+    hideProgress();
   }
 }
 
@@ -1226,10 +1256,43 @@ function listenToMessages() {
 }
 
 /**
- * 更新检测进度
+ * 更新检测进度（响应 background 推送的 CHECK_PROGRESS 消息）
  */
 function updateCheckProgress() {
-  // TODO: 实现进度更新逻辑
+  const { completed, total, brokenCount, percentage } = state.checkProgress;
+
+  // 更新进度条
+  const progressFill = document.getElementById('progressFill');
+  const progressCount = document.getElementById('progressCount');
+  const progressMessage = document.getElementById('progressMessage');
+  const progressSection = document.getElementById('progressSection');
+  const progressEta = document.getElementById('progressEta');
+  const progressSub = document.getElementById('progressSub');
+
+  if (!progressSection) return;
+  progressSection.style.display = 'block';
+
+  if (progressFill) progressFill.style.width = `${percentage}%`;
+  if (progressCount) progressCount.textContent = `${completed}/${total}`;
+  if (progressMessage) progressMessage.textContent = '正在检测链接有效性...';
+  if (progressSub && brokenCount > 0) {
+    progressSub.textContent = `已发现 ${brokenCount} 个失效链接`;
+  }
+
+  // 计算并显示预计剩余时间
+  if (progressEta && completed > 0 && state.checkStartTime > 0) {
+    const elapsed = Date.now() - state.checkStartTime;
+    const rate = completed / elapsed; // 条/ms
+    const remaining = total - completed;
+    const etaMs = remaining / rate;
+
+    if (etaMs < 60000) {
+      progressEta.textContent = `约 ${Math.ceil(etaMs / 1000)} 秒`;
+    } else {
+      const mins = Math.ceil(etaMs / 60000);
+      progressEta.textContent = `约 ${mins} 分钟`;
+    }
+  }
 }
 
 /**
