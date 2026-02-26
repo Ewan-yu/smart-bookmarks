@@ -56,18 +56,48 @@ async function saveConfig(config) {
 
 // 测试 API 连接
 async function testConnection(config) {
+  elements.testBtn.disabled = true;
+  elements.testBtn.textContent = '测试中...';
+  showToast('正在测试连接...', 'success');
+
   try {
-    showToast('正在测试连接...', 'success');
-    elements.testBtn.disabled = true;
-    elements.testBtn.textContent = '测试中...';
+    // 发送一条最小化的 chat completion 请求来验证配置
+    const apiUrl = config.apiUrl.replace(/\/+$/, ''); // 去掉末尾斜杠
+    const response = await fetch(`${apiUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 5
+      })
+    });
 
-    // TODO: 实现实际的 API 测试
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 检查 Content-Type，避免把 HTML 错误页当 JSON 解析
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(`服务器返回非 JSON 响应 (${response.status})，请检查 API 地址是否正确`);
+    }
 
-    showToast('连接测试成功！', 'success');
+    const data = await response.json();
+
+    if (!response.ok) {
+      const errMsg = data?.error?.message || data?.message || response.statusText;
+      throw new Error(`${response.status}: ${errMsg}`);
+    }
+
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('API 返回结构异常，请确认模型名称是否正确');
+    }
+
+    showToast('✅ 连接测试成功！', 'success');
   } catch (error) {
     console.error('Connection test failed:', error);
-    showToast('连接测试失败：' + error.message, 'error');
+    showToast('❌ 连接测试失败：' + error.message, 'error');
   } finally {
     elements.testBtn.disabled = false;
     elements.testBtn.textContent = '测试连接';

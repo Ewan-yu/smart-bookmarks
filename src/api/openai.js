@@ -55,8 +55,9 @@ export async function analyzeBookmarks(
         MAX_RETRIES
       );
 
-      // 解析结果
-      const parsed = JSON.parse(result);
+      // 解析结果（兼容 AI 返回 markdown 代码块的情况，如 ```json...```）
+      const cleaned = result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleaned);
 
       // 处理分类结果
       if (parsed.categories && Array.isArray(parsed.categories)) {
@@ -117,17 +118,30 @@ async function fetchWithRetry(fetchFn, maxRetries, attempt = 0) {
   try {
     const response = await fetchFn();
 
+    // 先检查 Content-Type，避免把 HTML 错误页当 JSON 解析
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      const err = new Error(
+        `API 返回非 JSON 响应 (HTTP ${response.status})，请检查 API 地址是否正确。响应片段: ${text.slice(0, 200)}`
+      );
+      err.status = response.status;
+      throw err;
+    }
+
+    const data = await response.json();
+
     if (!response.ok) {
-      const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
+      const errMsg = data?.error?.message || data?.message || response.statusText;
+      const error = new Error(`API 请求失败 ${response.status}: ${errMsg}`);
       error.status = response.status;
       throw error;
     }
 
-    const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new Error('Empty response from API');
+      throw new Error('API 返回内容为空');
     }
 
     return content;
@@ -404,22 +418,41 @@ ${bookmarkList}
 }
 
 /**
- * 测试 API 连接
+ * 测试 API 连接（发送最小化 chat completion 请求）
  * @param {Object} config - API 配置
- * @returns {Promise<boolean>}
+ * @returns {Promise<{ok: boolean, message: string}>}
  */
 export async function testConnection(config) {
   try {
-    const response = await fetch(`${config.apiUrl}/models`, {
-      method: 'GET',
+    const apiUrl = (config.apiUrl || '').replace(/\/+$/, '');
+    const response = await fetch(`${apiUrl}/chat/completions`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`
-      }
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 5
+      })
     });
 
-    return response.ok;
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      return { ok: false, message: `服务器返回非 JSON 响应 (${response.status})，请检查 API 地址` };
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+      const errMsg = data?.error?.message || data?.message || response.statusText;
+      return { ok: false, message: `${response.status}: ${errMsg}` };
+    }
+
+    return { ok: true, message: '连接成功' };
   } catch (error) {
     console.error('Connection test failed:', error);
-    return false;
+    return { ok: false, message: error.message };
   }
 }
