@@ -991,7 +991,7 @@ function hideProgress() {
 }
 
 /**
- * 处理失效链接检测
+ * 处理失效链接检测（自动检测上次是否有中断会话）
  */
 async function handleCheckBrokenLinks() {
   if (state.isChecking) {
@@ -1004,23 +1004,93 @@ async function handleCheckBrokenLinks() {
     return;
   }
 
-  const confirm = new ConfirmDialog({
-    title: '检测失效链接',
-    message: `即将检测 ${state.bookmarks.length} 个收藏链接的有效性。\n\n检测可能需要一些时间，建议收藏数量较多时在后台运行。\n\n是否开始检测？`,
-    confirmText: '开始检测',
-    cancelText: '取消',
-    onConfirm: async () => {
-      startBrokenLinkCheck();
+  // 检查是否有中断的会话
+  let interruptedSession = null;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'GET_CHECK_SESSION' });
+    if (res && res.session && res.session.cancelled) {
+      interruptedSession = res.session;
     }
-  });
+  } catch (_) { /* 忽略 */ }
 
-  confirm.show();
+  if (interruptedSession) {
+    // 计算已检测数量（已更新 lastChecked 的书签）
+    const checkedCount = state.bookmarks.filter(
+      b => b.lastChecked && b.lastChecked >= interruptedSession.startTime
+    ).length;
+    const remaining = state.bookmarks.length - checkedCount;
+    const sessionTime = new Date(interruptedSession.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    // 自定义双按钮对话框：续检 / 重新全检
+    showResumeDialog({
+      sessionTime,
+      checkedCount,
+      remaining,
+      total: state.bookmarks.length,
+      onResume: () => startBrokenLinkCheck(true),
+      onFresh: async () => {
+        await chrome.runtime.sendMessage({ type: 'CLEAR_CHECK_SESSION' }).catch(() => {});
+        startBrokenLinkCheck(false);
+      }
+    });
+  } else {
+    const confirm = new ConfirmDialog({
+      title: '检测失效链接',
+      message: `即将检测 ${state.bookmarks.length} 个收藏链接的有效性。\n\n是否开始检测？`,
+      confirmText: '开始检测',
+      cancelText: '取消',
+      onConfirm: () => startBrokenLinkCheck(false)
+    });
+    confirm.show();
+  }
+}
+
+/**
+ * 显示续检 / 重新全检对话框
+ */
+function showResumeDialog({ sessionTime, checkedCount, remaining, total, onResume, onFresh }) {
+  // 复用 confirm-dialog 的遮罩，自己构造两按钮内容
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-dialog-overlay';
+
+  overlay.innerHTML = `
+    <div class="confirm-dialog">
+      <div class="confirm-dialog-header">
+        <h3>⏸️ 上次检测未完成</h3>
+      </div>
+      <div class="confirm-dialog-body">
+        <p>上次检测（${sessionTime}）被中断。</p>
+        <p>已完成 <strong>${checkedCount}</strong> 个，剩余 <strong>${remaining}</strong> 个未检测。</p>
+        <p style="margin-top:8px;color:var(--text-secondary);font-size:12px;">
+          续检将跳过已完成的 ${checkedCount} 个，只检测剩余部分。
+        </p>
+      </div>
+      <div class="confirm-dialog-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-secondary" id="resumeDialogFresh">🔄 重新全检</button>
+        <button class="btn btn-primary" id="resumeDialogResume">▶️ 继续上次（${remaining} 个）</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  function close() {
+    overlay.classList.remove('show');
+    overlay.classList.add('hide');
+    setTimeout(() => overlay.remove(), 300);
+  }
+
+  overlay.querySelector('#resumeDialogResume').addEventListener('click', () => { close(); onResume(); });
+  overlay.querySelector('#resumeDialogFresh').addEventListener('click', () => { close(); onFresh(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 }
 
 /**
  * 开始失效链接检测
+ * @param {boolean} resume - true=续检（跳过已检测），false=全新检测
  */
-async function startBrokenLinkCheck() {
+async function startBrokenLinkCheck(resume = false) {
   state.isChecking = true;
   state.checkStartTime = Date.now();
   state.checkProgress = {
@@ -1050,19 +1120,21 @@ async function startBrokenLinkCheck() {
 
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'CHECK_BROKEN_LINKS'
-      // 使用 background 的新默认值：concurrency=10, timeout=6000
+      type: 'CHECK_BROKEN_LINKS',
+      resume   // 传递续检标志给 background
     });
 
     if (response.success) {
-      const { total, brokenCount, brokenLinks, cancelled } = response;
+      const { total, brokenCount, brokenLinks, cancelled, skippedCount } = response;
 
       if (cancelled) {
         Toast.info(`检测已取消，已完成 ${state.checkProgress.completed}/${total} 个。`);
       } else if (brokenCount === 0) {
-        Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。`);
+        const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
+        Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。${skipNote}`);
       } else {
-        Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。`);
+        const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
+        Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。${skipNote}`);
         if (brokenLinks && brokenLinks.length > 0) {
           showBrokenLinksDetails(brokenLinks);
         }

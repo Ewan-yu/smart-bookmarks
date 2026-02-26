@@ -225,6 +225,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       return true;
 
+    case 'GET_CHECK_SESSION':
+      chrome.storage.local.get('checkSession').then(result => {
+        sendResponse({ session: result.checkSession || null });
+      });
+      return true;
+
+    case 'CLEAR_CHECK_SESSION':
+      chrome.storage.local.remove('checkSession').then(() => {
+        sendResponse({ success: true });
+      });
+      return true;
+
     case 'AI_ANALYZE':
       handleAIAnalyze(request, sendResponse);
       return true;
@@ -299,10 +311,46 @@ async function handleCheckBrokenLinks(request, sendResponse) {
   try {
     await initDatabase();
 
-    const bookmarks = await getAllBookmarks();
+    const allBookmarks = await getAllBookmarks();
+
+    if (allBookmarks.length === 0) {
+      sendResponse({ success: true, total: 0, brokenCount: 0, brokenLinks: [] });
+      return;
+    }
+
+    // ── 断点续检逻辑 ──────────────────────────────────────────────────────────
+    // 读取上次中断的会话（若存在）
+    const { checkSession } = await chrome.storage.local.get('checkSession');
+    let sessionStart;
+
+    if (request.resume && checkSession && checkSession.startTime) {
+      // 续检模式：只检测 lastChecked < sessionStart 的书签（即本次会话尚未检测的）
+      sessionStart = checkSession.startTime;
+    } else {
+      // 全新检测：记录新会话起始时间
+      sessionStart = Date.now();
+      await chrome.storage.local.set({
+        checkSession: { startTime: sessionStart, total: allBookmarks.length, cancelled: false }
+      });
+    }
+
+    // 过滤出本次需要检测的书签
+    const bookmarks = allBookmarks.filter(
+      b => !b.lastChecked || b.lastChecked < sessionStart
+    );
+
+    const skippedCount = allBookmarks.length - bookmarks.length;
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (bookmarks.length === 0) {
-      sendResponse({ success: true, total: 0, brokenCount: 0, brokenLinks: [] });
+      // 全部都已检测过
+      await chrome.storage.local.remove('checkSession');
+      const brokenLinks = allBookmarks
+        .filter(b => b.status === 'broken')
+        .map(b => ({ bookmarkId: b.id, url: b.url, title: b.title,
+          error: b.checkError, statusCode: b.checkStatusCode, checkStatus: b.checkStatus }));
+      sendResponse({ success: true, cancelled: false, total: allBookmarks.length,
+        skippedCount, brokenCount: brokenLinks.length, movedCount: 0, brokenLinks });
       return;
     }
 
@@ -310,23 +358,23 @@ async function handleCheckBrokenLinks(request, sendResponse) {
     currentCheckCancelToken = { cancelled: false };
 
     const options = {
-      concurrency: request.concurrency || 10,   // 提升并发：10 路同时检测
-      timeout:     request.timeout     || 6000, // 缩短超时：6s 足以判断失效
-      delay:       request.delay       || 0,    // 无批次延迟
-      retries:     1,                           // 1 次重试
+      concurrency: request.concurrency || 10,
+      timeout:     request.timeout     || 6000,
+      delay:       request.delay       || 0,
+      retries:     1,
       cancelToken: currentCheckCancelToken,
       onProgress: (completed, total, brokenLinks) => {
         chrome.runtime.sendMessage({
           type: 'CHECK_PROGRESS',
           data: {
-            completed,
-            total,
+            completed: completed + skippedCount,
+            total: allBookmarks.length,
             brokenCount: brokenLinks.length,
-            percentage: Math.round((completed / total) * 100)
+            percentage: Math.round(((completed + skippedCount) / allBookmarks.length) * 100)
           }
         }).catch(() => { /* popup 可能已关闭 */ });
       },
-      // 增量保存：每条书签检测完立即写入 DB，无需等待全部完成
+      // 增量保存：每条书签检测完立即写入 DB
       onItemChecked: async (bookmark) => {
         await addBookmark(bookmark);
       }
@@ -337,8 +385,18 @@ async function handleCheckBrokenLinks(request, sendResponse) {
     const cancelled = currentCheckCancelToken.cancelled;
     currentCheckCancelToken = null;
 
-    // 获取所有已标记为 broken 的书签
-    const brokenLinks = bookmarks
+    if (cancelled) {
+      // 记录会话为已中断，保留 sessionStart 供下次续检
+      await chrome.storage.local.set({
+        checkSession: { startTime: sessionStart, total: allBookmarks.length, cancelled: true }
+      });
+    } else {
+      // 正常完成，清除会话
+      await chrome.storage.local.remove('checkSession');
+    }
+
+    // 从全量书签中统计失效（包含本次跳过的已知失效书签）
+    const brokenLinks = allBookmarks
       .filter(b => b.status === 'broken')
       .map(b => ({
         bookmarkId: b.id,
@@ -355,7 +413,8 @@ async function handleCheckBrokenLinks(request, sendResponse) {
     sendResponse({
       success: true,
       cancelled,
-      total: bookmarks.length,
+      total: allBookmarks.length,
+      skippedCount,
       brokenCount: brokenLinks.length,
       movedCount,
       brokenLinks
