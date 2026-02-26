@@ -291,7 +291,8 @@ function updateFooterStats() {
   if (!el) return;
   const total = state.bookmarks.length;
   if (total === 0) { el.textContent = ''; return; }
-  const broken = state.bookmarks.filter(b => b.checkStatus === 'broken' || b.checkStatus === 'timeout' || b.checkStatus === 'dns_error').length;
+  // 以 status === 'broken' 为统一口径（与 待清理 分类保持一致）
+  const broken = state.bookmarks.filter(b => b.status === 'broken').length;
   el.textContent = broken > 0 ? `共 ${total} 条  ⚠️ ${broken} 失效` : `共 ${total} 条收藏`;
 }
 

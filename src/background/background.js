@@ -405,21 +405,18 @@ async function handleCheckBrokenLinks(request, sendResponse) {
     currentCheckCancelToken = null;
     currentCheckProgress = null;
 
-    // 广播检测结束，供重新打开的 popup 实例更新 UI
-    chrome.runtime.sendMessage({
-      type: 'CHECK_DONE',
-      data: { cancelled, total: allBookmarks.length, skippedCount }
-    }).catch(() => {});
-
-    if (cancelled) {
-      // 记录会话为已中断，保留 sessionStart 供下次续检
-      await chrome.storage.local.set({
-        checkSession: { startTime: sessionStart, total: allBookmarks.length, cancelled: true }
-      });
-    } else {
-      // 正常完成，清除会话
-      await chrome.storage.local.remove('checkSession');
+    // ── 清理已恢复的书签：从“待清理”移回无分类 ────────────────────────────────
+    const allCategories = await getAllCategories();
+    const pendingCat = allCategories.find(c => c.name === '待清理');
+    if (pendingCat) {
+      for (const b of allBookmarks) {
+        if (b.status !== 'broken' && b.categoryId === pendingCat.id) {
+          b.categoryId = null;   // 移回无分类
+          await addBookmark(b);  // 写回 DB
+        }
+      }
     }
+    // ──────────────────────────────────────────────────────────────────────────
 
     // 从全量书签中统计失效（包含本次跳过的已知失效书签）
     const brokenLinks = allBookmarks
@@ -432,6 +429,22 @@ async function handleCheckBrokenLinks(request, sendResponse) {
         statusCode: b.checkStatusCode,
         checkStatus: b.checkStatus
       }));
+
+    // 广播检测结束，供重新打开的 popup 实例更新 UI
+    chrome.runtime.sendMessage({
+      type: 'CHECK_DONE',
+      data: { cancelled, total: allBookmarks.length, skippedCount, brokenCount: brokenLinks.length }
+    }).catch(() => {});
+
+    if (cancelled) {
+      // 记录会话为已中断，保留 sessionStart 供下次续检
+      await chrome.storage.local.set({
+        checkSession: { startTime: sessionStart, total: allBookmarks.length, cancelled: true }
+      });
+    } else {
+      // 正常完成，清除会话
+      await chrome.storage.local.remove('checkSession');
+    }
 
     // 将失效链接移至"待清理"分类
     const movedCount = await batchMoveToPendingCleanup(brokenLinks);
