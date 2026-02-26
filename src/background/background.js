@@ -344,7 +344,7 @@ async function handleCheckBrokenLinks(request, sendResponse) {
       }));
 
     // 自动将失效链接移至"待清理"分类
-    const movedCount = await batchMoveToPendingCleanup(database, brokenLinks);
+    const movedCount = await batchMoveToPendingCleanup(brokenLinks);
 
     sendResponse({
       success: true,

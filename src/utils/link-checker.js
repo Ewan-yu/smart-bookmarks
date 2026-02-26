@@ -1,6 +1,14 @@
 // Smart Bookmarks - 链接检测工具
 // 用于检测收藏链接是否有效
 
+import {
+  getBookmark,
+  put,
+  getAllCategories,
+  addCategory,
+  STORES
+} from '../db/indexeddb.js';
+
 /**
  * 检测单个链接
  * @param {string} url - 要检测的URL
@@ -25,34 +33,19 @@ export async function checkLink(url, options = {}) {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      // 使用 chrome.fetch API 来绕过 CORS 限制
-      let response;
-
-      // 检查是否在 Chrome 扩展环境中
-      if (typeof chrome !== 'undefined' && chrome.fetch) {
-        // 使用 Chrome 扩展的 fetch API
-        response = await chrome.fetch(url, {
-          method,
-          redirect: followRedirects ? 'follow' : 'manual',
-          signal: controller.signal
-        });
-      } else {
-        // 降级到标准 fetch，使用 no-cors 模式
-        response = await fetch(url, {
-          method,
-          redirect: followRedirects ? 'follow' : 'manual',
-          signal: controller.signal,
-          mode: 'no-cors'
-        });
-      }
+      // Chrome 扩展 Background Service Worker 配合 host_permissions: ["<all_urls>"]
+      // 可以直接发起跨域请求，无需 no-cors 模式
+      const response = await fetch(url, {
+        method,
+        redirect: followRedirects ? 'follow' : 'manual',
+        signal: controller.signal
+      });
 
       clearTimeout(timeoutId);
 
-      // 获取状态码
-      const statusCode = response.status || 0;
+      const statusCode = response.status;
 
-      // 判断链接是否有效
-      // 状态码 2xx 和 3xx 视为有效，4xx 和 5xx 视为失效
+      // 2xx / 3xx 视为有效
       if (statusCode >= 200 && statusCode < 400) {
         return {
           url,
@@ -62,44 +55,20 @@ export async function checkLink(url, options = {}) {
           error: null,
           attempt: attempt + 1
         };
-      } else if (statusCode >= 400) {
-        // 客户端错误或服务器错误
-        return {
-          url,
-          status: 'broken',
-          statusCode,
-          error: getErrorMessage(statusCode),
-          attempt: attempt + 1
-        };
-      } else if (statusCode === 0 && response.type === 'opaque') {
-        // no-cors 模式下的 opaque 响应，无法确定状态
-        // 尝试使用 GET 请求再次验证
-        if (method === 'HEAD') {
-          clearTimeout(timeoutId);
-          const getResult = await checkLink(url, {
-            ...options,
-            method: 'GET',
-            retries: 0
-          });
-          return getResult;
-        }
-
-        // 无法确定状态，视为可能有效
-        return {
-          url,
-          status: 'unknown',
-          statusCode: 0,
-          error: '无法验证（CORS限制）',
-          attempt: attempt + 1
-        };
       }
 
+      // 405 Method Not Allowed：该站点不支持 HEAD，改用 GET 重试
+      if (statusCode === 405 && method === 'HEAD') {
+        clearTimeout(timeoutId);
+        return checkLink(url, { ...options, method: 'GET', retries: 0 });
+      }
+
+      // 4xx / 5xx 视为失效
       return {
         url,
-        status: 'ok',
+        status: 'broken',
         statusCode,
-        redirected: response.redirected || false,
-        error: null,
+        error: getErrorMessage(statusCode),
         attempt: attempt + 1
       };
 
@@ -427,15 +396,15 @@ export async function checkBookmarks(bookmarks, options = {}) {
  * @param {string} status - 状态
  * @param {string} error - 错误信息
  */
-export async function updateBookmarkStatus(db, bookmarkId, status, error = null) {
-  const bookmark = await db.getBookmark(bookmarkId);
+export async function updateBookmarkStatus(bookmarkId, status, error = null) {
+  const bookmark = await getBookmark(bookmarkId);
 
   if (bookmark) {
     bookmark.status = status === 'ok' ? 'active' : 'broken';
     bookmark.lastChecked = Date.now();
     bookmark.checkError = error;
 
-    await db.putBookmark(bookmark);
+    await put(STORES.BOOKMARKS, bookmark);
   }
 }
 
@@ -444,9 +413,9 @@ export async function updateBookmarkStatus(db, bookmarkId, status, error = null)
  * @param {Object} db - 数据库实例
  * @returns {Promise<Object>} 分类对象
  */
-export async function createPendingCleanupCategory(db) {
+export async function createPendingCleanupCategory() {
   // 检查是否已存在
-  const categories = await db.getAllCategories();
+  const categories = await getAllCategories();
   let category = categories.find(c => c.name === '待清理');
 
   if (!category) {
@@ -458,7 +427,7 @@ export async function createPendingCleanupCategory(db) {
       createdAt: Date.now()
     };
 
-    await db.addCategory(category);
+    await addCategory(category);
   }
 
   return category;
@@ -470,12 +439,12 @@ export async function createPendingCleanupCategory(db) {
  * @param {string} bookmarkId - 书签ID
  * @param {Object} checkResult - 检测结果
  */
-export async function moveToPendingCleanup(db, bookmarkId, checkResult) {
-  const bookmark = await db.getBookmark(bookmarkId);
+export async function moveToPendingCleanup(bookmarkId, checkResult) {
+  const bookmark = await getBookmark(bookmarkId);
 
   if (bookmark) {
     // 获取或创建"待清理"分类
-    const category = await createPendingCleanupCategory(db);
+    const category = await createPendingCleanupCategory();
 
     // 更新书签
     bookmark.categoryId = category.id;
@@ -485,7 +454,7 @@ export async function moveToPendingCleanup(db, bookmarkId, checkResult) {
     bookmark.checkStatusCode = checkResult.statusCode;
     bookmark.checkStatus = checkResult.status;
 
-    await db.putBookmark(bookmark);
+    await put(STORES.BOOKMARKS, bookmark);
 
     return { bookmark, category };
   }
@@ -499,12 +468,12 @@ export async function moveToPendingCleanup(db, bookmarkId, checkResult) {
  * @param {Array<Object>} brokenLinks - 失效链接数组
  * @returns {Promise<number>} 移动的数量
  */
-export async function batchMoveToPendingCleanup(db, brokenLinks) {
+export async function batchMoveToPendingCleanup(brokenLinks) {
   let movedCount = 0;
 
   for (const link of brokenLinks) {
     if (link.bookmarkId) {
-      await moveToPendingCleanup(db, link.bookmarkId, link);
+      await moveToPendingCleanup(link.bookmarkId, link);
       movedCount++;
     }
   }

@@ -18,31 +18,9 @@ let db = null;
 
 // 迁移任务映射表
 const MIGRATIONS = {
-  1: (db) => {
-    // 版本 1 -> 2 的迁移
-    // 添加新的索引和字段
-    const bookmarkStore = db.transaction.objectStore(STORES.BOOKMARKS);
-
-    // 添加新索引（如果不存在）
-    if (!bookmarkStore.indexNames.contains('browserId')) {
-      bookmarkStore.createIndex('browserId', 'browserId', { unique: false });
-    }
-    if (!bookmarkStore.indexNames.contains('dateAdded')) {
-      bookmarkStore.createIndex('dateAdded', 'dateAdded', { unique: false });
-    }
-
-    // 创建元数据表
-    if (!db.objectStoreNames.contains(STORES.METADATA)) {
-      const metadataStore = db.createObjectStore(STORES.METADATA, { keyPath: 'key' });
-      metadataStore.createIndex('value', 'value', { unique: false });
-    }
-
-    // 创建同步日志表
-    if (!db.objectStoreNames.contains(STORES.SYNC_LOG)) {
-      const syncLogStore = db.createObjectStore(STORES.SYNC_LOG, { keyPath: 'id' });
-      syncLogStore.createIndex('timestamp', 'timestamp', { unique: false });
-      syncLogStore.createIndex('type', 'type', { unique: false });
-    }
+  // v1→v2：新增的 object store 和索引已在 onupgradeneeded 中统一处理，无需额外操作
+  1: (_db) => {
+    console.log('数据库迁移 v1→v2：新表已在 onupgradeneeded 中创建，跳过');
   }
 };
 

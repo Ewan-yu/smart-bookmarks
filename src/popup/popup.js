@@ -157,7 +157,8 @@ function showWelcomeState() {
   elements.bookmarkList.appendChild(welcomeContainer);
 
   // 绑定导入按钮事件
-  document.getElementById('welcomeImportBtn').addEventListener('click', async () => {
+  const welcomeImportBtn = document.getElementById('welcomeImportBtn');
+  welcomeImportBtn.addEventListener('click', async () => {
     welcomeImportBtn.textContent = '正在导入...';
     welcomeImportBtn.disabled = true;
 
