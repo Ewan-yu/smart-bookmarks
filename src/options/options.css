@@ -10,6 +10,7 @@
   --text-secondary: #6b7280;
   --danger-color: #ef4444;
   --danger-hover: #dc2626;
+  --success-color: #16a34a;
 }
 
 * {
@@ -181,15 +182,18 @@ body {
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  padding: 12px 24px;
+  bottom: 32px;
+  right: 32px;
+  padding: 14px 28px;
   background: var(--text-primary);
   color: white;
-  border-radius: 8px;
-  font-size: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideIn 0.3s ease;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  animation: slideIn 0.25s ease;
+  z-index: 9999;
 }
 
 .toast.hidden {

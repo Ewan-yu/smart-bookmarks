@@ -94,7 +94,7 @@ async function testConnection(config) {
       throw new Error('API 返回结构异常，请确认模型名称是否正确');
     }
 
-    showToast('✅ 连接测试成功！', 'success');
+    showToast('✅ 测试通过', 'success');
   } catch (error) {
     console.error('Connection test failed:', error);
     showToast('❌ 连接测试失败：' + error.message, 'error');

@@ -55,9 +55,8 @@ export async function analyzeBookmarks(
         MAX_RETRIES
       );
 
-      // 解析结果（兼容 AI 返回 markdown 代码块的情况，如 ```json...```）
-      const cleaned = result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
+      // 解析结果（兼容思维链模型的 <think>…</think> 标签和 markdown 代码块）
+      const parsed = parseAIJSON(result);
 
       // 处理分类结果
       if (parsed.categories && Array.isArray(parsed.categories)) {
@@ -105,6 +104,36 @@ export async function analyzeBookmarks(
     tags: allTags,
     summary
   };
+}
+
+/**
+ * 从 AI 返回的原始文本中提取并解析 JSON
+ * 兼容：
+ *   1. 思维链模型输出的 <think>...</think> 推理标签（DeepSeek-R1 等）
+ *   2. AI 有时套一层 markdown 代码块 ```json ... ```
+ * @param {string} raw - AI 返回的原始文本
+ * @returns {Object} 解析后的 JSON 对象
+ */
+function parseAIJSON(raw) {
+  // 1. 剥离 <think>...</think>（含嵌套）
+  let text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. 剥离 markdown 代码块
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+  // 3. 如果还找不到 JSON 对象，尝试截取第一个 { ... }
+  if (!text.startsWith('{') && !text.startsWith('[')) {
+    const braceStart = text.indexOf('{');
+    const bracketStart = text.indexOf('[');
+    const start = braceStart === -1 ? bracketStart
+      : bracketStart === -1 ? braceStart
+      : Math.min(braceStart, bracketStart);
+    if (start !== -1) {
+      text = text.slice(start);
+    }
+  }
+
+  return JSON.parse(text);
 }
 
 /**
@@ -190,8 +219,8 @@ async function callOpenAI(apiUrl, apiKey, model, prompt) {
           content: prompt
         }
       ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
+      temperature: 0.3
+      // 不传 response_format，以兼容不支持该参数的模型（如推理模型）
     })
   });
 }
@@ -374,8 +403,8 @@ ${bookmarkList}
           }
         ],
         temperature: 0.1,
-        response_format: { type: 'json_object' },
         max_tokens: 2000
+        // 不传 response_format，以兼容不支持该参数的模型
       })
     });
 
@@ -392,10 +421,10 @@ ${bookmarkList}
       return [];
     }
 
-    // 解析 JSON 结果
+    // 解析 JSON 结果（兼容 <think> 标签 + markdown 代码块）
     let result;
     try {
-      result = JSON.parse(content);
+      result = parseAIJSON(content);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content);
       return [];
