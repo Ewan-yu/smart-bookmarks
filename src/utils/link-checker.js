@@ -395,35 +395,43 @@ export async function checkBookmarks(bookmarks, options = {}) {
     ...checkOptions
   } = options;
 
-  // 建立 url → bookmark 映射
-  const urlToBookmark = new Map(bookmarks.map(b => [b.url, b]));
+  // url → bookmark[] 映射（支持同一 URL 对应多个书签）
+  const urlToBookmarks = new Map();
+  for (const b of bookmarks) {
+    if (!urlToBookmarks.has(b.url)) urlToBookmarks.set(b.url, []);
+    urlToBookmarks.get(b.url).push(b);
+  }
+
+  // 去重后的 URL（同一 URL 只发一次请求）
+  const uniqueUrls = [...urlToBookmarks.keys()];
+
+  let brokenBookmarkCount = 0;   // 实际失效书签数（非 URL 数）
+  let completedBookmarkCount = 0; // 实际已处理书签数
+  const totalBookmarks = bookmarks.length;
 
   const results = await checkLinks(
-    bookmarks.map(b => b.url),
+    uniqueUrls,
     {
       ...checkOptions,
-      // 每条 URL 检测完立即更新对应书签状态并触发增量保存
+      // 每个唯一 URL 检测完后，更新该 URL 对应的所有书签
       onItemComplete: async (result) => {
         if (!result) return;
-        const bookmark = urlToBookmark.get(result.url);
-        if (bookmark) {
-          bookmark.status = result.status === 'ok' ? 'active' : 'broken';
+        const bmList = urlToBookmarks.get(result.url) || [];
+        const isBroken = result.status !== 'ok';
+        for (const bookmark of bmList) {
+          bookmark.status = isBroken ? 'broken' : 'active';
           bookmark.checkError = result.error;
           bookmark.checkStatusCode = result.statusCode;
           bookmark.checkStatus = result.status;
           bookmark.lastChecked = Date.now();
-          if (onItemChecked) {
-            await onItemChecked(bookmark);
-          }
+          if (onItemChecked) await onItemChecked(bookmark);
         }
+        if (isBroken) brokenBookmarkCount += bmList.length;
+        completedBookmarkCount += bmList.length;
       },
-      onProgress: (completed, total, brokenLinks) => {
-        const brokenWithIds = brokenLinks.map(r => ({
-          ...r,
-          bookmarkId: urlToBookmark.get(r.url)?.id,
-          bookmarkTitle: urlToBookmark.get(r.url)?.title
-        }));
-        if (onProgress) onProgress(completed, total, brokenWithIds);
+      onProgress: () => {
+        // 传递实际书签数（非 URL 数）到上层
+        if (onProgress) onProgress(completedBookmarkCount, totalBookmarks, brokenBookmarkCount);
       }
     }
   );

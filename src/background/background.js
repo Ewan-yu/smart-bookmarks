@@ -379,11 +379,11 @@ async function handleCheckBrokenLinks(request, sendResponse) {
       delay:       request.delay       || 0,
       retries:     1,
       cancelToken: currentCheckCancelToken,
-      onProgress: (completed, total, brokenLinks) => {
+      onProgress: (completed, total, brokenBookmarkCount) => {
         const progressData = {
           completed: completed + skippedCount,
           total: allBookmarks.length,
-          brokenCount: brokenLinks.length,
+          brokenCount: brokenBookmarkCount,
           percentage: Math.round(((completed + skippedCount) / allBookmarks.length) * 100),
           startTime: sessionStart   // 供 popup 恢复时计算 ETA
         };
