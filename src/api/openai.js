@@ -48,11 +48,10 @@ export async function analyzeBookmarks(
 
     // 构建分析提示
     const prompt = buildAnalysisPrompt(batch, existingCategories);
-    const maxTokens = estimateMaxTokens(batch.length);
 
     try {
       const result = await fetchWithRetry(
-        () => callOpenAI(apiUrl, apiKey, model, prompt, maxTokens),
+        () => callOpenAI(apiUrl, apiKey, model, prompt),
         MAX_RETRIES
       );
 
@@ -194,53 +193,35 @@ async function fetchWithRetry(fetchFn, maxRetries, attempt = 0) {
 }
 
 /**
- * 根据书签数量估算合理的 max_tokens
- * 每个分类约 40 token，每个标签约 20 token，加上 JSON 结构开销
- * @param {number} bookmarkCount - 书签数量
- * @returns {number}
- */
-function estimateMaxTokens(bookmarkCount) {
-  // 基础 200 + 每个书签 80 token，上限 4096
-  return Math.min(4096, 200 + bookmarkCount * 80);
-}
-
-/**
  * 调用 OpenAI API
  * @param {string} apiUrl - API 地址
  * @param {string} apiKey - API 密钥
  * @param {string} model - 模型名称
  * @param {string} prompt - 提示词
- * @param {number} [maxTokens] - 最大 completion token 数
  * @returns {Promise<Response>}
  */
-async function callOpenAI(apiUrl, apiKey, model, prompt, maxTokens) {
-  const body = {
-    model,
-    messages: [
-      {
-        role: 'system',
-        content: getSystemPrompt()
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: 0.3
-  };
-
-  // 设置 max_tokens 限制响应长度，减少模型过度思考
-  if (maxTokens) {
-    body.max_tokens = maxTokens;
-  }
-
+async function callOpenAI(apiUrl, apiKey, model, prompt) {
   return fetch(`${apiUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: getSystemPrompt()
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3
+      // 不传 response_format，以兼容不支持该参数的模型（如推理模型）
+    })
   });
 }
 
@@ -458,16 +439,13 @@ export async function analyzeBookmarksDebug(config, bookmarks, existingCategorie
     const prompt = buildAnalysisPrompt(bookmarks, existingCategories);
     const systemPrompt = getSystemPrompt();
 
-    const maxTokens = estimateMaxTokens(bookmarks.length);
-
     const requestBody = {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.3,
-      max_tokens: maxTokens
+      temperature: 0.3
     };
 
     debugLog.request = requestBody;

@@ -4,7 +4,7 @@
 /**
  * 单个 URL 抓取超时（毫秒）
  */
-const FETCH_TIMEOUT = 3000;
+const FETCH_TIMEOUT = 5000;
 
 /**
  * 正文摘要最大字符数
