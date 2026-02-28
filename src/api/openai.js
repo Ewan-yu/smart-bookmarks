@@ -335,6 +335,164 @@ function sleep(ms) {
 }
 
 /**
+ * 校验 AI 返回的分析结果
+ * @param {Object} parsed - parseAIJSON 解析后的对象
+ * @param {Array<string>} inputBookmarkIds - 输入的 bookmark ID 列表
+ * @returns {{ result: Object, warnings: string[] }}
+ */
+function validateAIResult(parsed, inputBookmarkIds) {
+  const validIds = new Set(inputBookmarkIds);
+  const warnings = [];
+
+  if (!parsed.categories || !Array.isArray(parsed.categories)) {
+    warnings.push('categories 字段缺失或非数组，已修正为空数组');
+    parsed.categories = [];
+  }
+
+  for (const cat of parsed.categories) {
+    // 校验 name
+    if (!cat.name || typeof cat.name !== 'string') {
+      warnings.push(`分类名称为空或无效，已修正为"未分类"`);
+      cat.name = '未分类';
+    }
+
+    // 校验 confidence
+    if (typeof cat.confidence !== 'number' || isNaN(cat.confidence)) {
+      warnings.push(`分类"${cat.name}"的 confidence 无效 (${cat.confidence})，已修正为 0.5`);
+      cat.confidence = 0.5;
+    } else {
+      cat.confidence = Math.min(1, Math.max(0, cat.confidence));
+    }
+
+    // 过滤无效 bookmarkIds
+    const originalIds = cat.bookmarkIds || [];
+    cat.bookmarkIds = originalIds.filter(id => {
+      const strId = String(id);
+      if (!validIds.has(strId)) {
+        warnings.push(`分类"${cat.name}"中的 bookmarkId "${id}" 不存在于输入中，已移除`);
+        return false;
+      }
+      return true;
+    });
+    // 确保 ID 为字符串
+    cat.bookmarkIds = cat.bookmarkIds.map(String);
+  }
+
+  if (!parsed.tags || !Array.isArray(parsed.tags)) {
+    parsed.tags = [];
+  }
+
+  return { result: parsed, warnings };
+}
+
+/**
+ * Debug 模式分析收藏（不分批，记录完整 API 交互报文）
+ * @param {Object} config - API 配置
+ * @param {Array} bookmarks - 待分析的收藏列表（建议 1-5 个）
+ * @param {Array} existingCategories - 用户已有的分类名称列表
+ * @returns {Promise<Object>} 包含 debugLog 的完整调试信息
+ */
+export async function analyzeBookmarksDebug(config, bookmarks, existingCategories = []) {
+  const { apiUrl, apiKey, model } = config;
+
+  const debugLog = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `debug_${Date.now()}`,
+    timestamp: Date.now(),
+    bookmarkCount: bookmarks.length,
+    bookmarks: bookmarks.map(b => ({ id: b.id, title: b.title, url: b.url })),
+    existingCategories,
+    request: null,
+    response: null,
+    rawContent: null,
+    parsed: null,
+    validation: null,
+    duration: 0,
+    error: null
+  };
+
+  const startTime = Date.now();
+
+  try {
+    // 构建 prompt
+    const prompt = buildAnalysisPrompt(bookmarks, existingCategories);
+    const systemPrompt = getSystemPrompt();
+
+    const requestBody = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3
+    };
+
+    debugLog.request = requestBody;
+
+    console.log('[AI Debug] 发送请求:', JSON.stringify(requestBody, null, 2));
+
+    // 直接调用（不走 fetchWithRetry，方便调试）
+    const url = `${apiUrl}/chat/completions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const responseData = await response.json();
+
+    debugLog.response = {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseData,
+      usage: responseData.usage || null
+    };
+
+    if (!response.ok) {
+      const errMsg = responseData?.error?.message || responseData?.message || response.statusText;
+      throw new Error(`API 请求失败 ${response.status}: ${errMsg}`);
+    }
+
+    const rawContent = responseData.choices?.[0]?.message?.content;
+    debugLog.rawContent = rawContent;
+
+    console.log('[AI Debug] 原始响应:', rawContent);
+
+    if (!rawContent) {
+      throw new Error('API 返回内容为空');
+    }
+
+    // 解析 JSON
+    const parsed = parseAIJSON(rawContent);
+    debugLog.parsed = parsed;
+
+    console.log('[AI Debug] 解析结果:', JSON.stringify(parsed, null, 2));
+
+    // 校验
+    const inputIds = bookmarks.map(b => String(b.id));
+    const validation = validateAIResult(parsed, inputIds);
+    debugLog.validation = validation;
+
+    if (validation.warnings.length > 0) {
+      console.warn('[AI Debug] 校验警告:', validation.warnings);
+    }
+
+    debugLog.duration = Date.now() - startTime;
+    return debugLog;
+
+  } catch (error) {
+    debugLog.error = error.message;
+    debugLog.duration = Date.now() - startTime;
+    console.error('[AI Debug] 分析失败:', error);
+    return debugLog;
+  }
+}
+
+/**
  * 语义搜索（增强版）
  * 支持更复杂的查询理解和结果排序
  * @param {Object} config - API 配置

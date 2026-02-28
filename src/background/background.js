@@ -14,7 +14,7 @@ import {
   STORES
 } from '../db/indexeddb.js';
 import { checkBookmarks, batchMoveToPendingCleanup } from '../utils/link-checker.js';
-import { analyzeBookmarks } from '../api/openai.js';
+import { analyzeBookmarks, analyzeBookmarksDebug } from '../api/openai.js';
 
 console.log('Smart Bookmarks background service worker loaded');
 
@@ -249,6 +249,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'AI_ANALYZE':
       handleAIAnalyze(request, sendResponse);
+      return true;
+
+    case 'AI_ANALYZE_DEBUG':
+      handleAIAnalyzeDebug(request, sendResponse);
       return true;
 
     case 'APPLY_CATEGORIES':
@@ -524,6 +528,51 @@ async function handleAIAnalyze(request, sendResponse) {
     sendResponse({ result: analysisResult });
   } catch (error) {
     console.error('AI analysis failed:', error);
+    sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * AI 调试分析（少量书签，记录完整报文）
+ */
+async function handleAIAnalyzeDebug(request, sendResponse) {
+  try {
+    const { bookmarkIds } = request;
+
+    await initDatabase();
+
+    // 获取指定的收藏
+    const allBookmarks = await getAllBookmarks();
+    const bookmarksToAnalyze = allBookmarks.filter(bm => bookmarkIds.includes(bm.id));
+
+    if (bookmarksToAnalyze.length === 0) {
+      sendResponse({ error: '没有可分析的收藏' });
+      return;
+    }
+
+    // 获取现有分类作为参考
+    const categories = await getAllCategories();
+    const existingCategoryNames = categories.map(c => c.name);
+
+    // 获取 AI 配置
+    const configResult = await chrome.storage.local.get('aiConfig');
+    const aiConfig = configResult.aiConfig;
+
+    if (!aiConfig || !aiConfig.apiUrl || !aiConfig.apiKey || !aiConfig.model) {
+      sendResponse({ error: '请先在设置中配置 AI API' });
+      return;
+    }
+
+    // 调用 Debug 分析
+    const debugLog = await analyzeBookmarksDebug(
+      aiConfig,
+      bookmarksToAnalyze,
+      existingCategoryNames
+    );
+
+    sendResponse({ result: debugLog });
+  } catch (error) {
+    console.error('AI debug analysis failed:', error);
     sendResponse({ error: error.message });
   }
 }
