@@ -42,16 +42,20 @@ import {
  */
 export async function checkLink(url, options = {}) {
   const {
-    timeout = 6000,   // 缩短超时：大多数失效站点 3~5s 内即可确认
+    timeout = 6000,    // GET 超时
+    headTimeout = 4000, // HEAD 超时更短：站点静默丢弃 HEAD 时尽快降级到 GET
     method = 'HEAD',
     followRedirects = true,
-    retries = 1       // 减少重试：1 次即可，避免在失效链接上浪费时间
+    retries = 1
   } = options;
+
+  // HEAD 使用更短的超时
+  const effectiveTimeout = (method === 'HEAD') ? headTimeout : timeout;
 
   // 尝试多次检测以提高准确性
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
     try {
       // Chrome 扩展 Background Service Worker 配合 host_permissions: ["<all_urls>"]
@@ -116,9 +120,13 @@ export async function checkLink(url, options = {}) {
 
       // 如果是超时错误
       if (error.name === 'AbortError') {
-        // 如果还有重试机会，继续重试
+        // HEAD 超时：部分站点会静默丢弃 HEAD 连接（如 cnblogs），降级为 GET 重试一次
+        if (method === 'HEAD') {
+          return checkLink(url, { ...options, method: 'GET', retries: 0 });
+        }
+
+        // GET 也超时：先尝试重试
         if (attempt < retries) {
-          // 等待一小段时间后重试
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
@@ -132,10 +140,26 @@ export async function checkLink(url, options = {}) {
         };
       }
 
-      // 网络错误（DNS失败、连接失败等）
+      // 网络错误（DNS失败、连接失败、TCP RST 等）
       const errorType = classifyError(error);
 
-      // 如果是临时错误且还有重试机会
+      // DNS 失败：域名不可达，直接判定为失效，不降级
+      if (errorType === 'dns') {
+        return {
+          url,
+          status: 'dns_error',
+          statusCode: 0,
+          error: error.message || 'DNS 解析失败',
+          attempt: attempt + 1
+        };
+      }
+
+      // HEAD 网络错误（连接被丢弃/拒绝）：降级为 GET 重试一次
+      if (method === 'HEAD') {
+        return checkLink(url, { ...options, method: 'GET', retries: 0 });
+      }
+
+      // GET 也出现网络错误：先尝试重试
       if (isTemporaryError(error) && attempt < retries) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
@@ -143,7 +167,7 @@ export async function checkLink(url, options = {}) {
 
       return {
         url,
-        status: errorType === 'dns' ? 'dns_error' : 'network_error',
+        status: 'network_error',
         statusCode: 0,
         error: error.message || '网络错误',
         attempt: attempt + 1
