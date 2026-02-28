@@ -6,6 +6,7 @@ import {
   getAllBookmarks,
   addBookmark,
   getBookmark,
+  deleteBookmark,
   getAllCategories,
   addCategory,
   get,
@@ -53,6 +54,159 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     await initializeData();
   }
 });
+
+// ===== 浏览器书签实时同步监听 =====
+
+/**
+ * 用户新增书签时同步到插件 DB
+ */
+chrome.bookmarks.onCreated.addListener(async (id, bookmarkNode) => {
+  // 只处理有 URL 的书签（不处理文件夹）
+  if (!bookmarkNode.url) {
+    // 新建文件夹 → 同步为分类
+    if (bookmarkNode.title) {
+      try {
+        await initDatabase();
+        const catId = `cat_${id}`;
+        const existing = await get(STORES.CATEGORIES, catId);
+        if (!existing) {
+          const parentCatId = bookmarkNode.parentId ? `cat_${bookmarkNode.parentId}` : null;
+          await addCategory({
+            id: catId,
+            name: bookmarkNode.title,
+            parentId: parentCatId,
+            createdAt: Date.now()
+          });
+          console.log(`[Sync] 新增分类: ${bookmarkNode.title}`);
+        }
+      } catch (e) {
+        console.debug('[Sync] 新增分类失败:', e.message);
+      }
+    }
+    return;
+  }
+
+  try {
+    await initDatabase();
+
+    const parentCategoryId = bookmarkNode.parentId ? `cat_${bookmarkNode.parentId}` : null;
+
+    const bookmark = {
+      id,
+      title: bookmarkNode.title || '未命名书签',
+      url: bookmarkNode.url,
+      description: '',
+      tags: [],
+      categoryId: parentCategoryId,
+      status: 'active',
+      createdAt: bookmarkNode.dateAdded || Date.now(),
+      updatedAt: Date.now()
+    };
+
+    // 尝试从当前活动标签页的 content script 采集页面信息
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (activeTab && activeTab.url === bookmarkNode.url) {
+        const pageInfo = await chrome.tabs.sendMessage(activeTab.id, { type: 'GET_PAGE_INFO' });
+        if (pageInfo) {
+          if (pageInfo.description) bookmark.description = pageInfo.description.slice(0, 300);
+          if (pageInfo.favicon) bookmark.favicon = pageInfo.favicon;
+        }
+      }
+    } catch {
+      // content script 可能未加载，忽略
+    }
+
+    await addBookmark(bookmark);
+    console.log(`[Sync] 新增书签: ${bookmark.title} (${bookmark.url.slice(0, 50)})`);
+
+    // 通知 popup 刷新
+    notifyBookmarkChanged('created', id);
+  } catch (error) {
+    console.error('[Sync] 新增书签失败:', error);
+  }
+});
+
+/**
+ * 用户删除书签时从插件 DB 移除
+ */
+chrome.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
+  try {
+    await initDatabase();
+
+    // 尝试删除书签
+    const bookmark = await getBookmark(id);
+    if (bookmark) {
+      await deleteBookmark(id);
+      console.log(`[Sync] 删除书签: ${bookmark.title}`);
+      notifyBookmarkChanged('removed', id);
+      return;
+    }
+
+    // 也可能是删除文件夹（分类）
+    const catId = `cat_${id}`;
+    const category = await get(STORES.CATEGORIES, catId);
+    if (category) {
+      const { deleteItem } = await import('../db/indexeddb.js');
+      await deleteItem(STORES.CATEGORIES, catId);
+      console.log(`[Sync] 删除分类: ${category.name}`);
+      notifyBookmarkChanged('removed', id);
+    }
+  } catch (error) {
+    console.error('[Sync] 删除书签失败:', error);
+  }
+});
+
+/**
+ * 用户修改书签标题/URL 时同步
+ */
+chrome.bookmarks.onChanged.addListener(async (id, changeInfo) => {
+  try {
+    await initDatabase();
+    const bookmark = await getBookmark(id);
+    if (bookmark) {
+      if (changeInfo.title !== undefined) bookmark.title = changeInfo.title;
+      if (changeInfo.url !== undefined) bookmark.url = changeInfo.url;
+      bookmark.updatedAt = Date.now();
+      await addBookmark(bookmark);
+      console.log(`[Sync] 更新书签: ${bookmark.title}`);
+      notifyBookmarkChanged('changed', id);
+    }
+  } catch (error) {
+    console.error('[Sync] 更新书签失败:', error);
+  }
+});
+
+/**
+ * 用户移动书签到其他文件夹时同步分类
+ */
+chrome.bookmarks.onMoved.addListener(async (id, moveInfo) => {
+  try {
+    await initDatabase();
+    const bookmark = await getBookmark(id);
+    if (bookmark) {
+      bookmark.categoryId = moveInfo.parentId ? `cat_${moveInfo.parentId}` : null;
+      bookmark.updatedAt = Date.now();
+      await addBookmark(bookmark);
+      console.log(`[Sync] 移动书签: ${bookmark.title} -> 分类 ${bookmark.categoryId}`);
+      notifyBookmarkChanged('moved', id);
+    }
+  } catch (error) {
+    console.error('[Sync] 移动书签失败:', error);
+  }
+});
+
+/**
+ * 通知 popup 书签数据已变更，需要刷新
+ */
+function notifyBookmarkChanged(action, bookmarkId) {
+  chrome.runtime.sendMessage({
+    type: 'BOOKMARK_CHANGED',
+    data: { action, bookmarkId }
+  }).catch(() => {
+    // popup 可能未打开，忽略
+  });
+}
 
 // 初始化数据
 async function initializeData() {
@@ -279,7 +433,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 /**
- * 处理 content script 采集的页面信息，写入对应 bookmark 的 description
+ * 处理 content script 采集的页面信息，写入对应 bookmark 的 description 和 favicon
  */
 async function handlePageInfoCollected(request, sender) {
   try {
@@ -292,11 +446,23 @@ async function handlePageInfoCollected(request, sender) {
     const allBookmarks = await getAllBookmarks();
     const bookmark = allBookmarks.find(bm => bm.url === data.url);
 
-    if (bookmark && data.description && !bookmark.description) {
-      bookmark.description = data.description.slice(0, 300);
-      bookmark.updatedAt = Date.now();
-      await addBookmark(bookmark);
-      console.log(`[PageInfo] 已保存页面摘要: ${data.url.slice(0, 60)}`);
+    if (bookmark) {
+      let updated = false;
+
+      if (data.description && !bookmark.description) {
+        bookmark.description = data.description.slice(0, 300);
+        updated = true;
+      }
+      if (data.favicon && !bookmark.favicon) {
+        bookmark.favicon = data.favicon;
+        updated = true;
+      }
+
+      if (updated) {
+        bookmark.updatedAt = Date.now();
+        await addBookmark(bookmark);
+        console.log(`[PageInfo] 已保存页面信息: ${data.url.slice(0, 60)}`);
+      }
     }
   } catch (error) {
     console.debug('[PageInfo] 保存失败:', error.message);

@@ -1692,6 +1692,10 @@ function listenToMessages() {
       // 更新分析进度
       const { current, total, message: msg } = message.data;
       showProgress(msg || '正在分析...', current, total);
+    } else if (message.type === 'BOOKMARK_CHANGED') {
+      // 浏览器书签变更（用户在浏览器中新增/删除/移动书签），刷新列表
+      console.log('[Popup] 书签变更通知:', message.data);
+      loadBookmarks();
     }
   });
 }
