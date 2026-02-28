@@ -1,6 +1,27 @@
 // Smart Bookmarks - 链接检测工具
 // 用于检测收藏链接是否有效
 
+/**
+ * 典型反爬/WAF 触发状态码。
+ * 这些码通常意味着站点在线但对自动化请求作了拦截，不应直接判定为失效。
+ *   401 - 需要登录（内容可能正常存在）
+ *   403 - 禁止访问（WAF/地区限制/需登录，内容未必消失）
+ *   429 - 请求过多（速率限制 / 反爬）
+ *   520 - Cloudflare 未知错误（通常是源站临时问题）
+ *   521 - WAF bot 检测（CSDN/CloudFlare 反爬常见）
+ *   999 - LinkedIn 反爬专用码
+ */
+const UNCERTAIN_STATUS_CODES = new Set([401, 403, 429, 520, 521, 999]);
+
+/**
+ * 模拟浏览器的请求头，降低 WAF 拦截概率。
+ * 注意：User-Agent 是 Fetch API 禁用头，浏览器会自动附带真实 UA，无需手动设置。
+ */
+const BROWSER_HEADERS = {
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+};
+
 import {
   getBookmark,
   put,
@@ -37,6 +58,7 @@ export async function checkLink(url, options = {}) {
       // 可以直接发起跨域请求，无需 no-cors 模式
       const response = await fetch(url, {
         method,
+        headers: BROWSER_HEADERS,
         redirect: followRedirects ? 'follow' : 'manual',
         signal: controller.signal
       });
@@ -63,7 +85,24 @@ export async function checkLink(url, options = {}) {
         return checkLink(url, { ...options, method: 'GET', retries: 0 });
       }
 
-      // 4xx / 5xx 视为失效
+      // 反爬/WAF 触发码：HEAD 方式更易被拦截，自动降级为 GET 重试一次
+      if (UNCERTAIN_STATUS_CODES.has(statusCode) && method === 'HEAD') {
+        clearTimeout(timeoutId);
+        return checkLink(url, { ...options, method: 'GET', retries: 0 });
+      }
+
+      // 反爬/WAF 触发码：GET 仍被拦截，标记为 uncertain（不确定），不视为失效
+      if (UNCERTAIN_STATUS_CODES.has(statusCode)) {
+        return {
+          url,
+          status: 'uncertain',
+          statusCode,
+          error: getErrorMessage(statusCode),
+          attempt: attempt + 1
+        };
+      }
+
+      // 其余 4xx / 5xx 视为失效
       return {
         url,
         status: 'broken',
@@ -128,18 +167,21 @@ export async function checkLink(url, options = {}) {
 function getErrorMessage(statusCode) {
   const errorMessages = {
     400: '请求错误',
-    401: '未授权',
-    403: '禁止访问',
+    401: '需要登录（内容可能正常存在）',
+    403: '访问受限（可能为登录/地区/反爬限制）',
     404: '页面不存在',
     405: '方法不允许',
     408: '请求超时',
     410: '资源已删除',
-    429: '请求过多',
+    429: '请求被限速（反爬/WAF）',
     500: '服务器错误',
     502: '网关错误',
     503: '服务不可用',
     504: '网关超时',
-    599: '网络连接超时'
+    520: 'WAF/CDN 未知错误（站点可能正常）',
+    521: 'WAF 反爬拦截（站点可能正常）',
+    599: '网络连接超时',
+    999: '反爬保护（站点可能正常）'
   };
 
   return errorMessages[statusCode] || `HTTP ${statusCode}`;
@@ -248,7 +290,8 @@ export async function checkLinks(urls, options = {}) {
     }
 
     results.push(result);
-    if (result.status !== 'ok' && result.status !== 'unknown') {
+    // uncertain 表示 WAF/反爬拦截，不确定链接是否真实失效，不加入 brokenLinks
+    if (result.status !== 'ok' && result.status !== 'unknown' && result.status !== 'uncertain') {
       brokenLinks.push(result);
     }
     completed++;
@@ -294,6 +337,7 @@ export function summarizeResults(results) {
     total: results.length,
     ok: 0,
     broken: 0,
+    uncertain: 0,
     timeout: 0,
     dns_error: 0,
     network_error: 0,
@@ -307,6 +351,8 @@ export function summarizeResults(results) {
       summary.ok++;
     } else if (result.status === 'broken') {
       summary.broken++;
+    } else if (result.status === 'uncertain') {
+      summary.uncertain++;
     } else if (result.status === 'timeout') {
       summary.timeout++;
     } else if (result.status === 'dns_error') {
@@ -333,8 +379,9 @@ export function summarizeResults(results) {
  * @returns {Array<Object>} 失效链接数组
  */
 export function getBrokenLinks(results) {
+  // uncertain（WAF/反爬拦截）排除在外，不视为失效
   return results.filter(r =>
-    r.status !== 'ok' && r.status !== 'unknown'
+    r.status !== 'ok' && r.status !== 'unknown' && r.status !== 'uncertain'
   );
 }
 
@@ -417,7 +464,8 @@ export async function checkBookmarks(bookmarks, options = {}) {
       onItemComplete: async (result) => {
         if (!result) return;
         const bmList = urlToBookmarks.get(result.url) || [];
-        const isBroken = result.status !== 'ok';
+        // uncertain（WAF/反爬拦截）不标记为 broken，保持原有状态不变
+        const isBroken = result.status !== 'ok' && result.status !== 'uncertain';
         for (const bookmark of bmList) {
           bookmark.status = isBroken ? 'broken' : 'active';
           bookmark.checkError = result.error;

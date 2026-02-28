@@ -139,6 +139,9 @@ class TreeRenderer {
       if (node.status === 'broken') {
         icon.textContent = '⚠️';
         icon.title = '链接失效';
+      } else if (node.checkStatus === 'uncertain') {
+        icon.textContent = '❓';
+        icon.title = `WAF/反爬拦截，内容可能正常（${node.checkError || ''}）`;
       } else if (node.status === 'checked') {
         icon.textContent = '✓';
         icon.title = '链接有效';
@@ -445,6 +448,12 @@ class SearchResultsRenderer {
       statusIcon.className = 'search-result-status broken';
       statusIcon.textContent = '⚠️';
       statusIcon.title = '链接失效';
+      item.appendChild(statusIcon);
+    } else if (result.checkStatus === 'uncertain') {
+      const statusIcon = document.createElement('span');
+      statusIcon.className = 'search-result-status uncertain';
+      statusIcon.textContent = '❓';
+      statusIcon.title = `WAF/反爬拦截，内容可能正常（${result.checkError || ''}）`;
       item.appendChild(statusIcon);
     }
 

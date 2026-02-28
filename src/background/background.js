@@ -430,10 +430,13 @@ async function handleCheckBrokenLinks(request, sendResponse) {
         checkStatus: b.checkStatus
       }));
 
+    // WAF/反爬拦截的不确定链接数
+    const uncertainCount = allBookmarks.filter(b => b.checkStatus === 'uncertain').length;
+
     // 广播检测结束，供重新打开的 popup 实例更新 UI
     chrome.runtime.sendMessage({
       type: 'CHECK_DONE',
-      data: { cancelled, total: allBookmarks.length, skippedCount, brokenCount: brokenLinks.length }
+      data: { cancelled, total: allBookmarks.length, skippedCount, brokenCount: brokenLinks.length, uncertainCount }
     }).catch(() => {});
 
     if (cancelled) {
@@ -455,6 +458,7 @@ async function handleCheckBrokenLinks(request, sendResponse) {
       total: allBookmarks.length,
       skippedCount,
       brokenCount: brokenLinks.length,
+      uncertainCount,
       movedCount,
       brokenLinks
     });

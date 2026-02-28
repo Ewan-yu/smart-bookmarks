@@ -293,7 +293,11 @@ function updateFooterStats() {
   if (total === 0) { el.textContent = ''; return; }
   // 以 status === 'broken' 为统一口径（与 待清理 分类保持一致）
   const broken = state.bookmarks.filter(b => b.status === 'broken').length;
-  el.textContent = broken > 0 ? `共 ${total} 条  ⚠️ ${broken} 失效` : `共 ${total} 条收藏`;
+  const uncertain = state.bookmarks.filter(b => b.checkStatus === 'uncertain').length;
+  let statsText = `共 ${total} 条`;
+  if (broken > 0) statsText += `  ⚠️ ${broken} 失效`;
+  if (uncertain > 0) statsText += `  ❓ ${uncertain} 不确定`;
+  el.textContent = statsText || `共 ${total} 条收藏`;
 }
 
 /**
@@ -558,8 +562,12 @@ function createBookmarkElement(bookmark) {
   element.className = 'bookmark-item';
   element.dataset.id = bookmark.id;
 
-  const statusIcon = bookmark.status === 'broken' ? '⚠️' : '🔖';
-  const statusClass = bookmark.status === 'broken' ? 'broken' : '';
+  const statusIcon = bookmark.status === 'broken' ? '⚠️'
+    : bookmark.checkStatus === 'uncertain' ? '❓'
+    : '🔖';
+  const statusClass = bookmark.status === 'broken' ? 'broken'
+    : bookmark.checkStatus === 'uncertain' ? 'uncertain'
+    : '';
 
   element.innerHTML = `
     <span class="bookmark-icon ${statusClass}">${statusIcon}</span>
@@ -1156,16 +1164,21 @@ async function startBrokenLinkCheck(resume = false) {
     }
 
     if (response.success) {
-      const { total, brokenCount, brokenLinks, cancelled, skippedCount } = response;
+      const { total, brokenCount, brokenLinks, cancelled, skippedCount, uncertainCount = 0 } = response;
 
       if (cancelled) {
         Toast.info(`检测已取消，已完成 ${state.checkProgress.completed}/${total} 个。`);
-      } else if (brokenCount === 0) {
+      } else if (brokenCount === 0 && uncertainCount === 0) {
         const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
         Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。${skipNote}`);
       } else {
         const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
-        Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。${skipNote}`);
+        const uncertainNote = uncertainCount > 0 ? `，${uncertainCount} 个被 WAF/反爬拦截（标记为 \u2753，内容可能正常）` : '';
+        if (brokenCount > 0) {
+          Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」${uncertainNote}。${skipNote}`);
+        } else {
+          Toast.info(`检测完成！未发现失效链接${uncertainNote}。${skipNote}`);
+        }
         if (brokenLinks && brokenLinks.length > 0) {
           showBrokenLinksDetails(brokenLinks);
         }
