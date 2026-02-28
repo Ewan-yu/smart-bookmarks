@@ -259,6 +259,10 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
     // 优先使用页面摘要，其次使用 description
     const summary = bm._summary;
     if (summary) {
+      // 来源站点标识（URL fallback 时提供）
+      if (summary.siteName) {
+        entry += `\n   来源: ${summary.siteName}`;
+      }
       if (summary.description) {
         entry += `\n   摘要: ${truncateText(summary.description, 120)}`;
       }

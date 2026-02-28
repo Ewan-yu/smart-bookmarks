@@ -268,10 +268,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleClearData(request, sendResponse);
       return true;
 
+    case 'PAGE_INFO_COLLECTED':
+      handlePageInfoCollected(request, sender);
+      sendResponse({ success: true });
+      return false; // 同步响应
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
 });
+
+/**
+ * 处理 content script 采集的页面信息，写入对应 bookmark 的 description
+ */
+async function handlePageInfoCollected(request, sender) {
+  try {
+    const { data } = request;
+    if (!data || !data.url) return;
+
+    await initDatabase();
+
+    // 通过 URL 查找对应的 bookmark
+    const allBookmarks = await getAllBookmarks();
+    const bookmark = allBookmarks.find(bm => bm.url === data.url);
+
+    if (bookmark && data.description && !bookmark.description) {
+      bookmark.description = data.description.slice(0, 300);
+      bookmark.updatedAt = Date.now();
+      await addBookmark(bookmark);
+      console.log(`[PageInfo] 已保存页面摘要: ${data.url.slice(0, 60)}`);
+    }
+  } catch (error) {
+    console.debug('[PageInfo] 保存失败:', error.message);
+  }
+}
 
 /**
  * 获取收藏数据

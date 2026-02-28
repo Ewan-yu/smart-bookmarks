@@ -156,7 +156,39 @@ export async function batchExtractSummaries(bookmarks, onProgress) {
 }
 
 /**
+ * 从 URL 中提取有意义的特征词（域名、路径关键词）
+ * 作为无法抓取页面时的 fallback
+ * @param {string} url
+ * @returns {{siteName: string, pathHints: string[]}}
+ */
+export function extractUrlFeatures(url) {
+  try {
+    const u = new URL(url);
+
+    // 域名特征：取主域名去除后缀
+    const hostParts = u.hostname.replace(/^www\./, '').split('.');
+    const siteName = hostParts.length >= 2 ? hostParts[hostParts.length - 2] : hostParts[0];
+
+    // 路径特征：提取有意义的词（过滤纯数字、短词、常见无意义段）
+    const skipWords = new Set([
+      'article', 'details', 'post', 'blog', 'index', 'html', 'htm',
+      'page', 'p', 'a', 'the', 'www', 'com', 'net', 'org', 'cn', 'io'
+    ]);
+    const pathHints = u.pathname
+      .split(/[\/\-_\.]+/)
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length >= 2 && !/^\d+$/.test(s) && !skipWords.has(s))
+      .slice(0, 5);
+
+    return { siteName, pathHints };
+  } catch {
+    return { siteName: '', pathHints: [] };
+  }
+}
+
+/**
  * 将摘要信息合并到书签对象上（附加 _summary 字段，不修改原始数据）
+ * 当无法拓取页面时，自动回退到 URL 特征解析
  * @param {Array} bookmarks - 书签列表
  * @param {Map} summaryMap - batchExtractSummaries 返回的 Map
  * @returns {Array} 带 _summary 的书签浅拷贝
@@ -164,6 +196,24 @@ export async function batchExtractSummaries(bookmarks, onProgress) {
 export function enrichBookmarks(bookmarks, summaryMap) {
   return bookmarks.map(bm => {
     const summary = summaryMap.get(bm.id);
-    return summary ? { ...bm, _summary: summary } : bm;
+    if (summary) {
+      return { ...bm, _summary: summary };
+    }
+
+    // Fallback: 从 URL 和已有 description 中构建摘要
+    const urlFeatures = extractUrlFeatures(bm.url);
+    const fallbackSummary = {
+      description: bm.description || '',
+      keywords: urlFeatures.pathHints,
+      snippet: '',
+      source: 'url_fallback',
+      siteName: urlFeatures.siteName
+    };
+
+    // 只在有有效信息时才附加
+    if (fallbackSummary.description || fallbackSummary.keywords.length > 0) {
+      return { ...bm, _summary: fallbackSummary };
+    }
+    return bm;
   });
 }
