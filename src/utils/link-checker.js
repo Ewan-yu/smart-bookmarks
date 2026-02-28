@@ -89,6 +89,13 @@ export async function checkLink(url, options = {}) {
         return checkLink(url, { ...options, method: 'GET', retries: 0 });
       }
 
+      // HEAD 返回 5xx：服务端对 HEAD 实现有缺陷（如宝塔面板返回 500、部分框架返回 502/503）
+      // GET 才是真正的访问验证，降级重试
+      if (statusCode >= 500 && method === 'HEAD') {
+        clearTimeout(timeoutId);
+        return checkLink(url, { ...options, method: 'GET', retries: 0 });
+      }
+
       // 反爬/WAF 触发码：HEAD 方式更易被拦截，自动降级为 GET 重试一次
       if (UNCERTAIN_STATUS_CODES.has(statusCode) && method === 'HEAD') {
         clearTimeout(timeoutId);
