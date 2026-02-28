@@ -230,61 +230,77 @@ async function callOpenAI(apiUrl, apiKey, model, prompt) {
  * @returns {string}
  */
 function getSystemPrompt() {
-  return `你是一个专业的收藏夹智能分类助手。你的职责是：
-1. 分析收藏的标题、URL和描述，将它们智能分类
-2. 优先使用用户已有的分类体系
-3. 当需要创建新分类时，使用简洁明了的名称（如"前端开发"、"AI工具"、"学习资料"）
-4. 一个链接可以属于多个分类
-5. 提取有意义的标签，标签应比分类更细粒度
-6. 确保分类结果准确、合理、易于理解`;
+  return `你是收藏夹分类助手。根据标题、URL特征和页面摘要将收藏分类。
+规则：
+1. 优先复用已有分类，必要时新建（名称2-6字）
+2. 总分类数控制在5-15个，每个分类至少2条收藏
+3. 一条收藏可属于多个分类
+4. 提取细粒度标签辅助搜索
+5. 严格返回JSON，不要添加任何解释文字
+6. bookmarkIds使用输入中[ID:xxx]的xxx值，保持字符串格式`;
 }
 
 /**
+ * 每个书签在 prompt 中的最大字符数（含标题+URL+摘要）
+ */
+const MAX_BOOKMARK_PROMPT_CHARS = 300;
+
+/**
  * 构建分析提示词
- * @param {Array} bookmarks - 书签数组
+ * 支持 _summary 字段（由 page-summarizer 提取的页面摘要信息）
+ * @param {Array} bookmarks - 书签数组（可携带 _summary）
  * @param {Array} existingCategories - 现有分类
  * @returns {string}
  */
 function buildAnalysisPrompt(bookmarks, existingCategories) {
   const bookmarksList = bookmarks.map((bm, index) => {
-    const desc = bm.description ? `\n   描述: ${bm.description}` : '';
-    return `${index + 1}. [ID: ${bm.id}] ${bm.title}\n   URL: ${bm.url}${desc}`;
+    let entry = `${index + 1}. [ID:${bm.id}] ${truncateText(bm.title, 80)}\n   URL: ${bm.url}`;
+
+    // 优先使用页面摘要，其次使用 description
+    const summary = bm._summary;
+    if (summary) {
+      if (summary.description) {
+        entry += `\n   摘要: ${truncateText(summary.description, 120)}`;
+      }
+      if (summary.keywords && summary.keywords.length > 0) {
+        entry += `\n   关键词: ${summary.keywords.slice(0, 5).join(', ')}`;
+      }
+      if (!summary.description && summary.snippet) {
+        entry += `\n   摘要: ${truncateText(summary.snippet, 120)}`;
+      }
+    } else if (bm.description) {
+      entry += `\n   摘要: ${truncateText(bm.description, 120)}`;
+    }
+
+    // 控制单条长度
+    return entry.length > MAX_BOOKMARK_PROMPT_CHARS
+      ? entry.slice(0, MAX_BOOKMARK_PROMPT_CHARS) + '...'
+      : entry;
   }).join('\n');
 
   const existingCategoriesText = existingCategories.length > 0
-    ? `用户已有的分类：${existingCategories.join('、')}（优先使用这些分类）`
-    : '用户暂无分类，请创建合适的分类';
+    ? `已有分类：${existingCategories.join('、')}`
+    : '暂无已有分类';
 
   return `${existingCategoriesText}
 
-请分析以下收藏链接，并返回 JSON 格式的分类结果：
-
+收藏列表：
 ${bookmarksList}
 
-请返回以下 JSON 格式：
-{
-  "categories": [
-    {
-      "name": "分类名称",
-      "confidence": 0.95,
-      "bookmarkIds": ["id1", "id2", ...]
-    }
-  ],
-  "tags": [
-    {
-      "name": "标签名",
-      "bookmarkId": "收藏ID"
-    }
-  ]
+返回JSON：
+{"categories":[{"name":"分类名","confidence":0.9,"bookmarkIds":["id1"]}],"tags":[{"name":"标签","bookmarkId":"id1"}]}`;
 }
 
-要求：
-1. 分类名称应简洁明了（2-6个字最佳）
-2. confidence 表示分类的可信度（0-1之间，0.7以上较可信）
-3. 一个链接可以属于多个分类
-4. 标签应比分类更细粒度，例如"React"、"教程"、"工具"等
-5. 返回的 bookmarkIds 必须存在于输入中
-6. 优先使用用户已有的分类`;
+/**
+ * 截断文本到指定长度
+ * @param {string} text
+ * @param {number} maxLen
+ * @returns {string}
+ */
+function truncateText(text, maxLen) {
+  if (!text) return '';
+  text = text.replace(/\s+/g, ' ').trim();
+  return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
 }
 
 /**
@@ -401,7 +417,11 @@ export async function analyzeBookmarksDebug(config, bookmarks, existingCategorie
       : `debug_${Date.now()}`,
     timestamp: Date.now(),
     bookmarkCount: bookmarks.length,
-    bookmarks: bookmarks.map(b => ({ id: b.id, title: b.title, url: b.url })),
+    bookmarks: bookmarks.map(b => ({
+      id: b.id, title: b.title, url: b.url,
+      hasSummary: !!b._summary,
+      summaryPreview: b._summary?.description?.slice(0, 60) || null
+    })),
     existingCategories,
     request: null,
     response: null,

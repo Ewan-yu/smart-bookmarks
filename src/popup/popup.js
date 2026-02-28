@@ -1164,6 +1164,13 @@ function showDebugResultDialog(debugLog) {
               ${usage.prompt_tokens || '?'} + ${usage.completion_tokens || '?'}
             </div>
           </div>` : ''}
+          ${debugLog.summaryExtraction ? `
+          <div style="background: #f8fafc; border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 11px; color: #94a3b8;">摘要提取</div>
+            <div style="font-size: 14px; font-weight: 600; color: ${debugLog.summaryExtraction.success > 0 ? '#22c55e' : '#f59e0b'};">
+              ${debugLog.summaryExtraction.success}/${debugLog.summaryExtraction.total}
+            </div>
+          </div>` : ''}
         </div>
 
         ${hasError ? `
@@ -1195,10 +1202,24 @@ function showDebugResultDialog(debugLog) {
               <div style="padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
                 <div style="font-weight: 500;">[${escapeHtml(b.id)}] ${escapeHtml(b.title)}</div>
                 <div style="color: #94a3b8; font-size: 11px;">${escapeHtml(b.url)}</div>
+                ${b.hasSummary ? `<div style="color: #22c55e; font-size: 11px;">✅ 已提取摘要${b.summaryPreview ? ': ' + escapeHtml(b.summaryPreview) : ''}</div>` : '<div style="color: #f59e0b; font-size: 11px;">⚠️ 未提取到摘要</div>'}
               </div>
             `).join('')}
           </div>
         </details>
+
+        <!-- 页面摘要提取详情 -->
+        ${debugLog.summaryExtraction ? `
+        <details style="margin-bottom: 8px;">
+          <summary style="cursor: pointer; font-size: 13px; font-weight: 600; color: #475569;
+                          padding: 8px 0; user-select: none;">
+            🌍 页面摘要提取 (${debugLog.summaryExtraction.success}/${debugLog.summaryExtraction.total} 成功)
+          </summary>
+          <pre style="background: #1e293b; color: #86efac; border-radius: 6px; padding: 12px;
+                      font-size: 11px; line-height: 1.5; overflow-x: auto; max-height: 300px;
+                      overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${formatJson(debugLog.summaryExtraction.details)}</pre>
+        </details>
+        ` : ''}
 
         <!-- 请求报文 -->
         <details style="margin-bottom: 8px;">

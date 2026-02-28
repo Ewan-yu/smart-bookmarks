@@ -14,6 +14,7 @@ import {
   STORES
 } from '../db/indexeddb.js';
 import { checkBookmarks, batchMoveToPendingCleanup } from '../utils/link-checker.js';
+import { batchExtractSummaries, enrichBookmarks } from '../utils/page-summarizer.js';
 import { analyzeBookmarks, analyzeBookmarksDebug } from '../api/openai.js';
 
 console.log('Smart Bookmarks background service worker loaded');
@@ -508,10 +509,21 @@ async function handleAIAnalyze(request, sendResponse) {
       return;
     }
 
+    // 提取页面摘要信息（为 AI 提供更多上下文）
+    chrome.runtime.sendMessage({
+      type: 'ANALYSIS_PROGRESS',
+      data: { current: 0, total: 0, message: '正在提取页面摘要...' }
+    }).catch(() => {});
+
+    const summaryMap = await batchExtractSummaries(bookmarksToAnalyze);
+    const enrichedBookmarks = enrichBookmarks(bookmarksToAnalyze, summaryMap);
+
+    console.log(`[AI] 页面摘要提取完成: ${summaryMap.size}/${bookmarksToAnalyze.length} 成功`);
+
     // 调用 AI 分析
     const analysisResult = await analyzeBookmarks(
       aiConfig,
-      bookmarksToAnalyze,
+      enrichedBookmarks,
       existingCategoryNames,
       10,
       // 进度回调 - 发送进度消息到 popup
@@ -563,12 +575,25 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
       return;
     }
 
+    // 提取页面摘要信息
+    console.log('[AI Debug] 正在提取页面摘要...');
+    const summaryMap = await batchExtractSummaries(bookmarksToAnalyze);
+    const enrichedBookmarks = enrichBookmarks(bookmarksToAnalyze, summaryMap);
+    console.log(`[AI Debug] 摘要提取完成: ${summaryMap.size}/${bookmarksToAnalyze.length}`);
+
     // 调用 Debug 分析
     const debugLog = await analyzeBookmarksDebug(
       aiConfig,
-      bookmarksToAnalyze,
+      enrichedBookmarks,
       existingCategoryNames
     );
+
+    // 在 debugLog 中记录摘要提取结果
+    debugLog.summaryExtraction = {
+      total: bookmarksToAnalyze.length,
+      success: summaryMap.size,
+      details: Object.fromEntries(summaryMap)
+    };
 
     sendResponse({ result: debugLog });
   } catch (error) {
