@@ -889,96 +889,123 @@ async function startAnalysis(forceRestart) {
 }
 
 /**
- * 显示分析结果确认对话框
+ * 显示分析结果确认对话框（聚焦整理方案）
  */
 function showAnalysisConfirmDialog(analysisResult) {
+  const { categories, tags, summary } = analysisResult;
+
+  // bookmarkId → 书签对象
+  const bookmarkMap = new Map();
+  state.bookmarks.forEach(bm => bookmarkMap.set(String(bm.id), bm));
+
+  const newCatCount = summary.newCategories.length;
+  const uniqueTagNames = [...new Set(tags.map(t => t.name))];
+
+  // 分类按书签数量降序排列
+  const sortedCats = [...categories].sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
+  const maxCount = sortedCats[0]?.bookmarkIds.length || 1;
+
+  const catRows = sortedCats.map(cat => {
+    const barW = Math.round((cat.bookmarkIds.length / maxCount) * 100);
+    const badge = cat.isNew
+      ? '<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:4px;flex-shrink:0;">新增</span>'
+      : '<span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;flex-shrink:0;">已有</span>';
+    const bookmarkItems = cat.bookmarkIds
+      .map(id => bookmarkMap.get(String(id)))
+      .filter(Boolean)
+      .map(bm => `
+        <div style="padding:5px 0;border-bottom:1px solid #f8fafc;min-width:0;">
+          <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;
+                      white-space:nowrap;color:#374151;">${escapeHtml(bm.title)}</div>
+          <div style="font-size:11px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;
+                      white-space:nowrap;">${escapeHtml(bm.url)}</div>
+        </div>
+      `).join('');
+    return `
+      <details style="border-bottom:1px solid #f1f5f9;">
+        <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;
+                        gap:8px;padding:10px 4px;user-select:none;">
+          ${badge}
+          <span style="font-size:13px;font-weight:600;flex:1;overflow:hidden;
+                       text-overflow:ellipsis;white-space:nowrap;color:#1e293b;">
+            ${escapeHtml(cat.name)}
+          </span>
+          <span style="font-size:12px;color:#94a3b8;flex-shrink:0;">${cat.bookmarkIds.length} 个</span>
+          <div style="width:48px;height:4px;background:#e2e8f0;border-radius:2px;flex-shrink:0;">
+            <div style="width:${barW}%;height:100%;background:#818cf8;border-radius:2px;"></div>
+          </div>
+        </summary>
+        <div style="padding:4px 0 10px 56px;">
+          ${bookmarkItems || '<div style="font-size:12px;color:#94a3b8;padding:4px 0;">无书签</div>'}
+        </div>
+      </details>
+    `;
+  }).join('');
+
+  const tagsSection = uniqueTagNames.length > 0 ? `
+    <div style="padding:0 16px 4px;border-top:1px solid #f1f5f9;">
+      <details>
+        <summary style="list-style:none;cursor:pointer;padding:10px 0;font-size:13px;
+                        font-weight:600;color:#475569;user-select:none;display:flex;
+                        align-items:center;gap:6px;">
+          <span>🏷 标签建议</span>
+          <span style="font-weight:400;font-size:12px;color:#94a3b8;">${uniqueTagNames.length} 个</span>
+        </summary>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 0 10px;">
+          ${uniqueTagNames.map(name => `
+            <span style="background:#f8fafc;color:#475569;font-size:12px;padding:3px 10px;
+                         border-radius:12px;border:1px solid #e2e8f0;">${escapeHtml(name)}</span>
+          `).join('')}
+        </div>
+      </details>
+    </div>
+  ` : '';
+
   const dialog = document.createElement('div');
   dialog.className = 'confirm-dialog-overlay';
   dialog.innerHTML = `
-    <div class="confirm-dialog">
+    <div class="confirm-dialog" style="max-width:560px;">
       <div class="dialog-header">
-        <h2>AI 智能分类建议</h2>
+        <h2>🤖 AI 整理建议</h2>
         <button class="dialog-close" id="dialogClose">&times;</button>
       </div>
-
-      <div class="dialog-content">
-        <!-- 分析摘要 -->
-        <div class="analysis-summary">
-          <div class="summary-item">
-            <span class="summary-label">待分类收藏:</span>
-            <span class="summary-value">${analysisResult.summary.totalBookmarks}</span>
+      <div class="dialog-content" style="padding:0;">
+        <!-- 概要指标 -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #f1f5f9;">
+          <div style="text-align:center;padding:14px 8px;">
+            <div style="font-size:22px;font-weight:700;color:#1e293b;">${summary.totalBookmarks}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">个收藏</div>
           </div>
-          <div class="summary-item">
-            <span class="summary-label">已分类:</span>
-            <span class="summary-value">${analysisResult.summary.categorizedCount}</span>
+          <div style="text-align:center;padding:14px 8px;border-left:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+            <div style="font-size:22px;font-weight:700;color:#6366f1;">${categories.length}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              个分类${newCatCount > 0 ? ` <span style="color:#1d4ed8;">(${newCatCount} 新增)</span>` : ''}
+            </div>
           </div>
-          <div class="summary-item">
-            <span class="summary-label">建议新增分类:</span>
-            <span class="summary-value highlight">${analysisResult.summary.newCategories.length}</span>
+          <div style="text-align:center;padding:14px 8px;">
+            <div style="font-size:22px;font-weight:700;color:#0891b2;">${uniqueTagNames.length}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">个标签建议</div>
           </div>
         </div>
-
-        <!-- 新增分类列表 -->
-        ${analysisResult.summary.newCategories.length > 0 ? `
-          <div class="new-categories-section">
-            <h3>建议新增分类</h3>
-            <div class="categories-list">
-              ${analysisResult.summary.newCategories.map(name => `
-                <div class="category-tag category-tag-new">${escapeHtml(name)}</div>
-              `).join('')}
-            </div>
+        <!-- 分类方案 -->
+        <div style="padding:0 16px;">
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.05em;
+                      padding:10px 4px 4px;">📁 分类整理方案</div>
+          <div style="max-height:300px;overflow-y:auto;">
+            ${catRows || '<div style="color:#94a3b8;font-size:13px;padding:12px 4px;">暂无分类建议</div>'}
           </div>
-        ` : ''}
-
-        <!-- 现有分类调整 -->
-        ${analysisResult.summary.adjustedCategories.length > 0 ? `
-          <div class="existing-categories-section">
-            <h3>现有分类调整</h3>
-            <div class="categories-list">
-              ${analysisResult.summary.adjustedCategories.map(cat => `
-                <div class="category-adjustment">
-                  <div class="category-name">${escapeHtml(cat.name)}</div>
-                  <div class="category-count">
-                    <span class="count-label">新增:</span>
-                    <span class="count-value">${cat.addedCount}</span>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- 分类明细 -->
-        <details class="category-details">
-          <summary>查看分类明细</summary>
-          <div class="details-content">
-            ${renderCategoryDetails(analysisResult.categories)}
-          </div>
-        </details>
-
-        <!-- API 分析日志（来自 batchLogs） -->
-        ${analysisResult.batchLogs?.length > 0 ? `
-        <details style="margin-top:8px;">
-          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#475569;
-                          padding:8px 0;user-select:none;">
-            📋 API 分析日志（${analysisResult.batchLogs.length} 批次）
-          </summary>
-          <div style="max-height:340px;overflow-y:auto;padding-top:4px;">
-            ${renderBatchLogs(analysisResult.batchLogs)}
-          </div>
-        </details>` : ''}
+        </div>
+        ${tagsSection}
       </div>
-
       <div class="dialog-footer">
         <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm">应用分类</button>
+        <button class="btn btn-primary" id="dialogConfirm">✓ 应用整理方案</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(dialog);
 
-  // 绑定事件
   const closeBtn = dialog.querySelector('#dialogClose');
   const cancelBtn = dialog.querySelector('#dialogCancel');
   const confirmBtn = dialog.querySelector('#dialogConfirm');
@@ -986,9 +1013,7 @@ function showAnalysisConfirmDialog(analysisResult) {
   const closeDialog = () => {
     dialog.classList.add('hide');
     setTimeout(() => {
-      if (dialog.parentNode) {
-        dialog.parentNode.removeChild(dialog);
-      }
+      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
     }, 300);
   };
 
@@ -997,202 +1022,35 @@ function showAnalysisConfirmDialog(analysisResult) {
 
   confirmBtn.addEventListener('click', async () => {
     try {
-      Toast.info('正在应用分类...');
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '整理中...';
       const response = await chrome.runtime.sendMessage({
         type: 'APPLY_CATEGORIES',
         categories: analysisResult.categories
       });
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      Toast.success('分类已应用！');
+      if (response.error) throw new Error(response.error);
+      Toast.success(`整理完成！已应用 ${analysisResult.categories.length} 个分类`);
       await loadBookmarks();
       closeDialog();
     } catch (error) {
       console.error('Failed to apply categories:', error);
-      Toast.error(`应用分类失败: ${error.message}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '✓ 应用整理方案';
+      Toast.error(`应用失败: ${error.message}`);
     }
   });
 
-  // 点击遮罩层关闭
   dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      closeDialog();
-    }
+    if (e.target === dialog) closeDialog();
   });
 
-  // 显示对话框
-  setTimeout(() => {
-    dialog.classList.add('show');
-  }, 10);
+  setTimeout(() => dialog.classList.add('show'), 10);
 }
 
 /**
- * 渲染分类明细
+ * 处理调试分析
  */
-function renderCategoryDetails(categories) {
-  // 创建收藏 ID 到标题的映射
-  const bookmarkMap = new Map();
-  state.bookmarks.forEach(bm => {
-    bookmarkMap.set(bm.id, bm);
-  });
-
-  // 按分类分组
-  const newCategories = categories.filter(cat => cat.isNew);
-  const existingCategories = categories.filter(cat => !cat.isNew);
-
-  let html = '';
-
-  // 新增分类明细
-  if (newCategories.length > 0) {
-    html += '<div class="detail-section"><h4>新增分类明细</h4>';
-    newCategories.forEach(cat => {
-      html += `
-        <div class="detail-category">
-          <div class="detail-category-header">
-            <span class="detail-category-name">${escapeHtml(cat.name)}</span>
-            <span class="detail-category-confidence">
-              置信度: ${Math.round(cat.confidence * 100)}%
-            </span>
-          </div>
-          <div class="detail-bookmarks">
-            ${cat.bookmarkIds.map(id => {
-              const bm = bookmarkMap.get(id);
-              return bm ? `
-                <div class="detail-bookmark">
-                  <div class="bookmark-title">${escapeHtml(bm.title)}</div>
-                  <div class="bookmark-url">${escapeHtml(truncateUrl(bm.url, 50))}</div>
-                </div>
-              ` : '';
-            }).join('')}
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-  }
-
-  // 现有分类明细
-  if (existingCategories.length > 0) {
-    html += '<div class="detail-section"><h4>现有分类明细</h4>';
-    existingCategories.forEach(cat => {
-      html += `
-        <div class="detail-category">
-          <div class="detail-category-header">
-            <span class="detail-category-name">${escapeHtml(cat.name)}</span>
-            <span class="detail-category-confidence">
-              置信度: ${Math.round(cat.confidence * 100)}%
-            </span>
-          </div>
-          <div class="detail-bookmarks">
-            ${cat.bookmarkIds.map(id => {
-              const bm = bookmarkMap.get(id);
-              return bm ? `
-                <div class="detail-bookmark">
-                  <div class="bookmark-title">${escapeHtml(bm.title)}</div>
-                  <div class="bookmark-url">${escapeHtml(truncateUrl(bm.url, 50))}</div>
-                </div>
-              ` : '';
-            }).join('')}
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-  }
-
-  return html;
-}
-
-/**
- * 渲染批次分析日志（用于正式分析结果对话框）
- * @param {Array} batchLogs - analyzeBookmarks 返回的 batchLogs
- * @returns {string} HTML 字符串
- */
-function renderBatchLogs(batchLogs) {
-  if (!batchLogs?.length) return '<div style="color:#94a3b8;font-size:12px;">无批次日志</div>';
-
-  const formatJson = (obj) => {
-    if (!obj) return '<span style="color:#94a3b8;">null</span>';
-    try { return escapeHtml(JSON.stringify(obj, null, 2)); }
-    catch { return escapeHtml(String(obj)); }
-  };
-
-  return batchLogs.map((log) => {
-    const hasWarnings = log.warnings?.length > 0;
-    const tokenInfo = log.usage
-      ? `${log.usage.prompt_tokens || '?'}↑ + ${log.usage.completion_tokens || '?'}↓`
-      : '—';
-    const durationStr = log.fromCache ? '(缓存)' : `${(log.duration / 1000).toFixed(1)}s`;
-
-    return `
-      <details style="margin-bottom:6px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-        <summary style="cursor:pointer;padding:8px 12px;background:#f8fafc;font-size:12px;
-                        font-weight:600;color:#475569;user-select:none;list-style:none;
-                        display:flex;align-items:center;gap:8px;">
-          <span style="color:${log.fromCache ? '#94a3b8' : '#22c55e'};">
-            ${log.fromCache ? '📦 缓存' : '✅'}
-          </span>
-          <span>第 ${log.batchIndex + 1} 批  ${log.bookmarks.length} 个书签</span>
-          <span style="margin-left:auto;color:#94a3b8;font-weight:400;">
-            ${log.categories.length} 个分类 · ${tokenInfo} · ${durationStr}
-            ${hasWarnings ? ' · <span style="color:#f59e0b;">⚠' + log.warnings.length + '</span>' : ''}
-          </span>
-        </summary>
-        <div style="padding:10px 12px;background:#fff;font-size:12px;">
-
-          <!-- 书签列表 -->
-          <div style="margin-bottom:8px;">
-            <div style="font-weight:600;color:#64748b;margin-bottom:4px;">书签</div>
-            ${log.bookmarks.map(b => `
-              <div style="padding:2px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:6px;">
-                <span style="color:#94a3b8;min-width:16px;">[${escapeHtml(b.id)}]</span>
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  ${escapeHtml(b.title)}
-                </span>
-              </div>
-            `).join('')}
-          </div>
-
-          ${hasWarnings ? `
-          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;
-                      padding:8px 10px;margin-bottom:8px;">
-            <div style="font-weight:600;color:#d97706;margin-bottom:2px;">⚠️ 校验警告</div>
-            <ul style="margin:0;padding-left:18px;color:#92400e;">
-              ${log.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
-            </ul>
-          </div>` : ''}
-
-          ${!log.fromCache && log.request ? `
-          <!-- 请求报文 -->
-          <details style="margin-bottom:6px;">
-            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#64748b;user-select:none;padding:4px 0;">
-              📤 请求报文
-            </summary>
-            <pre style="background:#1e293b;color:#e2e8f0;border-radius:6px;padding:10px;
-                        font-size:10px;line-height:1.5;overflow-x:auto;max-height:200px;
-                        overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:4px 0 0;">
-${formatJson(log.request)}</pre>
-          </details>
-
-          <!-- 原始响应 -->
-          <details>
-            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#64748b;user-select:none;padding:4px 0;">
-              📥 原始响应
-            </summary>
-            <pre style="background:#1e293b;color:#86efac;border-radius:6px;padding:10px;
-                        font-size:10px;line-height:1.5;overflow-x:auto;max-height:200px;
-                        overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:4px 0 0;">
-${log.rawContent ? escapeHtml(log.rawContent) : '<span style="color:#94a3b8;">无内容</span>'}</pre>
-          </details>` : ''}
-        </div>
-      </details>
-    `;
-  }).join('');
-}
-
+async function handleDebugAnalyze() {
   if (state.bookmarks.length === 0) {
     Toast.warning('请先导入收藏');
     return;
@@ -1909,15 +1767,11 @@ function listenToMessages() {
       const { current, total, message: msg } = message.data;
       showProgress(msg || '正在分析...', current, total);
     } else if (message.type === 'ANALYSIS_BATCH_DONE') {
-      // 更新最后一批的摘要信息到 progressSub
-      const { batchIndex, totalBatches, categoriesCount, tagsCount, usage, warnings, duration, fromCache } = message.data;
+      const { batchIndex, totalBatches, fromCache } = message.data;
       const subEl = document.getElementById('progressSub');
       if (subEl) {
-        const tokenInfo = usage ? ` · ${(usage.prompt_tokens || 0) + (usage.completion_tokens || 0)} tokens` : '';
-        const warnInfo = warnings?.length ? ` · ⚠${warnings.length}` : '';
-        const cacheTag = fromCache ? ' [缓存]' : '';
-        const durationStr = !fromCache && duration ? ` · ${(duration / 1000).toFixed(1)}s` : '';
-        subEl.textContent = `第 ${batchIndex + 1}/${totalBatches} 批完成${cacheTag}: ${categoriesCount} 个分类${tokenInfo}${durationStr}${warnInfo}`;
+        const note = fromCache ? '（已缓存）' : '';
+        subEl.textContent = `已完成 ${batchIndex + 1}/${totalBatches} 批${note}`;
       }
     } else if (message.type === 'BOOKMARK_CHANGED') {
       // 浏览器书签变更（用户在浏览器中新增/删除/移动书签），刷新列表

@@ -124,16 +124,7 @@ export async function analyzeBookmarks(
       const batchLog = {
         batchIndex: i,
         batchSize: batch.length,
-        bookmarks: batch.map(b => ({ id: b.id, title: b.title, url: b.url })),
-        request: {
-          model,
-          messages: [
-            { role: 'system', content: getSystemPrompt() },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3
-        },
-        rawContent,
+        bookmarks: batch.map(b => ({ id: b.id, title: b.title })),
         categories: validatedParsed.categories || [],
         tags: validatedParsed.tags || [],
         usage,
