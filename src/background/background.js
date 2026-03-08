@@ -37,6 +37,9 @@ let currentCheckCancelToken = null;
 // 当前检测进度快照（popup 重新打开时用于恢复 UI）
 let currentCheckProgress = null;
 
+// 当前 AI 分析任务的取消令牌
+let currentAnalysisCancelToken = null;
+
 // 初始化数据库
 async function initDatabase() {
   if (!db) {
@@ -414,6 +417,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleApplyCategories(request, sendResponse);
       return true;
 
+    case 'GET_ANALYSIS_SESSION':
+      chrome.storage.local.get('analysisSession').then(result => {
+        sendResponse({ session: result.analysisSession || null });
+      });
+      return true;
+
+    case 'CLEAR_ANALYSIS_SESSION':
+      chrome.storage.local.remove('analysisSession').then(() => {
+        sendResponse({ success: true });
+      });
+      return true;
+
+    case 'CANCEL_ANALYSIS':
+      if (currentAnalysisCancelToken) {
+        currentAnalysisCancelToken.cancelled = true;
+      }
+      sendResponse({ success: true });
+      return true;
+
     case 'IMPORT_FROM_BROWSER':
       handleImportFromBrowser(request, sendResponse);
       return true;
@@ -672,18 +694,22 @@ async function handleCheckBrokenLinks(request, sendResponse) {
 }
 
 /**
- * AI 分析收藏
+ * AI 分析收藏（支持断点续分析、逐批缓存、取消）
  */
 async function handleAIAnalyze(request, sendResponse) {
-  try {
-    const { bookmarkIds } = request;
+  // 防止重复启动
+  if (currentAnalysisCancelToken !== null) {
+    sendResponse({ error: '分析正在进行中，请稍候' });
+    return;
+  }
 
-    // 打开数据库
+  try {
+    const { bookmarkIds, forceRestart } = request;
+
     await initDatabase();
 
-    // 获取待分析的收藏
     const allBookmarks = await getAllBookmarks();
-    const bookmarksToAnalyze = bookmarkIds && bookmarkIds.length > 0
+    const bookmarksToAnalyze = bookmarkIds?.length > 0
       ? allBookmarks.filter(bm => bookmarkIds.includes(bm.id))
       : allBookmarks;
 
@@ -692,51 +718,132 @@ async function handleAIAnalyze(request, sendResponse) {
       return;
     }
 
-    // 获取现有分类作为参考
     const categories = await getAllCategories();
     const existingCategoryNames = categories.map(c => c.name);
 
-    // 获取 AI 配置
     const configResult = await chrome.storage.local.get('aiConfig');
     const aiConfig = configResult.aiConfig;
 
-    if (!aiConfig || !aiConfig.apiUrl || !aiConfig.apiKey || !aiConfig.model) {
+    if (!aiConfig?.apiUrl || !aiConfig?.apiKey || !aiConfig?.model) {
       sendResponse({ error: '请先在设置中配置 AI API' });
       return;
     }
 
-    // 提取页面摘要信息（为 AI 提供更多上下文）
+    const BATCH_SIZE = 10;
+    const totalBatches = Math.ceil(bookmarksToAnalyze.length / BATCH_SIZE);
+    const sessionBookmarkIds = bookmarksToAnalyze.map(b => b.id);
+
+    // ── 断点续分析：检查是否有未完成的会话 ──────────────────────────────────────
+    const { analysisSession } = await chrome.storage.local.get('analysisSession');
+    let startBatchIndex = 0;
+    let cachedBatches = [];
+
+    if (!forceRestart && analysisSession && !analysisSession.completed) {
+      const storedIds = [...(analysisSession.bookmarkIds || [])].sort().join(',');
+      const currentIds = [...sessionBookmarkIds].sort().join(',');
+      const completedCount = analysisSession.completedBatches?.length ?? 0;
+      if (storedIds === currentIds && completedCount > 0) {
+        startBatchIndex = completedCount;
+        cachedBatches = analysisSession.completedBatches;
+        console.log(`[AI] 续分析：从第 ${startBatchIndex + 1}/${totalBatches} 批开始`);
+      }
+    }
+
+    // 新建或重置会话
+    if (startBatchIndex === 0) {
+      await chrome.storage.local.set({
+        analysisSession: {
+          startTime: Date.now(),
+          bookmarkIds: sessionBookmarkIds,
+          totalBatches,
+          batchSize: BATCH_SIZE,
+          completedBatches: [],
+          completed: false
+        }
+      });
+      cachedBatches = [];
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // 通知 popup 开始提取摘要
     chrome.runtime.sendMessage({
       type: 'ANALYSIS_PROGRESS',
-      data: { current: 0, total: 0, message: '正在提取页面摘要...' }
+      data: { current: startBatchIndex, total: totalBatches, message: '正在提取页面摘要...' }
     }).catch(() => {});
 
     const summaryMap = await batchExtractSummaries(bookmarksToAnalyze);
     const enrichedBookmarks = enrichBookmarks(bookmarksToAnalyze, summaryMap);
+    console.log(`[AI] 摘要提取: ${summaryMap.size}/${bookmarksToAnalyze.length} 成功`);
 
-    console.log(`[AI] 页面摘要提取完成: ${summaryMap.size}/${bookmarksToAnalyze.length} 成功`);
+    // 创建取消令牌
+    currentAnalysisCancelToken = { cancelled: false };
 
-    // 调用 AI 分析
     const analysisResult = await analyzeBookmarks(
       aiConfig,
       enrichedBookmarks,
       existingCategoryNames,
-      10,
-      // 进度回调 - 发送进度消息到 popup
-      (current, total, message) => {
-        chrome.runtime.sendMessage({
-          type: 'ANALYSIS_PROGRESS',
-          data: { current, total, message }
-        }).catch(() => {
-          // Popup 可能已关闭，忽略错误
-        });
+      {
+        batchSize: BATCH_SIZE,
+        cancelToken: currentAnalysisCancelToken,
+        startBatchIndex,
+        cachedBatches,
+        onProgress: (current, total, message) => {
+          chrome.runtime.sendMessage({
+            type: 'ANALYSIS_PROGRESS',
+            data: { current, total, message }
+          }).catch(() => {});
+        },
+        onBatchComplete: async (batchIndex, batchLog) => {
+          // 持久化轻量缓存（只存恢复所需字段，不存完整请求报文）
+          const { analysisSession: sess } = await chrome.storage.local.get('analysisSession');
+          if (sess && !sess.completed) {
+            sess.completedBatches.push({
+              batchIndex,
+              categories: batchLog.categories,
+              tags: batchLog.tags,
+              usage: batchLog.usage
+            });
+            await chrome.storage.local.set({ analysisSession: sess });
+          }
+          // 广播批次摘要到 popup（不持久化完整报文）
+          chrome.runtime.sendMessage({
+            type: 'ANALYSIS_BATCH_DONE',
+            data: {
+              batchIndex,
+              totalBatches,
+              categoriesCount: batchLog.categories.length,
+              tagsCount: batchLog.tags.length,
+              usage: batchLog.usage,
+              warnings: batchLog.warnings,
+              duration: batchLog.duration,
+              fromCache: batchLog.fromCache
+            }
+          }).catch(() => {});
+        }
       }
     );
 
+    // 正常完成：清除会话缓存
+    await chrome.storage.local.remove('analysisSession');
+    currentAnalysisCancelToken = null;
+
     sendResponse({ result: analysisResult });
+
   } catch (error) {
-    console.error('AI analysis failed:', error);
-    sendResponse({ error: error.message });
+    if (currentAnalysisCancelToken?.cancelled) {
+      // 标记会话已取消（保留 completedBatches 供下次续分析）
+      const { analysisSession: sess } = await chrome.storage.local.get('analysisSession');
+      if (sess) {
+        sess.cancelled = true;
+        await chrome.storage.local.set({ analysisSession: sess });
+      }
+      sendResponse({ cancelled: true, error: '分析已取消，进度已保存' });
+    } else {
+      await chrome.storage.local.remove('analysisSession');
+      console.error('AI analysis failed:', error);
+      sendResponse({ error: error.message });
+    }
+    currentAnalysisCancelToken = null;
   }
 }
 

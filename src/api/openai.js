@@ -11,24 +11,37 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE = 1000;
 
 /**
- * 调用 AI 分析收藏（带进度回调）
+ * 调用 AI 分析收藏（支持断点续分析、逐批回调、取消）
  * @param {Object} config - API 配置
- * @param {Array} bookmarks - 待分析的收藏列表
- * @param {Array} existingCategories - 用户已有的分类（作为参考）
- * @param {number} batchSize - 每批分析的收藏数量
- * @param {Function} onProgress - 进度回调
- * @returns {Promise<Object>} 分析结果
+ * @param {Array}  bookmarks - 待分析的收藏列表
+ * @param {Array}  existingCategories - 用户已有的分类（作为参考）
+ * @param {Object} options
+ * @param {number}   [options.batchSize=10]       - 每批分析的书签数
+ * @param {Function} [options.onProgress]          - 进度回调 (current, total, message)
+ * @param {Function} [options.onBatchComplete]     - 每批完成回调 async (batchIndex, batchLog)
+ * @param {Object}   [options.cancelToken]         - 取消令牌 { cancelled: boolean }
+ * @param {number}   [options.startBatchIndex=0]  - 从第几批开始（断点续接）
+ * @param {Array}    [options.cachedBatches=[]]    - 已缓存的批次结果（仅含 categories/tags/usage）
+ * @returns {Promise<{categories, tags, summary, batchLogs}>}
  */
 export async function analyzeBookmarks(
   config,
   bookmarks,
   existingCategories = [],
-  batchSize = 10,
-  onProgress
+  options = {}
 ) {
+  const {
+    batchSize = 10,
+    onProgress,
+    onBatchComplete,
+    cancelToken,
+    startBatchIndex = 0,
+    cachedBatches = []
+  } = options;
+
   const { apiUrl, apiKey, model } = config;
 
-  // 分批分析，避免单次请求数据量过大
+  // 分批
   const batches = [];
   for (let i = 0; i < bookmarks.length; i += batchSize) {
     batches.push(bookmarks.slice(i, i + batchSize));
@@ -36,73 +49,118 @@ export async function analyzeBookmarks(
 
   const allCategories = new Map();
   const allTags = [];
+  const batchLogs = [];
 
-  // 逐批分析
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
+  /**
+   * 将一批 categories/tags 合并到汇总 Map 中
+   */
+  function mergeBatch(cats, tags) {
+    if (cats) {
+      cats.forEach((cat) => {
+        const key = cat.name.toLowerCase();
+        if (allCategories.has(key)) {
+          const existing = allCategories.get(key);
+          existing.bookmarkIds.push(...(cat.bookmarkIds || []));
+          existing.confidence = (existing.confidence + (cat.confidence ?? 0.5)) / 2;
+        } else {
+          allCategories.set(key, {
+            name: cat.name,
+            confidence: cat.confidence ?? 0.5,
+            bookmarkIds: cat.bookmarkIds || [],
+            isNew: !existingCategories.includes(cat.name)
+          });
+        }
+      });
+    }
+    if (tags) {
+      tags.forEach(tag => allTags.push({ name: tag.name || tag, bookmarkId: tag.bookmarkId }));
+    }
+  }
 
-    // 触发进度回调
-    if (onProgress) {
-      onProgress(i + 1, batches.length, `正在分析第 ${i + 1}/${batches.length} 批收藏...`);
+  // ── 重放缓存批次（断点续接时跳过已完成批次）────────────────────────────────
+  for (let i = 0; i < Math.min(startBatchIndex, cachedBatches.length); i++) {
+    const cached = cachedBatches[i];
+    mergeBatch(cached?.categories, cached?.tags);
+    batchLogs.push({
+      batchIndex: i,
+      batchSize: batches[i]?.length ?? batchSize,
+      bookmarks: batches[i]?.map(b => ({ id: b.id, title: b.title, url: b.url })) ?? [],
+      categories: cached?.categories || [],
+      tags: cached?.tags || [],
+      usage: cached?.usage || null,
+      warnings: [],
+      duration: 0,
+      fromCache: true
+    });
+  }
+
+  // ── 逐批发送 API 请求 ────────────────────────────────────────────────────────
+  for (let i = startBatchIndex; i < batches.length; i++) {
+    // 检查取消令牌
+    if (cancelToken?.cancelled) {
+      throw new Error('已取消');
     }
 
-    // 构建分析提示
+    const batch = batches[i];
+    if (onProgress) {
+      onProgress(i + 1, batches.length, `正在分析第 ${i + 1}/${batches.length} 批（${batch.length} 个）...`);
+    }
+
     const prompt = buildAnalysisPrompt(batch, existingCategories);
+    const batchStartTime = Date.now();
 
     try {
-      const result = await fetchWithRetry(
+      const { content: rawContent, usage } = await fetchWithRetry(
         () => callOpenAI(apiUrl, apiKey, model, prompt),
         MAX_RETRIES
       );
 
-      // 解析结果（兼容思维链模型的 <think>…</think> 标签和 markdown 代码块）
-      const parsed = parseAIJSON(result);
+      const parsed = parseAIJSON(rawContent);
+      const inputIds = batch.map(b => String(b.id));
+      const { result: validatedParsed, warnings } = validateAIResult(parsed, inputIds);
 
-      // 处理分类结果
-      if (parsed.categories && Array.isArray(parsed.categories)) {
-        parsed.categories.forEach((cat) => {
-          const key = cat.name.toLowerCase();
-          if (allCategories.has(key)) {
-            // 合并到已有分类
-            const existing = allCategories.get(key);
-            existing.bookmarkIds.push(...cat.bookmarkIds);
-            // 更新置信度（取平均）
-            existing.confidence = (existing.confidence + cat.confidence) / 2;
-          } else {
-            // 新增分类
-            allCategories.set(key, {
-              name: cat.name,
-              confidence: cat.confidence,
-              bookmarkIds: cat.bookmarkIds || [],
-              isNew: !existingCategories.includes(cat.name)
-            });
-          }
-        });
-      }
+      mergeBatch(validatedParsed.categories, validatedParsed.tags);
 
-      // 处理标签建议
-      if (parsed.tags && Array.isArray(parsed.tags)) {
-        parsed.tags.forEach((tag) => {
-          allTags.push({
-            name: tag.name || tag,
-            bookmarkId: tag.bookmarkId
-          });
-        });
+      const batchLog = {
+        batchIndex: i,
+        batchSize: batch.length,
+        bookmarks: batch.map(b => ({ id: b.id, title: b.title, url: b.url })),
+        request: {
+          model,
+          messages: [
+            { role: 'system', content: getSystemPrompt() },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3
+        },
+        rawContent,
+        categories: validatedParsed.categories || [],
+        tags: validatedParsed.tags || [],
+        usage,
+        warnings,
+        duration: Date.now() - batchStartTime,
+        fromCache: false
+      };
+      batchLogs.push(batchLog);
+
+      if (onBatchComplete) {
+        await onBatchComplete(i, batchLog);
       }
 
     } catch (error) {
+      if (cancelToken?.cancelled) throw error; // 取消错误直接透传
       console.error(`批 ${i + 1} 分析失败:`, error);
       throw new Error(`分析第 ${i + 1}/${batches.length} 批收藏时失败: ${error.message}`);
     }
   }
 
-  // 生成分析摘要
   const summary = generateSummary(allCategories, existingCategories, bookmarks.length);
 
   return {
     categories: Array.from(allCategories.values()),
     tags: allTags,
-    summary
+    summary,
+    batchLogs   // 完整批次日志（含请求/响应报文），用于诊断
   };
 }
 
@@ -173,7 +231,7 @@ async function fetchWithRetry(fetchFn, maxRetries, attempt = 0) {
       throw new Error('API 返回内容为空');
     }
 
-    return content;
+    return { content, usage: data.usage || null };
   } catch (error) {
     // 429 (Too Many Requests) 或 5xx 错误时重试
     const shouldRetry =

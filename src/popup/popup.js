@@ -717,43 +717,161 @@ function handleFolderCollapse(folderId) {
 }
 
 /**
- * 处理一键分析
+ * 处理一键分析（检查是否有可续分析的会话）
  */
 async function handleAnalyze() {
-  // 防止重复点击
   if (state.isAnalyzing) {
     Toast.warning('正在分析中，请稍候...');
     return;
   }
-
-  // 检查是否有收藏
   if (state.bookmarks.length === 0) {
     Toast.warning('请先导入收藏');
     return;
   }
 
+  // 查询是否有未完成的分析会话
+  let resumeSession = null;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'GET_ANALYSIS_SESSION' });
+    if (res?.session && !res.session.completed) {
+      const currentIds = state.bookmarks.map(b => b.id).sort().join(',');
+      const sessionIds = [...(res.session.bookmarkIds || [])].sort().join(',');
+      const completedCount = res.session.completedBatches?.length ?? 0;
+      if (currentIds === sessionIds && completedCount > 0) {
+        resumeSession = res.session;
+      }
+    }
+  } catch (_) {}
+
+  if (resumeSession) {
+    const completed = resumeSession.completedBatches?.length ?? 0;
+    const total = resumeSession.totalBatches ?? 0;
+    const sessionTime = new Date(resumeSession.startTime).toLocaleTimeString('zh-CN', {
+      hour: '2-digit', minute: '2-digit'
+    });
+    showAnalysisResumeDialog({
+      sessionTime,
+      completedBatches: completed,
+      totalBatches: total,
+      bookmarkCount: state.bookmarks.length,
+      onResume: () => startAnalysis(false),
+      onRestart: async () => {
+        await chrome.runtime.sendMessage({ type: 'CLEAR_ANALYSIS_SESSION' }).catch(() => {});
+        startAnalysis(true);
+      }
+    });
+  } else {
+    startAnalysis(false);
+  }
+}
+
+/**
+ * 显示续分析 / 重新全量分析 对话框
+ */
+function showAnalysisResumeDialog({ sessionTime, completedBatches, totalBatches, bookmarkCount, onResume, onRestart }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-dialog-overlay';
+
+  overlay.innerHTML = `
+    <div class="confirm-dialog" style="max-width:440px;">
+      <div class="dialog-header">
+        <h2>🤖 发现未完成的分析</h2>
+        <button class="dialog-close" id="aResumeClose">&times;</button>
+      </div>
+      <div class="dialog-content" style="padding:16px 20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:11px;color:#94a3b8;">发起时间</div>
+            <div style="font-size:15px;font-weight:600;color:#334155;">${sessionTime}</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:11px;color:#94a3b8;">已完成批次</div>
+            <div style="font-size:15px;font-weight:600;color:#22c55e;">${completedBatches}/${totalBatches}</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:11px;color:#94a3b8;">剩余书签</div>
+            <div style="font-size:15px;font-weight:600;color:#f59e0b;">
+              ~${Math.max(0, (totalBatches - completedBatches) * 10)}
+            </div>
+          </div>
+        </div>
+        <p style="font-size:13px;color:#475569;margin:0;">
+          上次分析在第 <strong>${completedBatches}/${totalBatches}</strong> 批时中断。<br>
+          可从中断处继续，或重新对全部 <strong>${bookmarkCount}</strong> 个收藏发起完整分析。
+        </p>
+      </div>
+      <div class="dialog-footer" style="gap:8px;">
+        <button class="btn btn-cancel" id="aResumeCancel">稍后再说</button>
+        <button class="btn" id="aResumeRestart"
+          style="background:#f8fafc;border:1px solid #cbd5e1;color:#475569;">
+          🔄 重新全量分析
+        </button>
+        <button class="btn btn-primary" id="aResumeResume">▶ 续分析</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.classList.add('hide');
+    setTimeout(() => overlay.remove(), 300);
+  };
+
+  overlay.querySelector('#aResumeClose').addEventListener('click', close);
+  overlay.querySelector('#aResumeCancel').addEventListener('click', close);
+  overlay.querySelector('#aResumeResume').addEventListener('click', () => {
+    close();
+    onResume();
+  });
+  overlay.querySelector('#aResumeRestart').addEventListener('click', () => {
+    close();
+    onRestart();
+  });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  setTimeout(() => overlay.classList.add('show'), 10);
+}
+
+/**
+ * 执行 AI 分析
+ * @param {boolean} forceRestart - true 表示忽略缓存，重新全量分析
+ */
+async function startAnalysis(forceRestart) {
   state.isAnalyzing = true;
   elements.analyzeBtn.disabled = true;
   elements.analyzeBtn.textContent = '⏳ 分析中...';
 
-  try {
-    // 显示进度
-    showProgress('准备分析...', 0, 0);
+  // 显示取消按钮（复用 cancelCheckBtn）
+  if (elements.cancelCheckBtn) {
+    elements.cancelCheckBtn.style.display = '';
+    elements.cancelCheckBtn.disabled = false;
+    elements.cancelCheckBtn.textContent = '✕ 取消分析';
+    elements.cancelCheckBtn.onclick = async () => {
+      elements.cancelCheckBtn.disabled = true;
+      elements.cancelCheckBtn.textContent = '正在取消...';
+      await chrome.runtime.sendMessage({ type: 'CANCEL_ANALYSIS' }).catch(() => {});
+    };
+  }
 
-    // 调用 background 进行 AI 分析
+  showProgress('准备分析...', 0, 0);
+
+  try {
     const response = await chrome.runtime.sendMessage({
       type: 'AI_ANALYZE',
-      bookmarkIds: state.bookmarks.map(bm => bm.id)
+      bookmarkIds: state.bookmarks.map(bm => bm.id),
+      forceRestart
     });
 
+    hideProgress();
+
+    if (response.cancelled) {
+      Toast.info('分析已取消，进度已保存，下次可继续');
+      return;
+    }
     if (response.error) {
       throw new Error(response.error);
     }
 
-    // 隐藏进度
-    hideProgress();
-
-    // 显示确认对话框
     showAnalysisConfirmDialog(response.result);
 
   } catch (error) {
@@ -764,6 +882,9 @@ async function handleAnalyze() {
     state.isAnalyzing = false;
     elements.analyzeBtn.disabled = false;
     elements.analyzeBtn.textContent = '🤖 分析';
+    if (elements.cancelCheckBtn) {
+      elements.cancelCheckBtn.style.display = 'none';
+    }
   }
 }
 
@@ -834,6 +955,18 @@ function showAnalysisConfirmDialog(analysisResult) {
             ${renderCategoryDetails(analysisResult.categories)}
           </div>
         </details>
+
+        <!-- API 分析日志（来自 batchLogs） -->
+        ${analysisResult.batchLogs?.length > 0 ? `
+        <details style="margin-top:8px;">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#475569;
+                          padding:8px 0;user-select:none;">
+            📋 API 分析日志（${analysisResult.batchLogs.length} 批次）
+          </summary>
+          <div style="max-height:340px;overflow-y:auto;padding-top:4px;">
+            ${renderBatchLogs(analysisResult.batchLogs)}
+          </div>
+        </details>` : ''}
       </div>
 
       <div class="dialog-footer">
@@ -974,9 +1107,92 @@ function renderCategoryDetails(categories) {
 }
 
 /**
- * 处理调试分析
+ * 渲染批次分析日志（用于正式分析结果对话框）
+ * @param {Array} batchLogs - analyzeBookmarks 返回的 batchLogs
+ * @returns {string} HTML 字符串
  */
-async function handleDebugAnalyze() {
+function renderBatchLogs(batchLogs) {
+  if (!batchLogs?.length) return '<div style="color:#94a3b8;font-size:12px;">无批次日志</div>';
+
+  const formatJson = (obj) => {
+    if (!obj) return '<span style="color:#94a3b8;">null</span>';
+    try { return escapeHtml(JSON.stringify(obj, null, 2)); }
+    catch { return escapeHtml(String(obj)); }
+  };
+
+  return batchLogs.map((log) => {
+    const hasWarnings = log.warnings?.length > 0;
+    const tokenInfo = log.usage
+      ? `${log.usage.prompt_tokens || '?'}↑ + ${log.usage.completion_tokens || '?'}↓`
+      : '—';
+    const durationStr = log.fromCache ? '(缓存)' : `${(log.duration / 1000).toFixed(1)}s`;
+
+    return `
+      <details style="margin-bottom:6px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <summary style="cursor:pointer;padding:8px 12px;background:#f8fafc;font-size:12px;
+                        font-weight:600;color:#475569;user-select:none;list-style:none;
+                        display:flex;align-items:center;gap:8px;">
+          <span style="color:${log.fromCache ? '#94a3b8' : '#22c55e'};">
+            ${log.fromCache ? '📦 缓存' : '✅'}
+          </span>
+          <span>第 ${log.batchIndex + 1} 批  ${log.bookmarks.length} 个书签</span>
+          <span style="margin-left:auto;color:#94a3b8;font-weight:400;">
+            ${log.categories.length} 个分类 · ${tokenInfo} · ${durationStr}
+            ${hasWarnings ? ' · <span style="color:#f59e0b;">⚠' + log.warnings.length + '</span>' : ''}
+          </span>
+        </summary>
+        <div style="padding:10px 12px;background:#fff;font-size:12px;">
+
+          <!-- 书签列表 -->
+          <div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:#64748b;margin-bottom:4px;">书签</div>
+            ${log.bookmarks.map(b => `
+              <div style="padding:2px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:6px;">
+                <span style="color:#94a3b8;min-width:16px;">[${escapeHtml(b.id)}]</span>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  ${escapeHtml(b.title)}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+
+          ${hasWarnings ? `
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;
+                      padding:8px 10px;margin-bottom:8px;">
+            <div style="font-weight:600;color:#d97706;margin-bottom:2px;">⚠️ 校验警告</div>
+            <ul style="margin:0;padding-left:18px;color:#92400e;">
+              ${log.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
+            </ul>
+          </div>` : ''}
+
+          ${!log.fromCache && log.request ? `
+          <!-- 请求报文 -->
+          <details style="margin-bottom:6px;">
+            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#64748b;user-select:none;padding:4px 0;">
+              📤 请求报文
+            </summary>
+            <pre style="background:#1e293b;color:#e2e8f0;border-radius:6px;padding:10px;
+                        font-size:10px;line-height:1.5;overflow-x:auto;max-height:200px;
+                        overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:4px 0 0;">
+${formatJson(log.request)}</pre>
+          </details>
+
+          <!-- 原始响应 -->
+          <details>
+            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#64748b;user-select:none;padding:4px 0;">
+              📥 原始响应
+            </summary>
+            <pre style="background:#1e293b;color:#86efac;border-radius:6px;padding:10px;
+                        font-size:10px;line-height:1.5;overflow-x:auto;max-height:200px;
+                        overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:4px 0 0;">
+${log.rawContent ? escapeHtml(log.rawContent) : '<span style="color:#94a3b8;">无内容</span>'}</pre>
+          </details>` : ''}
+        </div>
+      </details>
+    `;
+  }).join('');
+}
+
   if (state.bookmarks.length === 0) {
     Toast.warning('请先导入收藏');
     return;
@@ -1692,6 +1908,17 @@ function listenToMessages() {
       // 更新分析进度
       const { current, total, message: msg } = message.data;
       showProgress(msg || '正在分析...', current, total);
+    } else if (message.type === 'ANALYSIS_BATCH_DONE') {
+      // 更新最后一批的摘要信息到 progressSub
+      const { batchIndex, totalBatches, categoriesCount, tagsCount, usage, warnings, duration, fromCache } = message.data;
+      const subEl = document.getElementById('progressSub');
+      if (subEl) {
+        const tokenInfo = usage ? ` · ${(usage.prompt_tokens || 0) + (usage.completion_tokens || 0)} tokens` : '';
+        const warnInfo = warnings?.length ? ` · ⚠${warnings.length}` : '';
+        const cacheTag = fromCache ? ' [缓存]' : '';
+        const durationStr = !fromCache && duration ? ` · ${(duration / 1000).toFixed(1)}s` : '';
+        subEl.textContent = `第 ${batchIndex + 1}/${totalBatches} 批完成${cacheTag}: ${categoriesCount} 个分类${tokenInfo}${durationStr}${warnInfo}`;
+      }
     } else if (message.type === 'BOOKMARK_CHANGED') {
       // 浏览器书签变更（用户在浏览器中新增/删除/移动书签），刷新列表
       console.log('[Popup] 书签变更通知:', message.data);
