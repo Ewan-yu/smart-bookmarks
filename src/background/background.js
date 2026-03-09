@@ -775,6 +775,28 @@ async function handleAIAnalyze(request, sendResponse) {
     const enrichedBookmarks = enrichBookmarks(bookmarksToAnalyze, summaryMap);
     console.log(`[AI] 摘要提取: ${summaryMap.size}/${bookmarksToAnalyze.length} 成功`);
 
+    // 将新采集到的摘要描述持久化到 IndexedDB（仅补填空白字段，不覆盖已有数据）
+    if (summaryMap.size > 0) {
+      const updateTasks = [];
+      for (const bm of bookmarksToAnalyze) {
+        const summary = summaryMap.get(bm.id);
+        if (!summary) continue;
+        const needsUpdate = (!bm.description && summary.description);
+        if (needsUpdate) {
+          const updated = { ...bm };
+          if (!bm.description && summary.description) {
+            updated.description = summary.description.slice(0, 300);
+          }
+          updated.updatedAt = Date.now();
+          updateTasks.push(addBookmark(updated));
+        }
+      }
+      if (updateTasks.length > 0) {
+        await Promise.all(updateTasks);
+        console.log(`[AI] 已将 ${updateTasks.length} 条摘要描述写入 IndexedDB`);
+      }
+    }
+
     // 创建取消令牌
     currentAnalysisCancelToken = { cancelled: false };
 
