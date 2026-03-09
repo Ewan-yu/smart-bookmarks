@@ -754,6 +754,7 @@ async function handleAnalyze() {
       completedBatches: completed,
       totalBatches: total,
       bookmarkCount: state.bookmarks.length,
+      lastError: resumeSession.lastError || null,
       onResume: () => startAnalysis(false),
       onRestart: async () => {
         await chrome.runtime.sendMessage({ type: 'CLEAR_ANALYSIS_SESSION' }).catch(() => {});
@@ -768,9 +769,13 @@ async function handleAnalyze() {
 /**
  * 显示续分析 / 重新全量分析 对话框
  */
-function showAnalysisResumeDialog({ sessionTime, completedBatches, totalBatches, bookmarkCount, onResume, onRestart }) {
+function showAnalysisResumeDialog({ sessionTime, completedBatches, totalBatches, bookmarkCount, lastError, onResume, onRestart }) {
   const overlay = document.createElement('div');
   overlay.className = 'confirm-dialog-overlay';
+
+  const reasonHtml = lastError
+    ? `<p style="font-size:12px;color:#ef4444;margin:10px 0 0;padding:8px 10px;background:#fef2f2;border-radius:6px;">⚠️ 上次因错误中断：${lastError}</p>`
+    : '';
 
   overlay.innerHTML = `
     <div class="confirm-dialog" style="max-width:440px;">
@@ -799,6 +804,7 @@ function showAnalysisResumeDialog({ sessionTime, completedBatches, totalBatches,
           上次分析在第 <strong>${completedBatches}/${totalBatches}</strong> 批时中断。<br>
           可从中断处继续，或重新对全部 <strong>${bookmarkCount}</strong> 个收藏发起完整分析。
         </p>
+        ${reasonHtml}
       </div>
       <div class="dialog-footer" style="gap:8px;">
         <button class="btn btn-cancel" id="aResumeCancel">稍后再说</button>

@@ -839,7 +839,14 @@ async function handleAIAnalyze(request, sendResponse) {
       }
       sendResponse({ cancelled: true, error: '分析已取消，进度已保存' });
     } else {
-      await chrome.storage.local.remove('analysisSession');
+      // 非取消错误（网络中断、关机等）：保留已完成批次，用户下次可续分析
+      try {
+        const { analysisSession: sess } = await chrome.storage.local.get('analysisSession');
+        if (sess && !sess.completed) {
+          sess.lastError = error.message;
+          await chrome.storage.local.set({ analysisSession: sess });
+        }
+      } catch (_) {}
       console.error('AI analysis failed:', error);
       sendResponse({ error: error.message });
     }
