@@ -1,6 +1,6 @@
 # Smart Bookmarks - TODO 清单
 
-> 最后更新: 2026-03-01
+> 最后更新: 2026-03-09
 
 ---
 
@@ -11,7 +11,7 @@
 | 数据库模块 | 100% | ✅ 完成 | IndexedDB v2 + 迁移框架 |
 | 浏览器收藏同步 | 95% | ⚠️ 基本完成 | SYNC_BOOKMARKS 消息未实现具体逻辑 |
 | 失效链接检测 | 100% | ✅ 完成 | HEAD→GET 降级 + uncertain + 断点续检 |
-| AI 智能分类 | 100% | ✅ 完成 | 分批分析 + 确认应用 |
+| AI 智能分类 | 100% | ✅ 完成 | 分批分析 + 断点续分析 + 取消 + 进度暂存 + 确认应用 |
 | 智能搜索 | 100% | ✅ 完成 | 本地 + AI + 混合 + 高级语法 |
 | 数据导出 | 100% | ✅ 完成 | JSON/HTML/CSV/Markdown |
 | 网页信息采集 | 100% | ✅ 完成 | content script 采集 + background 写入 DB |
@@ -31,6 +31,7 @@
 - [ ] **SYNC_BOOKMARKS 实现**：`background.js` 中 `handleSyncBookmarks()` 函数体为空，需实现将本地 DB 数据写回浏览器收藏夹 API 的逻辑
 - [x] **content script 数据落盘**：~~collector.js 采集了页面信息但 background.js 未处理~~ → `handlePageInfoCollected()` 已完整实现，写入 description/favicon ✅
 - [x] **插件图标**：~~icons/ 目录需要补充实际的 16/48/128 尺寸图标~~ → `icon16.png` / `icon48.png` / `icon128.png` 均已存在 ✅
+- [x] **分析进度暂存**：~~非取消中断（关机/网络错误）时 catch 块会清除已保存进度~~ → 错误时保留 `completedBatches`，写入 `lastError` 供续分析使用 ✅
 
 ### P1 - 重要优化
 
@@ -84,6 +85,7 @@
 | 5 | `handleImport()` 未将解析数据写入数据库 | P1 | 待修复 |
 | 6 | `handleGetBookmarks()` 返回 `tags: []` 硬编码空数组 | P1 | 待修复 |
 | 7 | Git remote 凭据认证需手动指定用户名 | - | 已 workaround |
+| 8 | 分析因非取消原因中断（关机/网络）后进度丢失 | P1 | ✅ 已修复（错误时保留 `completedBatches` + `lastError`）|
 
 ---
 
@@ -100,4 +102,4 @@ Week 5: P3（单元测试 + 文档 + 发布准备）
 
 ---
 
-*创建日期: 2026-02-28 | 最后检查: 2026-03-01*
+*创建日期: 2026-02-28 | 最后检查: 2026-03-09*
