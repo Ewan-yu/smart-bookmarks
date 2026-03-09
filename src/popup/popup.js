@@ -868,29 +868,26 @@ async function startAnalysis(forceRestart) {
       forceRestart
     });
 
-    hideProgress();
-
-    if (response.cancelled) {
-      Toast.info('分析已取消，进度已保存，下次可继续');
-      return;
-    }
-    if (response.error) {
+    if (response?.error) {
       throw new Error(response.error);
     }
-
-    showAnalysisConfirmDialog(response.result);
-
+    // response.started === true：后台已启动分析，后续结果通过 ANALYSIS_COMPLETE 广播接收
   } catch (error) {
-    console.error('Analysis failed:', error);
+    console.error('启动分析失败:', error);
     hideProgress();
-    Toast.error(`分析失败: ${error.message}`);
-  } finally {
-    state.isAnalyzing = false;
-    elements.analyzeBtn.disabled = false;
-    elements.analyzeBtn.textContent = '🤖 分析';
-    if (elements.cancelCheckBtn) {
-      elements.cancelCheckBtn.style.display = 'none';
-    }
+    Toast.error(`启动分析失败: ${error.message}`);
+    finishAnalysisUI();
+  }
+}
+
+/** 清理分析中的 UI 状态 */
+function finishAnalysisUI() {
+  state.isAnalyzing = false;
+  elements.analyzeBtn.disabled = false;
+  elements.analyzeBtn.textContent = '🤖 分析';
+  hideProgress();
+  if (elements.cancelCheckBtn) {
+    elements.cancelCheckBtn.style.display = 'none';
   }
 }
 
@@ -1779,6 +1776,15 @@ function listenToMessages() {
         const note = fromCache ? '（已缓存）' : '';
         subEl.textContent = `已完成 ${batchIndex + 1}/${totalBatches} 批${note}`;
       }
+    } else if (message.type === 'ANALYSIS_COMPLETE') {
+      finishAnalysisUI();
+      showAnalysisConfirmDialog(message.data.result);
+    } else if (message.type === 'ANALYSIS_CANCELLED') {
+      finishAnalysisUI();
+      Toast.info('分析已取消，进度已保存，下次可继续');
+    } else if (message.type === 'ANALYSIS_FAILED') {
+      finishAnalysisUI();
+      Toast.error(`分析失败: ${message.data.error}`);
     } else if (message.type === 'BOOKMARK_CHANGED') {
       // 浏览器书签变更（用户在浏览器中新增/删除/移动书签），刷新列表
       console.log('[Popup] 书签变更通知:', message.data);

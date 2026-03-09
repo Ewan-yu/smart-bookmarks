@@ -729,6 +729,9 @@ async function handleAIAnalyze(request, sendResponse) {
       return;
     }
 
+    // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
+    sendResponse({ started: true });
+
     const BATCH_SIZE = 10;
     const totalBatches = Math.ceil(bookmarksToAnalyze.length / BATCH_SIZE);
     const sessionBookmarkIds = bookmarksToAnalyze.map(b => b.id);
@@ -845,21 +848,26 @@ async function handleAIAnalyze(request, sendResponse) {
       }
     );
 
-    // 正常完成：清除会话缓存
+    // 正常完成：清除会话缓存，广播结果给 popup
     await chrome.storage.local.remove('analysisSession');
     currentAnalysisCancelToken = null;
 
-    sendResponse({ result: analysisResult });
+    chrome.runtime.sendMessage({
+      type: 'ANALYSIS_COMPLETE',
+      data: { result: analysisResult }
+    }).catch(() => {});
 
   } catch (error) {
     if (currentAnalysisCancelToken?.cancelled) {
       // 标记会话已取消（保留 completedBatches 供下次续分析）
-      const { analysisSession: sess } = await chrome.storage.local.get('analysisSession');
-      if (sess) {
-        sess.cancelled = true;
-        await chrome.storage.local.set({ analysisSession: sess });
-      }
-      sendResponse({ cancelled: true, error: '分析已取消，进度已保存' });
+      try {
+        const { analysisSession: sess } = await chrome.storage.local.get('analysisSession');
+        if (sess) {
+          sess.cancelled = true;
+          await chrome.storage.local.set({ analysisSession: sess });
+        }
+      } catch (_) {}
+      chrome.runtime.sendMessage({ type: 'ANALYSIS_CANCELLED' }).catch(() => {});
     } else {
       // 非取消错误（网络中断、关机等）：保留已完成批次，用户下次可续分析
       try {
@@ -870,7 +878,10 @@ async function handleAIAnalyze(request, sendResponse) {
         }
       } catch (_) {}
       console.error('AI analysis failed:', error);
-      sendResponse({ error: error.message });
+      chrome.runtime.sendMessage({
+        type: 'ANALYSIS_FAILED',
+        data: { error: error.message }
+      }).catch(() => {});
     }
     currentAnalysisCancelToken = null;
   }
