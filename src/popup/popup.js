@@ -103,7 +103,8 @@ function initRenderers() {
     onItemClick: handleBookmarkClick,
     onItemRightClick: handleBookmarkRightClick,
     onExpand: handleFolderExpand,
-    onCollapse: handleFolderCollapse
+    onCollapse: handleFolderCollapse,
+    onDrop: handleTreeDrop
   });
 
   // 搜索结果渲染器 - 用于显示搜索结果
@@ -692,6 +693,8 @@ function createBookmarkRow(bm) {
   const row = document.createElement('div');
   row.className = 'bm-row' + (isBroken ? ' broken-row' : '');
   row.dataset.id = bm.id;
+  row.dataset.type = 'bookmark';
+  row.draggable = true; // 启用拖拽
 
   // favicon
   let faviconHtml = '';
@@ -760,6 +763,28 @@ function createBookmarkRow(bm) {
     e.preventDefault();
     state.selectedItem = bm;
     showContextMenu(bm, e.clientX, e.clientY);
+  });
+
+  // 拖拽开始
+  row.addEventListener('dragstart', (e) => {
+    state.draggedItem = bm;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'bookmark',
+      id: bm.id,
+      data: bm
+    }));
+    row.classList.add('dragging');
+  });
+
+  // 拖拽结束
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+    state.draggedItem = null;
+    // 清除所有拖拽高亮
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
   });
 
   return row;
@@ -1331,6 +1356,67 @@ function handleFolderExpand(folderId) {
  */
 function handleFolderCollapse(folderId) {
   state.expandedFolders.delete(folderId);
+}
+
+/**
+ * 处理拖拽放置到文件夹
+ */
+async function handleTreeDrop(dragData, targetFolder) {
+  try {
+    const { type, id, data } = dragData;
+
+    // 不允许拖拽到自己或自己的子文件夹中
+    if (id === targetFolder.id) {
+      Toast.warning('不能移动到自身');
+      return;
+    }
+
+    // 检查是否是父文件夹
+    const isParent = await checkIsParentFolder(id, targetFolder.id);
+    if (isParent) {
+      Toast.warning('不能移动到自己的子文件夹');
+      return;
+    }
+
+    // 移动书签/文件夹
+    const response = await chrome.runtime.sendMessage({
+      type: 'MOVE_BOOKMARK',
+      bookmarkId: id,
+      targetFolderId: targetFolder.id
+    });
+
+    if (response.success) {
+      Toast.success('移动成功');
+      await loadBookmarks();
+    } else {
+      throw new Error(response.error || '移动失败');
+    }
+  } catch (error) {
+    console.error('Drop error:', error);
+    Toast.error('移动失败：' + error.message);
+  }
+}
+
+/**
+ * 检查是否是父文件夹（避免循环）
+ */
+async function checkIsParentFolder(parentId, childId) {
+  // 获取所有分类
+  const categories = state.categories;
+  const childCategory = categories.find(c => c.id === childId);
+
+  if (!childCategory) return false;
+
+  // 递归检查父级
+  let currentCategory = childCategory;
+  while (currentCategory && currentCategory.parentId) {
+    if (currentCategory.parentId === parentId) {
+      return true;
+    }
+    currentCategory = categories.find(c => c.id === currentCategory.parentId);
+  }
+
+  return false;
 }
 
 /**

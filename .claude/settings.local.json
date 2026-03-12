@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ping github.com -n 4)",
+      "Bash(git config:*)"
+    ]
+  }
+}

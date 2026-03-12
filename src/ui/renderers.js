@@ -12,6 +12,7 @@ class TreeRenderer {
     this.onItemRightClick = options.onItemRightClick || null;
     this.onExpand = options.onExpand || null;
     this.onCollapse = options.onCollapse || null;
+    this.onDrop = options.onDrop || null; // 拖拽放置回调
     this.expandedNodes = new Set(); // 记录展开的节点
     this.searchTerm = ''; // 搜索关键词
   }
@@ -211,6 +212,63 @@ class TreeRenderer {
         this.onItemRightClick(node, e);
       }
     };
+
+    // 启用拖拽
+    li.draggable = true;
+
+    // 拖拽开始
+    li.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        type: node.type || 'bookmark',
+        id: node.id,
+        data: node
+      }));
+      li.classList.add('dragging');
+    });
+
+    // 拖拽结束
+    li.addEventListener('dragend', () => {
+      li.classList.remove('dragging');
+      // 清除所有拖拽高亮
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+    });
+
+    // 拖拽悬停
+    li.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      // 只允许拖拽到文件夹
+      if (node.type === 'folder') {
+        li.classList.add('drag-over');
+      }
+    });
+
+    // 拖拽离开
+    li.addEventListener('dragleave', () => {
+      li.classList.remove('drag-over');
+    });
+
+    // 放置
+    li.addEventListener('drop', (e) => {
+      e.preventDefault();
+      li.classList.remove('drag-over');
+
+      // 只允许放置到文件夹
+      if (node.type !== 'folder') return;
+
+      try {
+        const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (this.onDrop) {
+          this.onDrop(dragData, node);
+        }
+      } catch (err) {
+        console.error('Drop error:', err);
+      }
+    });
 
     // 渲染子节点
     if (node.children && node.children.length > 0) {

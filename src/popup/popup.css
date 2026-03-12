@@ -1304,3 +1304,41 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 #bookmarkList::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 #sidebarTree::-webkit-scrollbar-thumb:hover,
 #bookmarkList::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ===== 拖拽样式 ===== */
+.bm-row[draggable="true"] {
+  cursor: grab;
+}
+
+.bm-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.bm-row.dragging {
+  opacity: 0.4;
+  background: #eef2ff;
+}
+
+.tree-node[draggable="true"] {
+  cursor: grab;
+}
+
+.tree-node[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.tree-node.dragging {
+  opacity: 0.4;
+  background: #eef2ff;
+}
+
+.tree-node.drag-over {
+  background: #dbeafe !important;
+  border: 2px dashed #6366f1;
+  border-radius: 6px;
+}
+
+.tree-node-content.drag-over {
+  background: #dbeafe;
+  border-radius: 4px;
+}

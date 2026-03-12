@@ -465,6 +465,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleRegenerateSummary(request, sendResponse);
       return true;
 
+    case 'MOVE_BOOKMARK':
+      handleMoveBookmark(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -1336,6 +1340,146 @@ async function handleRegenerateSummary(request, sendResponse) {
       success: false,
       error: error.message
     });
+  }
+}
+
+/**
+ * 移动书签到不同文件夹
+ */
+async function handleMoveBookmark(request, sendResponse) {
+  try {
+    const { bookmarkId, targetFolderId } = request;
+    console.log(`[MOVE] Moving bookmark ${bookmarkId} to folder ${targetFolderId}`);
+
+    await initDatabase();
+
+    // 获取要移动的书签
+    const bookmark = await getBookmark(bookmarkId);
+    if (!bookmark) {
+      // 也可能是文件夹（分类）
+      const category = await get(STORES.categories, bookmarkId);
+      if (!category) {
+        sendResponse({
+          success: false,
+          error: '书签或文件夹不存在'
+        });
+        return;
+      }
+      // 移动文件夹
+      await moveCategory(category, targetFolderId);
+    } else {
+      // 移动书签
+      await moveBookmarkToFolder(bookmark, targetFolderId);
+    }
+
+    console.log(`[MOVE] Move completed: ${bookmarkId} -> ${targetFolderId}`);
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('moved', bookmarkId);
+
+    sendResponse({
+      success: true,
+      message: '移动成功'
+    });
+  } catch (error) {
+    console.error('[MOVE] Failed to move bookmark:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 移动书签到文件夹
+ */
+async function moveBookmarkToFolder(bookmark, targetFolderId) {
+  // 更新书签的 parentCategoryId
+  bookmark.parentCategoryId = targetFolderId;
+  bookmark.updatedAt = Date.now();
+
+  // 保存到 IndexedDB
+  await addBookmark(bookmark);
+  console.log(`[MOVE] Updated bookmark parent: ${bookmark.id} -> ${targetFolderId}`);
+
+  // 同步到浏览器收藏夹
+  try {
+    // 检查书签 ID 是否为数字（浏览器书签 ID）
+    if (/^\d+$/.test(bookmark.id)) {
+      // 查找目标文件夹的浏览器 ID
+      let targetBrowserId = null;
+
+      if (targetFolderId === null || targetFolderId === 'null') {
+        // 移动到根目录
+        targetBrowserId = '0'; // Chrome 根目录 ID 是 '0' 或 '1'
+      } else if (targetFolderId.startsWith('cat_')) {
+        // 从分类 ID 中提取浏览器书签 ID
+        // 格式：cat_{browser_bookmark_id}
+        targetBrowserId = targetFolderId.replace('cat_', '');
+      }
+
+      if (targetBrowserId) {
+        await chrome.bookmarks.move(bookmark.id, { parentId: targetBrowserId });
+        console.log(`[MOVE] Moved in browser bookmarks: ${bookmark.id} -> ${targetBrowserId}`);
+      }
+    } else {
+      // ID 不是纯数字，尝试通过 URL 查找并移动浏览器书签
+      if (bookmark.url) {
+        const browserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+        for (const bm of browserBookmarks) {
+          // 查找目标文件夹
+          let targetBrowserId = null;
+          if (targetFolderId === null || targetFolderId === 'null') {
+            targetBrowserId = bm.parentId; // 保持在同一层级
+          } else if (targetFolderId.startsWith('cat_')) {
+            targetBrowserId = targetFolderId.replace('cat_', '');
+          }
+
+          if (targetBrowserId && bm.parentId !== targetBrowserId) {
+            await chrome.bookmarks.move(bm.id, { parentId: targetBrowserId });
+            console.log(`[MOVE] Moved browser bookmark by URL: ${bm.id} -> ${targetBrowserId}`);
+          }
+        }
+      }
+    }
+  } catch (browserError) {
+    // 浏览器书签可能已被手动删除，记录但不报错
+    console.debug(`[MOVE] Browser bookmark sync warning: ${browserError.message}`);
+  }
+}
+
+/**
+ * 移动文件夹（分类）
+ */
+async function moveCategory(category, targetParentId) {
+  // 更新分类的父 ID
+  category.parentId = targetParentId === 'null' ? null : targetParentId;
+  category.updatedAt = Date.now();
+
+  // 保存到 IndexedDB
+  await addCategory(category);
+  console.log(`[MOVE] Updated category parent: ${category.id} -> ${targetParentId}`);
+
+  // 同步到浏览器收藏夹
+  try {
+    // 从分类 ID 中提取浏览器书签 ID
+    if (category.id.startsWith('cat_')) {
+      const browserId = category.id.replace('cat_', '');
+
+      let targetBrowserId = null;
+      if (targetParentId === null || targetParentId === 'null') {
+        targetBrowserId = '1'; // Chrome 书签栏根目录
+      } else if (targetParentId.startsWith('cat_')) {
+        targetBrowserId = targetParentId.replace('cat_', '');
+      }
+
+      if (targetBrowserId) {
+        await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
+        console.log(`[MOVE] Moved folder in browser: ${browserId} -> ${targetBrowserId}`);
+      }
+    }
+  } catch (browserError) {
+    console.debug(`[MOVE] Browser folder sync warning: ${browserError.message}`);
   }
 }
 
