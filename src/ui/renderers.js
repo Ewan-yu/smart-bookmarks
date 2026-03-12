@@ -224,15 +224,27 @@ class TreeRenderer {
         id: node.id,
         data: node
       }));
+
+      // 设置拖拽影像
+      e.dataTransfer.setDragImage(li, 20, 20);
+
       li.classList.add('dragging');
+      li.style.opacity = '0.5';
     });
 
     // 拖拽结束
     li.addEventListener('dragend', () => {
       li.classList.remove('dragging');
+      li.style.opacity = '';
+
       // 清除所有拖拽高亮
       document.querySelectorAll('.drag-over').forEach(el => {
         el.classList.remove('drag-over');
+      });
+
+      // 清除占位符
+      document.querySelectorAll('.drag-placeholder').forEach(el => {
+        el.remove();
       });
     });
 
@@ -244,12 +256,19 @@ class TreeRenderer {
       // 只允许拖拽到文件夹
       if (node.type === 'folder') {
         li.classList.add('drag-over');
+      } else {
+        e.dataTransfer.dropEffect = 'none';
       }
     });
 
     // 拖拽离开
-    li.addEventListener('dragleave', () => {
-      li.classList.remove('drag-over');
+    li.addEventListener('dragleave', (e) => {
+      // 只有当真正离开元素时才移除高亮
+      const rect = li.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right ||
+          e.clientY < rect.top || e.clientY > rect.bottom) {
+        li.classList.remove('drag-over');
+      }
     });
 
     // 放置

@@ -769,22 +769,44 @@ function createBookmarkRow(bm) {
   // 拖拽开始
   row.addEventListener('dragstart', (e) => {
     state.draggedItem = bm;
+    state.draggedElement = row; // 保存拖拽元素的引用
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify({
       type: 'bookmark',
       id: bm.id,
       data: bm
     }));
+
+    // 设置拖拽时的影像（使用当前元素）
+    e.dataTransfer.setDragImage(row, e.offsetX, e.offsetY);
+
+    // 添加拖拽样式
     row.classList.add('dragging');
+    row.style.opacity = '0.5';
+    row.style.transform = 'scale(0.98)';
+
+    console.log('Drag started:', bm.title);
   });
 
   // 拖拽结束
-  row.addEventListener('dragend', () => {
+  row.addEventListener('dragend', (e) => {
+    console.log('Drag ended');
+
+    // 移除拖拽样式
     row.classList.remove('dragging');
+    row.style.opacity = '';
+
     state.draggedItem = null;
+    state.draggedElement = null;
+
     // 清除所有拖拽高亮
     document.querySelectorAll('.drag-over').forEach(el => {
       el.classList.remove('drag-over');
+    });
+
+    // 清除所有占位符
+    document.querySelectorAll('.drag-placeholder').forEach(el => {
+      el.remove();
     });
   });
 
@@ -795,16 +817,26 @@ function createBookmarkRow(bm) {
 
     // 不允许拖拽到自己上面
     if (state.draggedItem && state.draggedItem.id === bm.id) {
+      e.dataTransfer.dropEffect = 'none';
       return;
     }
 
     // 添加高亮
     row.classList.add('drag-over');
+
+    // 显示插入位置的占位符
+    showInsertPlaceholder(row, e.clientY);
   });
 
   // 拖拽离开
-  row.addEventListener('dragleave', () => {
-    row.classList.remove('drag-over');
+  row.addEventListener('dragleave', (e) => {
+    // 只有当真正离开元素时才移除高亮（避免子元素触发）
+    const rect = row.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top || e.clientY > rect.bottom) {
+      row.classList.remove('drag-over');
+      removeInsertPlaceholder();
+    }
   });
 
   // 放置（在书签之间排序）
@@ -3003,6 +3035,44 @@ function initDragAndDrop() {
       console.error('Drop error:', err);
     }
   });
+}
+
+/**
+ * 显示插入位置占位符
+ */
+function showInsertPlaceholder(targetRow, clientY) {
+  // 先移除旧的占位符
+  removeInsertPlaceholder();
+
+  const rect = targetRow.getBoundingClientRect();
+  const middle = rect.top + rect.height / 2;
+  const insertBefore = clientY < middle;
+
+  // 创建占位符
+  const placeholder = document.createElement('div');
+  placeholder.className = 'drag-placeholder';
+  placeholder.style.cssText = `
+    height: 4px;
+    background: #6366f1;
+    border-radius: 2px;
+    margin: ${insertBefore ? '8px 0 4px' : '4px 0 8px'};
+    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+    transition: all 0.2s ease;
+  `;
+
+  // 插入占位符
+  if (insertBefore) {
+    targetRow.parentNode.insertBefore(placeholder, targetRow);
+  } else {
+    targetRow.parentNode.insertBefore(placeholder, targetRow.nextSibling);
+  }
+}
+
+/**
+ * 移除插入位置占位符
+ */
+function removeInsertPlaceholder() {
+  document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
 }
 
 /**

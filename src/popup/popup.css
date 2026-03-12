@@ -1342,3 +1342,34 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   background: #dbeafe;
   border-radius: 4px;
 }
+
+/* ===== 拖拽占位符 ===== */
+.drag-placeholder {
+  animation: placeholderPulse 1s ease-in-out infinite;
+}
+
+@keyframes placeholderPulse {
+  0%, 100% {
+    opacity: 1;
+    height: 4px;
+  }
+  50% {
+    opacity: 0.7;
+    height: 3px;
+  }
+}
+
+/* ===== 拖拽时的高亮效果 ===== */
+.bm-row.drag-over {
+  background: #eef2ff !important;
+  border: 2px dashed #6366f1 !important;
+  border-radius: 8px !important;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+.tree-node.drag-over {
+  background: #dbeafe !important;
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 6px !important;
+}
