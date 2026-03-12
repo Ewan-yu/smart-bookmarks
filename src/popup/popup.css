@@ -1384,3 +1384,17 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   background: #eff6ff;
   font-weight: 500;
 }
+
+/* ===== 拖拽改进 ===== */
+.bm-row {
+  position: relative;
+}
+
+.bm-row.dragging {
+  position: relative;
+  z-index: 1000;
+}
+
+.bm-row.drag-over {
+  z-index: 1;
+}

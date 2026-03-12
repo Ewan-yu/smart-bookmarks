@@ -464,23 +464,29 @@ function renderSidebarLevel(nodes, depth) {
 
     li.appendChild(row);
 
-    // 添加拖拽事件监听
-    li.addEventListener('dragover', (e) => {
+    // 在 row 上添加拖拽事件监听（更精确的控制）
+    row.addEventListener('dragover', (e) => {
       e.preventDefault();
+      e.stopPropagation(); // 阻止冒泡到父元素
       e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
       li.classList.add('drag-over');
     });
 
-    li.addEventListener('dragleave', (e) => {
-      const rect = li.getBoundingClientRect();
-      if (e.clientX < rect.left || e.clientX > rect.right ||
-          e.clientY < rect.top || e.clientY > rect.bottom) {
+    row.addEventListener('dragleave', (e) => {
+      e.stopPropagation(); // 阻止冒泡到父元素
+
+      // 使用 relatedTarget 更准确地判断是否真正离开元素
+      if (!e.relatedTarget || !row.contains(e.relatedTarget)) {
+        row.classList.remove('drag-over');
         li.classList.remove('drag-over');
       }
     });
 
-    li.addEventListener('drop', async (e) => {
+    row.addEventListener('drop', async (e) => {
       e.preventDefault();
+      e.stopPropagation(); // 阻止冒泡到父元素
+      row.classList.remove('drag-over');
       li.classList.remove('drag-over');
 
       const dragData = e.dataTransfer.getData('text/plain');
@@ -840,6 +846,7 @@ function createBookmarkRow(bm) {
   // 拖拽悬停（用于显示放置指示器）
   row.addEventListener('dragover', (e) => {
     e.preventDefault();
+    e.stopPropagation(); // 阻止冒泡
     e.dataTransfer.dropEffect = 'move';
 
     // 不允许拖拽到自己上面
@@ -857,10 +864,10 @@ function createBookmarkRow(bm) {
 
   // 拖拽离开
   row.addEventListener('dragleave', (e) => {
-    // 只有当真正离开元素时才移除高亮（避免子元素触发）
-    const rect = row.getBoundingClientRect();
-    if (e.clientX < rect.left || e.clientX > rect.right ||
-        e.clientY < rect.top || e.clientY > rect.bottom) {
+    e.stopPropagation(); // 阻止冒泡
+
+    // 使用 relatedTarget 更准确地判断是否真正离开元素
+    if (!e.relatedTarget || !row.contains(e.relatedTarget)) {
       row.classList.remove('drag-over');
       removeInsertPlaceholder();
     }
@@ -869,7 +876,9 @@ function createBookmarkRow(bm) {
   // 放置（在书签之间排序）
   row.addEventListener('drop', async (e) => {
     e.preventDefault();
+    e.stopPropagation(); // 阻止冒泡
     row.classList.remove('drag-over');
+    removeInsertPlaceholder();
 
     if (!state.draggedItem || state.draggedItem.id === bm.id) {
       return;
@@ -3047,39 +3056,12 @@ function initDragAndDrop() {
     e.dataTransfer.dropEffect = 'move';
   });
 
-  // 拖拽离开容器
-  container.addEventListener('dragleave', (e) => {
-    // 清除所有高亮
+  // 拖拽结束（清除所有状态）
+  container.addEventListener('dragend', () => {
     document.querySelectorAll('.drag-over').forEach(el => {
       el.classList.remove('drag-over');
     });
-  });
-
-  // 在容器上放置（用于排序）
-  container.addEventListener('drop', async (e) => {
-    e.preventDefault();
-
-    // 清除所有高亮
-    document.querySelectorAll('.drag-over').forEach(el => {
-      el.classList.remove('drag-over');
-    });
-
-    // 获取拖拽数据
-    const dragData = e.dataTransfer.getData('text/plain');
-    if (!dragData) return;
-
-    try {
-      const { type, id, data } = JSON.parse(dragData);
-
-      // 查找放置目标（最近的书签行）
-      const targetRow = e.target.closest('.bm-row');
-      if (targetRow && targetRow.dataset.id !== id) {
-        // 在书签之间排序
-        await handleReorderBookmark(id, targetRow.dataset.id, e.clientY);
-      }
-    } catch (err) {
-      console.error('Drop error:', err);
-    }
+    removeInsertPlaceholder();
   });
 }
 
@@ -3101,9 +3083,10 @@ function showInsertPlaceholder(targetRow, clientY) {
     height: 4px;
     background: #6366f1;
     border-radius: 2px;
-    margin: ${insertBefore ? '8px 0 4px' : '4px 0 8px'};
+    margin: ${insertBefore ? '4px 0' : '4px 0'};
     box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
     transition: all 0.2s ease;
+    pointer-events: none;
   `;
 
   // 插入占位符
@@ -3112,6 +3095,8 @@ function showInsertPlaceholder(targetRow, clientY) {
   } else {
     targetRow.parentNode.insertBefore(placeholder, targetRow.nextSibling);
   }
+
+  console.log('Placeholder shown:', insertBefore ? 'before' : 'after', targetRow.dataset.id);
 }
 
 /**
@@ -3126,36 +3111,53 @@ function removeInsertPlaceholder() {
  */
 async function handleReorderBookmark(draggedId, targetId, clientY) {
   try {
+    console.log('handleReorderBookmark called:', { draggedId, targetId, clientY });
+
     const draggedItem = state.bookmarks.find(b => b.id === draggedId);
     const targetItem = state.bookmarks.find(b => b.id === targetId);
 
-    if (!draggedItem || !targetItem) return;
+    if (!draggedItem || !targetItem) {
+      console.error('Items not found:', { draggedItem, targetItem });
+      return;
+    }
     if (draggedId === targetId) return;
 
     // 获取目标元素
     const draggedEl = document.querySelector(`.bm-row[data-id="${draggedId}"]`);
     const targetEl = document.querySelector(`.bm-row[data-id="${targetId}"]`);
-    if (!draggedEl || !targetEl) return;
+    if (!draggedEl || !targetEl) {
+      console.error('Elements not found:', { draggedEl, targetEl });
+      return;
+    }
 
     const targetRect = targetEl.getBoundingClientRect();
     const targetMiddle = targetRect.top + targetRect.height / 2;
     const insertBefore = clientY < targetMiddle;
 
+    console.log('Insert position:', insertBefore ? 'before' : 'after');
+
     // 获取当前文件夹中的所有书签
     const currentFolderId = state.currentFolderId;
     const folderBookmarks = state.bookmarks.filter(b => b.parentCategoryId === currentFolderId);
+
+    console.log('Folder bookmarks:', folderBookmarks.length);
 
     // 计算新的排序索引
     const targetIndex = folderBookmarks.findIndex(b => b.id === targetId);
     const draggedIndex = folderBookmarks.findIndex(b => b.id === draggedId);
 
-    if (targetIndex === -1 || draggedIndex === -1) return;
+    if (targetIndex === -1 || draggedIndex === -1) {
+      console.error('Index not found:', { targetIndex, draggedIndex });
+      return;
+    }
 
     // 重新排序数组
     const newBookmarks = [...folderBookmarks];
     newBookmarks.splice(draggedIndex, 1);
     const newIndex = insertBefore ? targetIndex : (targetIndex > draggedIndex ? targetIndex - 1 : targetIndex);
     newBookmarks.splice(newIndex, 0, draggedItem);
+
+    console.log('New order:', newBookmarks.map(b => b.title));
 
     // 更新排序索引（使用时间戳作为排序依据）
     const now = Date.now();
@@ -3169,12 +3171,17 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
       }
     }
 
+    // 移除占位符
+    removeInsertPlaceholder();
+
     // 立即在 DOM 中移动元素（视觉反馈）
     if (insertBefore) {
       targetEl.parentNode.insertBefore(draggedEl, targetEl);
     } else {
       targetEl.parentNode.insertBefore(draggedEl, targetEl.nextSibling);
     }
+
+    console.log('DOM updated');
 
     // 异步保存到数据库
     setTimeout(async () => {
@@ -3186,6 +3193,7 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
         });
       }
       console.log('Sort order saved to database');
+      Toast.success('排序已更新');
     }, 100);
 
   } catch (error) {
