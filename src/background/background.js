@@ -449,6 +449,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       return false; // 同步响应
 
+    case 'DELETE_BOOKMARK':
+      handleDeleteBookmark(request, sendResponse);
+      return true;
+
+    case 'DELETE_BOOKMARKS_BATCH':
+      handleDeleteBookmarksBatch(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -1039,6 +1047,136 @@ async function handleClearData(request, sendResponse) {
     });
   } catch (error) {
     console.error('[CLEAR] Failed to clear data:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 删除单个书签
+ */
+async function handleDeleteBookmark(request, sendResponse) {
+  try {
+    const { bookmarkId } = request;
+    console.log(`[DELETE] Deleting bookmark: ${bookmarkId}`);
+
+    await initDatabase();
+
+    // 获取书签信息
+    const bookmark = await getBookmark(bookmarkId);
+    if (!bookmark) {
+      sendResponse({
+        success: false,
+        error: '书签不存在'
+      });
+      return;
+    }
+
+    // 从 IndexedDB 删除
+    await deleteBookmark(bookmarkId);
+    console.log(`[DELETE] Deleted from IndexedDB: ${bookmarkId}`);
+
+    // 从浏览器收藏夹删除（如果存在对应的浏览器书签）
+    try {
+      // 检查书签 ID 是否为数字（浏览器书签 ID 是数字）
+      if (/^\d+$/.test(bookmarkId)) {
+        await chrome.bookmarks.remove(bookmarkId);
+        console.log(`[DELETE] Deleted from browser bookmarks: ${bookmarkId}`);
+      } else {
+        // 如果 ID 不是纯数字，尝试通过 URL 查找并删除浏览器书签
+        const browserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+        for (const bm of browserBookmarks) {
+          await chrome.bookmarks.remove(bm.id);
+          console.log(`[DELETE] Deleted from browser bookmarks by URL: ${bm.id}`);
+        }
+      }
+    } catch (browserError) {
+      // 浏览器书签可能已被手动删除，忽略错误
+      console.debug(`[DELETE] Browser bookmark already removed or not found: ${browserError.message}`);
+    }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('deleted', bookmarkId);
+
+    sendResponse({
+      success: true,
+      message: '书签已删除'
+    });
+  } catch (error) {
+    console.error('[DELETE] Failed to delete bookmark:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 批量删除书签
+ */
+async function handleDeleteBookmarksBatch(request, sendResponse) {
+  try {
+    const { bookmarkIds } = request;
+    console.log(`[DELETE_BATCH] Deleting ${bookmarkIds.length} bookmarks`);
+
+    await initDatabase();
+
+    let successCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    for (const bookmarkId of bookmarkIds) {
+      try {
+        // 获取书签信息
+        const bookmark = await getBookmark(bookmarkId);
+        if (!bookmark) {
+          console.debug(`[DELETE_BATCH] Bookmark not found: ${bookmarkId}`);
+          failedCount++;
+          continue;
+        }
+
+        // 从 IndexedDB 删除
+        await deleteBookmark(bookmarkId);
+
+        // 从浏览器收藏夹删除
+        try {
+          if (/^\d+$/.test(bookmarkId)) {
+            await chrome.bookmarks.remove(bookmarkId);
+          } else if (bookmark.url) {
+            const browserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+            for (const bm of browserBookmarks) {
+              await chrome.bookmarks.remove(bm.id);
+            }
+          }
+        } catch (browserError) {
+          console.debug(`[DELETE_BATCH] Browser bookmark error for ${bookmarkId}: ${browserError.message}`);
+        }
+
+        successCount++;
+        console.log(`[DELETE_BATCH] Deleted: ${bookmarkId}`);
+      } catch (error) {
+        failedCount++;
+        errors.push({ id: bookmarkId, error: error.message });
+        console.error(`[DELETE_BATCH] Failed to delete ${bookmarkId}:`, error);
+      }
+    }
+
+    console.log(`[DELETE_BATCH] Completed: ${successCount} success, ${failedCount} failed`);
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('batch_deleted', null);
+
+    sendResponse({
+      success: true,
+      message: `成功删除 ${successCount} 个书签${failedCount > 0 ? `，失败 ${failedCount} 个` : ''}`,
+      deleted: successCount,
+      failed: failedCount,
+      errors
+    });
+  } catch (error) {
+    console.error('[DELETE_BATCH] Failed:', error);
     sendResponse({
       success: false,
       error: error.message

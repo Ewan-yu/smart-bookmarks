@@ -808,11 +808,30 @@ function renderBrokenView() {
     container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✅</div><h3>暂无失效链接</h3><p>所有收藏链接均正常</p></div>`;
     return;
   }
+
+  // 添加批量删除按钮
+  const header = document.createElement('div');
+  header.className = 'broken-view-header';
+  header.style.cssText = 'padding: 12px 16px; background: #fef2f2; border-bottom: 1px solid #fecaca; display: flex; align-items: center; justify-content: space-between;';
+  header.innerHTML = `
+    <span style="color: #991b1b; font-size: 13px;">发现 ${broken.length} 个失效链接</span>
+    <button class="btn btn-primary" id="cleanupAllBrokenBtn" style="background: #dc2626; border-color: #dc2626; padding: 6px 12px; font-size: 13px;">🗑️ 一键清理全部</button>
+  `;
+  container.appendChild(header);
+
   const list = document.createElement('div');
   list.className = 'bm-list';
   broken.forEach(bm => list.appendChild(createBookmarkRow(bm)));
   container.appendChild(list);
   if (elements.folderStats) elements.folderStats.textContent = `${broken.length} 项`;
+
+  // 绑定批量删除按钮事件
+  const cleanupBtn = document.getElementById('cleanupAllBrokenBtn');
+  if (cleanupBtn) {
+    cleanupBtn.addEventListener('click', () => {
+      cleanupBrokenLinks(broken);
+    });
+  }
 }
 
 /**
@@ -2257,14 +2276,22 @@ function checkSingleLink(item) {
 function deleteBookmark(item) {
   const confirm = new ConfirmDialog({
     title: '确认删除',
-    message: `确定要删除"${item.title}"吗？此操作无法撤销。`,
+    message: `确定要删除"${item.title}"吗？此操作将同时从本地数据库和浏览器收藏夹中删除，无法撤销。`,
     confirmText: '删除',
     cancelText: '取消',
     onConfirm: async () => {
       try {
-        // TODO: 调用删除 API
-        Toast.success('删除成功');
-        await loadBookmarks();
+        const response = await chrome.runtime.sendMessage({
+          type: 'DELETE_BOOKMARK',
+          bookmarkId: item.id
+        });
+
+        if (response.success) {
+          Toast.success('删除成功');
+          await loadBookmarks();
+        } else {
+          throw new Error(response.error || '删除失败');
+        }
       } catch (error) {
         Toast.error('删除失败：' + error.message);
       }
@@ -2283,7 +2310,10 @@ function showBrokenLinksDetails(brokenLinks) {
 
   const header = document.createElement('div');
   header.className = 'details-header';
-  header.innerHTML = `<h3>失效链接详情 (${brokenLinks.length})</h3>`;
+  header.innerHTML = `
+    <h3>失效链接详情 (${brokenLinks.length})</h3>
+    <button class="btn btn-primary" id="cleanupBrokenBtn">🗑️ 一键清理全部</button>
+  `;
   detailsContainer.appendChild(header);
 
   const list = document.createElement('div');
@@ -2292,10 +2322,12 @@ function showBrokenLinksDetails(brokenLinks) {
   brokenLinks.forEach(link => {
     const item = document.createElement('div');
     item.className = 'broken-link-item';
+    item.dataset.id = link.id;
     item.innerHTML = `
       <div class="link-header">
         <span class="link-icon">${getStatusIcon(link.checkStatus)}</span>
         <span class="link-title">${escapeHtml(link.title || '未命名')}</span>
+        <button class="btn-delete-single" data-id="${escapeHtml(link.id)}" title="删除此书签">✕</button>
       </div>
       <div class="link-url">${escapeHtml(truncateUrl(link.url, 50))}</div>
       <div class="link-error">原因: ${escapeHtml(link.error || '未知错误')}</div>
@@ -2306,6 +2338,60 @@ function showBrokenLinksDetails(brokenLinks) {
   detailsContainer.appendChild(list);
   elements.bookmarkList.innerHTML = '';
   elements.bookmarkList.appendChild(detailsContainer);
+
+  // 绑定一键清理按钮事件
+  const cleanupBtn = document.getElementById('cleanupBrokenBtn');
+  if (cleanupBtn) {
+    cleanupBtn.addEventListener('click', () => {
+      cleanupBrokenLinks(brokenLinks);
+    });
+  }
+
+  // 绑定单个删除按钮事件
+  list.querySelectorAll('.btn-delete-single').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const bookmarkId = btn.dataset.id;
+      const bookmark = brokenLinks.find(b => b.id === bookmarkId);
+      if (bookmark) {
+        deleteBookmark(bookmark);
+      }
+    });
+  });
+}
+
+/**
+ * 批量清理失效链接
+ */
+function cleanupBrokenLinks(brokenLinks) {
+  const confirm = new ConfirmDialog({
+    title: '确认批量删除',
+    message: `确定要删除这 ${brokenLinks.length} 个失效链接吗？\n\n此操作将同时从本地数据库和浏览器收藏夹中删除，无法撤销。`,
+    confirmText: '确认删除',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        Toast.info('正在删除失效链接...');
+
+        const bookmarkIds = brokenLinks.map(link => link.id);
+        const response = await chrome.runtime.sendMessage({
+          type: 'DELETE_BOOKMARKS_BATCH',
+          bookmarkIds
+        });
+
+        if (response.success) {
+          Toast.success(response.message || `成功删除 ${response.deleted} 个失效链接`);
+          await loadBookmarks();
+        } else {
+          throw new Error(response.error || '批量删除失败');
+        }
+      } catch (error) {
+        Toast.error('批量删除失败：' + error.message);
+      }
+    }
+  });
+
+  confirm.show();
 }
 
 /**
