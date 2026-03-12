@@ -98,16 +98,6 @@ function init() {
  * 初始化渲染器
  */
 function initRenderers() {
-  // 树形渲染器 - 用于显示层级结构的收藏
-  treeRenderer = new TreeRenderer({
-    container: elements.bookmarkList,
-    onItemClick: handleBookmarkClick,
-    onItemRightClick: handleBookmarkRightClick,
-    onExpand: handleFolderExpand,
-    onCollapse: handleFolderCollapse,
-    onDrop: handleTreeDrop
-  });
-
   // 搜索结果渲染器 - 用于显示搜索结果
   searchRenderer = new SearchResultsRenderer({
     container: elements.bookmarkList,
@@ -422,6 +412,8 @@ function renderSidebarLevel(nodes, depth) {
     if (node.type !== 'folder') return;
     const li = document.createElement('li');
     li.className = 'sf-item';
+    li.dataset.id = node.id;
+    li.dataset.type = 'folder';
     const childFolders = (node.children || []).filter(c => c.type === 'folder');
     const isExpanded = state.expandedSidebarFolders.has(node.id);
     const indent = depth * 12;
@@ -471,6 +463,36 @@ function renderSidebarLevel(nodes, depth) {
     });
 
     li.appendChild(row);
+
+    // 添加拖拽事件监听
+    li.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      li.classList.add('drag-over');
+    });
+
+    li.addEventListener('dragleave', (e) => {
+      const rect = li.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right ||
+          e.clientY < rect.top || e.clientY > rect.bottom) {
+        li.classList.remove('drag-over');
+      }
+    });
+
+    li.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      li.classList.remove('drag-over');
+
+      const dragData = e.dataTransfer.getData('text/plain');
+      if (!dragData) return;
+
+      try {
+        const { type, id, data } = JSON.parse(dragData);
+        await handleMoveToFolder(id, node.id);
+      } catch (err) {
+        console.error('Drop error:', err);
+      }
+    });
 
     if (childFolders.length > 0 && isExpanded) {
       const children = renderSidebarLevel(childFolders, depth + 1);
@@ -581,8 +603,13 @@ function renderContentArea(folderId) {
     children = currentNode ? (currentNode.children || []) : [];
   }
 
-  const subFolders = children.filter(n => n.type === 'folder');
-  const bookmarks = children.filter(n => n.type === 'bookmark');
+  let subFolders = children.filter(n => n.type === 'folder');
+  let bookmarks = children.filter(n => n.type === 'bookmark');
+
+  // 按 sortOrder 排序
+  subFolders.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  bookmarks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
   const total = bookmarks.length + subFolders.length;
 
   // 更新文件夹统计
@@ -1424,6 +1451,36 @@ function handleFolderCollapse(folderId) {
 }
 
 /**
+ * 移动书签到指定文件夹
+ */
+async function handleMoveToFolder(bookmarkId, targetFolderId) {
+  try {
+    // 不允许移动到自身
+    if (bookmarkId === targetFolderId) {
+      Toast.warning('不能移动到自身');
+      return;
+    }
+
+    // 移动书签
+    const response = await chrome.runtime.sendMessage({
+      type: 'MOVE_BOOKMARK',
+      bookmarkId: bookmarkId,
+      targetFolderId: targetFolderId
+    });
+
+    if (response.success) {
+      Toast.success('移动成功');
+      await loadBookmarks();
+    } else {
+      throw new Error(response.error || '移动失败');
+    }
+  } catch (error) {
+    console.error('Move error:', error);
+    Toast.error('移动失败：' + error.message);
+  }
+}
+
+/**
  * 处理拖拽放置到文件夹
  */
 async function handleTreeDrop(dragData, targetFolder) {
@@ -1444,18 +1501,7 @@ async function handleTreeDrop(dragData, targetFolder) {
     }
 
     // 移动书签/文件夹
-    const response = await chrome.runtime.sendMessage({
-      type: 'MOVE_BOOKMARK',
-      bookmarkId: id,
-      targetFolderId: targetFolder.id
-    });
-
-    if (response.success) {
-      Toast.success('移动成功');
-      await loadBookmarks();
-    } else {
-      throw new Error(response.error || '移动失败');
-    }
+    await handleMoveToFolder(id, targetFolder.id);
   } catch (error) {
     console.error('Drop error:', error);
     Toast.error('移动失败：' + error.message);
@@ -3084,15 +3130,15 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
     const targetItem = state.bookmarks.find(b => b.id === targetId);
 
     if (!draggedItem || !targetItem) return;
+    if (draggedId === targetId) return;
 
-    // 获取目标元素的位置
+    // 获取目标元素
+    const draggedEl = document.querySelector(`.bm-row[data-id="${draggedId}"]`);
     const targetEl = document.querySelector(`.bm-row[data-id="${targetId}"]`);
-    if (!targetEl) return;
+    if (!draggedEl || !targetEl) return;
 
     const targetRect = targetEl.getBoundingClientRect();
     const targetMiddle = targetRect.top + targetRect.height / 2;
-
-    // 判断是插入到目标之前还是之后
     const insertBefore = clientY < targetMiddle;
 
     // 获取当前文件夹中的所有书签
@@ -3113,33 +3159,40 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
 
     // 更新排序索引（使用时间戳作为排序依据）
     const now = Date.now();
-    const updates = [];
-
     for (let i = 0; i < newBookmarks.length; i++) {
       newBookmarks[i].sortOrder = now + i * 1000;
-      newBookmarks[i].updatedAt = now;
 
-      // 收集更新（不立即发送，减少消息数量）
-      updates.push({
-        id: newBookmarks[i].id,
-        sortOrder: newBookmarks[i].sortOrder
-      });
+      // 更新 state 中的数据
+      const stateIndex = state.bookmarks.findIndex(b => b.id === newBookmarks[i].id);
+      if (stateIndex !== -1) {
+        state.bookmarks[stateIndex] = newBookmarks[i];
+      }
     }
 
-    // 批量更新到数据库
-    for (const update of updates) {
-      await chrome.runtime.sendMessage({
-        type: 'UPDATE_BOOKMARK',
-        id: update.id,
-        data: { sortOrder: update.sortOrder }
-      });
+    // 立即在 DOM 中移动元素（视觉反馈）
+    if (insertBefore) {
+      targetEl.parentNode.insertBefore(draggedEl, targetEl);
+    } else {
+      targetEl.parentNode.insertBefore(draggedEl, targetEl.nextSibling);
     }
 
-    Toast.success('排序已更新');
-    await loadBookmarks();
+    // 异步保存到数据库
+    setTimeout(async () => {
+      for (let i = 0; i < newBookmarks.length; i++) {
+        await chrome.runtime.sendMessage({
+          type: 'UPDATE_BOOKMARK',
+          id: newBookmarks[i].id,
+          data: { sortOrder: newBookmarks[i].sortOrder }
+        });
+      }
+      console.log('Sort order saved to database');
+    }, 100);
+
   } catch (error) {
     console.error('Reorder error:', error);
     Toast.error('排序失败：' + error.message);
+    // 失败时重新加载以恢复正确顺序
+    await loadBookmarks();
   }
 }
 

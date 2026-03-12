@@ -1373,3 +1373,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border: 2px dashed #3b82f6 !important;
   border-radius: 6px !important;
 }
+
+/* ===== 左侧目录树拖拽样式 ===== */
+.sf-item.drag-over {
+  background: #dbeafe !important;
+  border-radius: 6px;
+}
+
+.sf-item.drag-over .sf-item-row {
+  background: #eff6ff;
+  font-weight: 500;
+}
