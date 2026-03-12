@@ -72,8 +72,51 @@
         </div>
         <div id="sidebarTreeContent" class="text-sm"></div>
       </div>
+      <!-- 任务面板（内嵌左下角） -->
+      <div id="taskPanel" class="task-panel collapsed">
+        <div class="task-panel-header" id="taskPanelHeader">
+          <span class="task-panel-title">⚡ 任务</span>
+          <button id="taskPanelToggle" class="task-panel-btn" title="折叠/展开">
+            <svg id="taskPanelChevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+        </div>
+        <div class="task-panel-quick">
+          <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏">🤖 <span>分析</span></button>
+          <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析">🔬 <span>调试</span></button>
+          <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接">⚠️ <span>检测</span></button>
+        </div>
+        <div class="task-panel-body" id="taskPanelBody">
+          <div id="analyzeProgressSection" class="task-progress-section" style="display:none;">
+            <div class="task-progress-header">
+              <span class="task-progress-label">🤖 AI 分析</span>
+              <div class="flex items-center gap-2">
+                <span id="analyzeProgressCount" class="task-count-badge">0/0</span>
+                <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
+              </div>
+            </div>
+            <div class="task-progress-bar-wrap">
+              <div id="analyzeProgressFill" class="task-progress-fill indigo" style="width:0%"></div>
+            </div>
+            <div id="analyzeProgressSub" class="task-progress-sub"></div>
+          </div>
+          <div id="checkProgressSection" class="task-progress-section" style="display:none;">
+            <div class="task-progress-header">
+              <span class="task-progress-label">⚠️ 链接检测</span>
+              <div class="flex items-center gap-2">
+                <span id="checkProgressEta" class="text-xs text-slate-400"></span>
+                <span id="checkProgressCount" class="task-count-badge">0/0</span>
+                <button id="cancelCheckBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
+              </div>
+            </div>
+            <div class="task-progress-bar-wrap">
+              <div id="checkProgressFill" class="task-progress-fill amber" style="width:0%"></div>
+            </div>
+            <div id="checkProgressSub" class="task-progress-sub"></div>
+          </div>
+        </div>
+      </div>
       <!-- 底部状态栏 -->
-      <div class="flex-shrink-0 px-3 py-2 border-t border-slate-200 bg-slate-100/50">
+      <div class="flex-shrink-0 px-3 py-1.5 border-t border-slate-200 bg-slate-100/50">
         <div id="sidebarStats" class="text-xs text-slate-400 text-center"></div>
       </div>
     </aside>
@@ -102,51 +145,7 @@
     </main>
   </div>
 
-  <!-- ===== 右下角任务面板（固定浮动） ===== -->
-  <div id="taskPanel" class="task-panel collapsed">
-    <div class="task-panel-header" id="taskPanelHeader">
-      <span class="task-panel-title">⚡ 任务</span>
-      <button id="taskPanelToggle" class="task-panel-btn" title="折叠/展开">
-        <svg id="taskPanelChevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-      </button>
-    </div>
-    <!-- 快捷操作行（始终可见） -->
-    <div class="task-panel-quick">
-      <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏">🤖 <span>分析</span></button>
-      <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析">🔬 <span>调试</span></button>
-      <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接">⚠️ <span>检测</span></button>
-    </div>
-    <!-- 展开时的详细进度 -->
-    <div class="task-panel-body" id="taskPanelBody">
-      <div id="analyzeProgressSection" class="task-progress-section" style="display:none;">
-        <div class="task-progress-header">
-          <span class="task-progress-label">🤖 AI 分析</span>
-          <div class="flex items-center gap-2">
-            <span id="analyzeProgressCount" class="task-count-badge">0/0</span>
-            <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
-          </div>
-        </div>
-        <div class="task-progress-bar-wrap">
-          <div id="analyzeProgressFill" class="task-progress-fill indigo" style="width:0%"></div>
-        </div>
-        <div id="analyzeProgressSub" class="task-progress-sub"></div>
-      </div>
-      <div id="checkProgressSection" class="task-progress-section" style="display:none;">
-        <div class="task-progress-header">
-          <span class="task-progress-label">⚠️ 链接检测</span>
-          <div class="flex items-center gap-2">
-            <span id="checkProgressEta" class="text-xs text-slate-400"></span>
-            <span id="checkProgressCount" class="task-count-badge">0/0</span>
-            <button id="cancelCheckBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
-          </div>
-        </div>
-        <div class="task-progress-bar-wrap">
-          <div id="checkProgressFill" class="task-progress-fill amber" style="width:0%"></div>
-        </div>
-        <div id="checkProgressSub" class="task-progress-sub"></div>
-      </div>
-    </div>
-  </div>
+  <!-- 任务面板已移至左侧 sidebar 底部 -->
 
   <!-- ===== 右键上下文菜单 ===== -->
   <div id="contextMenuEl" class="ctx-menu" style="display:none;">

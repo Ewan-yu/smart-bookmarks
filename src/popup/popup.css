@@ -975,7 +975,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .bc-sep { color: #cbd5e1; font-size: 12px; flex-shrink: 0; user-select: none; }
 
 /* ===== 主列表书签行（新样式）===== */
-.bm-list { padding: 4px 0; }
+.bm-list { padding: 4px 0; max-width: 900px; margin: 0 auto; width: 100%; }
 .bm-section-header {
   display: flex; align-items: center; gap-6px;
   padding: 8px 20px 4px;
@@ -1190,16 +1190,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ===== 右下角任务浮动面板 ===== */
 .task-panel {
-  position: fixed; bottom: 16px; right: 16px;
-  width: 360px; background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
-  z-index: 5000;
+  flex-shrink: 0;
+  width: 100%; background: #fff;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0;
   overflow: hidden;
   transition: box-shadow .2s;
 }
-.task-panel:hover { box-shadow: 0 10px 28px rgba(0,0,0,.16); }
+.task-panel:hover { box-shadow: none; }
 .task-panel-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px;
@@ -1219,7 +1217,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .task-panel.collapsed #taskPanelChevron { transform: rotate(180deg); }
 
 .task-panel-quick {
-  display: flex; gap: 6px; padding: 10px 12px;
+  display: flex; gap: 6px; padding: 8px 10px;
   border-bottom: 1px solid #f1f5f9;
 }
 .task-quick-btn {
@@ -1239,7 +1237,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   transition: max-height .3s ease;
 }
 .task-panel.expanded .task-panel-body {
-  max-height: 300px;
+  max-height: 260px;
 }
 
 .task-progress-section {

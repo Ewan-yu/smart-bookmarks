@@ -720,8 +720,9 @@ function createBookmarkRow(bm) {
     try { domainHtml = `<span class="bm-domain">${new URL(bm.url).hostname}</span>`; } catch {}
   }
 
-  // 摘要
-  const descHtml = bm.summary ? `<div class="bm-desc">${escapeHtml(bm.summary)}</div>` : '';
+  // 摘要（支持 description / summary 两个字段）
+  const descText = bm.description || bm.summary || '';
+  const descHtml = descText ? `<div class="bm-desc">${escapeHtml(descText)}</div>` : '';
 
   row.innerHTML = `
     ${faviconHtml}
