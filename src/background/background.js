@@ -457,6 +457,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleDeleteBookmarksBatch(request, sendResponse);
       return true;
 
+    case 'UPDATE_BOOKMARK':
+      handleUpdateBookmark(request, sendResponse);
+      return true;
+
+    case 'REGENERATE_SUMMARY':
+      handleRegenerateSummary(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -1177,6 +1185,153 @@ async function handleDeleteBookmarksBatch(request, sendResponse) {
     });
   } catch (error) {
     console.error('[DELETE_BATCH] Failed:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 更新书签
+ */
+async function handleUpdateBookmark(request, sendResponse) {
+  try {
+    const { id, data } = request;
+    console.log(`[UPDATE] Updating bookmark: ${id}`, data);
+
+    await initDatabase();
+
+    // 获取现有书签
+    const bookmark = await getBookmark(id);
+    if (!bookmark) {
+      sendResponse({
+        success: false,
+        error: '书签不存在'
+      });
+      return;
+    }
+
+    // 更新字段
+    const updatedBookmark = {
+      ...bookmark,
+      title: data.title || bookmark.title,
+      url: data.url !== undefined ? data.url : bookmark.url,
+      summary: data.summary !== undefined ? data.summary : bookmark.summary,
+      tags: data.tags !== undefined ? data.tags : bookmark.tags,
+      updatedAt: Date.now()
+    };
+
+    // 保存到 IndexedDB
+    await addBookmark(updatedBookmark);
+    console.log(`[UPDATE] Updated in IndexedDB: ${id}`);
+
+    // 同步到浏览器收藏夹
+    try {
+      // 检查书签 ID 是否为数字（浏览器书签 ID 是数字）
+      if (/^\d+$/.test(id)) {
+        // 更新浏览器书签
+        await chrome.bookmarks.update(id, {
+          title: updatedBookmark.title,
+          url: updatedBookmark.url
+        });
+        console.log(`[UPDATE] Updated in browser bookmarks: ${id}`);
+      } else {
+        // 如果 ID 不是纯数字，尝试通过 URL 查找并更新浏览器书签
+        const oldUrl = bookmark.url;
+        const newUrl = updatedBookmark.url;
+
+        if (oldUrl && newUrl && oldUrl !== newUrl) {
+          // URL 变化了，需要查找并更新
+          const browserBookmarks = await chrome.bookmarks.search({ url: oldUrl });
+          for (const bm of browserBookmarks) {
+            await chrome.bookmarks.update(bm.id, {
+              title: updatedBookmark.title,
+              url: updatedBookmark.url
+            });
+            console.log(`[UPDATE] Updated browser bookmark by URL: ${bm.id}`);
+          }
+        }
+      }
+    } catch (browserError) {
+      // 浏览器书签可能已被手动删除，记录但不报错
+      console.debug(`[UPDATE] Browser bookmark sync warning: ${browserError.message}`);
+    }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('updated', id);
+
+    sendResponse({
+      success: true,
+      message: '书签已更新',
+      bookmark: updatedBookmark
+    });
+  } catch (error) {
+    console.error('[UPDATE] Failed to update bookmark:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 重新生成单个书签的摘要
+ */
+async function handleRegenerateSummary(request, sendResponse) {
+  try {
+    const { bookmarkId } = request;
+    console.log(`[REGENERATE_SUMMARY] Regenerating summary for: ${bookmarkId}`);
+
+    await initDatabase();
+
+    // 获取书签
+    const bookmark = await getBookmark(bookmarkId);
+    if (!bookmark) {
+      sendResponse({
+        success: false,
+        error: '书签不存在'
+      });
+      return;
+    }
+
+    if (!bookmark.url) {
+      sendResponse({
+        success: false,
+        error: '此书签没有 URL，无法生成摘要'
+      });
+      return;
+    }
+
+    // 提取单个书签的摘要
+    const summaryMap = await batchExtractSummaries([bookmark]);
+    const summary = summaryMap.get(bookmarkId);
+
+    if (!summary || !summary.description) {
+      sendResponse({
+        success: false,
+        error: '无法生成摘要，请检查网络连接'
+      });
+      return;
+    }
+
+    // 更新书签摘要
+    bookmark.summary = summary.description;
+    bookmark.updatedAt = Date.now();
+    await addBookmark(bookmark);
+
+    console.log(`[REGENERATE_SUMMARY] Summary regenerated for: ${bookmarkId}`);
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('updated', bookmarkId);
+
+    sendResponse({
+      success: true,
+      summary: summary.description,
+      message: '摘要已更新'
+    });
+  } catch (error) {
+    console.error('[REGENERATE_SUMMARY] Failed:', error);
     sendResponse({
       success: false,
       error: error.message
