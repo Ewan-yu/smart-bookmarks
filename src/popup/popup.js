@@ -87,6 +87,7 @@ function init() {
   initResizer();
   initEditDialog();
   initContextMenu();
+  initDragAndDrop();
   bindEvents();
   listenToMessages();
   loadBookmarks();
@@ -785,6 +786,38 @@ function createBookmarkRow(bm) {
     document.querySelectorAll('.drag-over').forEach(el => {
       el.classList.remove('drag-over');
     });
+  });
+
+  // 拖拽悬停（用于显示放置指示器）
+  row.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    // 不允许拖拽到自己上面
+    if (state.draggedItem && state.draggedItem.id === bm.id) {
+      return;
+    }
+
+    // 添加高亮
+    row.classList.add('drag-over');
+  });
+
+  // 拖拽离开
+  row.addEventListener('dragleave', () => {
+    row.classList.remove('drag-over');
+  });
+
+  // 放置（在书签之间排序）
+  row.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    row.classList.remove('drag-over');
+
+    if (!state.draggedItem || state.draggedItem.id === bm.id) {
+      return;
+    }
+
+    // 处理重新排序
+    await handleReorderBookmark(state.draggedItem.id, bm.id, e.clientY);
   });
 
   return row;
@@ -2922,6 +2955,122 @@ function initEditDialog() {
       Toast.error('生成失败：' + err.message);
     }
   });
+}
+
+// ─────────────────────────── 拖拽功能 ─────────────────────────
+
+function initDragAndDrop() {
+  const container = elements.bookmarkList;
+  if (!container) return;
+
+  // 拖拽悬停在容器上
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  });
+
+  // 拖拽离开容器
+  container.addEventListener('dragleave', (e) => {
+    // 清除所有高亮
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+  });
+
+  // 在容器上放置（用于排序）
+  container.addEventListener('drop', async (e) => {
+    e.preventDefault();
+
+    // 清除所有高亮
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+
+    // 获取拖拽数据
+    const dragData = e.dataTransfer.getData('text/plain');
+    if (!dragData) return;
+
+    try {
+      const { type, id, data } = JSON.parse(dragData);
+
+      // 查找放置目标（最近的书签行）
+      const targetRow = e.target.closest('.bm-row');
+      if (targetRow && targetRow.dataset.id !== id) {
+        // 在书签之间排序
+        await handleReorderBookmark(id, targetRow.dataset.id, e.clientY);
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  });
+}
+
+/**
+ * 处理书签重新排序
+ */
+async function handleReorderBookmark(draggedId, targetId, clientY) {
+  try {
+    const draggedItem = state.bookmarks.find(b => b.id === draggedId);
+    const targetItem = state.bookmarks.find(b => b.id === targetId);
+
+    if (!draggedItem || !targetItem) return;
+
+    // 获取目标元素的位置
+    const targetEl = document.querySelector(`.bm-row[data-id="${targetId}"]`);
+    if (!targetEl) return;
+
+    const targetRect = targetEl.getBoundingClientRect();
+    const targetMiddle = targetRect.top + targetRect.height / 2;
+
+    // 判断是插入到目标之前还是之后
+    const insertBefore = clientY < targetMiddle;
+
+    // 获取当前文件夹中的所有书签
+    const currentFolderId = state.currentFolderId;
+    const folderBookmarks = state.bookmarks.filter(b => b.parentCategoryId === currentFolderId);
+
+    // 计算新的排序索引
+    const targetIndex = folderBookmarks.findIndex(b => b.id === targetId);
+    const draggedIndex = folderBookmarks.findIndex(b => b.id === draggedId);
+
+    if (targetIndex === -1 || draggedIndex === -1) return;
+
+    // 重新排序数组
+    const newBookmarks = [...folderBookmarks];
+    newBookmarks.splice(draggedIndex, 1);
+    const newIndex = insertBefore ? targetIndex : (targetIndex > draggedIndex ? targetIndex - 1 : targetIndex);
+    newBookmarks.splice(newIndex, 0, draggedItem);
+
+    // 更新排序索引（使用时间戳作为排序依据）
+    const now = Date.now();
+    const updates = [];
+
+    for (let i = 0; i < newBookmarks.length; i++) {
+      newBookmarks[i].sortOrder = now + i * 1000;
+      newBookmarks[i].updatedAt = now;
+
+      // 收集更新（不立即发送，减少消息数量）
+      updates.push({
+        id: newBookmarks[i].id,
+        sortOrder: newBookmarks[i].sortOrder
+      });
+    }
+
+    // 批量更新到数据库
+    for (const update of updates) {
+      await chrome.runtime.sendMessage({
+        type: 'UPDATE_BOOKMARK',
+        id: update.id,
+        data: { sortOrder: update.sortOrder }
+      });
+    }
+
+    Toast.success('排序已更新');
+    await loadBookmarks();
+  } catch (error) {
+    console.error('Reorder error:', error);
+    Toast.error('排序失败：' + error.message);
+  }
 }
 
 function showEditDialog(item) {

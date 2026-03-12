@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(ping github.com -n 4)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && npm run build)"
     ]
   }
 }
