@@ -12,7 +12,16 @@
       "Bash(node -c src/popup/popup.js 2>&1)",
       "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.js\" 2>&1)",
       "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\api\\\\openai.js\" 2>&1)",
-      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\utils\\\\category-merger.js\" 2>&1)"
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\utils\\\\category-merger.js\" 2>&1)",
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\background\\\\background.js\" 2>&1)",
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.js\" 2>&1 | head -20)",
+      "Bash(for file:*)",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node test-import.js 2>&1)",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node test-merger.js 2>&1)",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node test-merger.js 2>&1 | grep -v \"MODULE_TYPELESS_PACKAGE\")",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node debug-merger.js 2>&1 | grep -v \"MODULE_TYPELESS\")",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node debug-merger.js 2>&1 | tail -10)",
+      "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && node test-merger.js 2>&1 | tail -20)"
     ]
   }
 }

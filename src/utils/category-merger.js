@@ -7,8 +7,8 @@
  */
 class CategoryMerger {
   constructor(options = {}) {
-    // 相似度阈值（0-1），默认 0.75
-    this.similarityThreshold = options.similarityThreshold || 0.75;
+    // 相似度阈值（0-1），默认 0.6（平衡召回率和精确率）
+    this.similarityThreshold = options.similarityThreshold || 0.6;
     // 最小合并支持数，至少 2 个才考虑合并
     this.minMergeSupport = options.minMergeSupport || 2;
   }
@@ -79,17 +79,102 @@ class CategoryMerger {
    * @returns {number} 相似度（0-1）
    */
   calculateSimilarity(name1, name2) {
-    // 1. 字符串相似度（Levenshtein Distance）
+    // 1. 完全包含关系检测
+    const n1 = name1.toLowerCase();
+    const n2 = name2.toLowerCase();
+
+    if (n1 === n2) return 1.0;
+    if (n1.includes(n2) || n2.includes(n1)) return 0.9;
+
+    // 2. 中文字符重叠相似度（对中文最重要）
+    const charOverlapSim = this.chineseCharOverlapSimilarity(name1, name2);
+
+    // 3. 子串重叠检测（2-3字子串）
+    const substringSim = this.substringOverlapSimilarity(name1, name2);
+
+    // 如果有共同的核心词（2-3字子串）或较高字符重叠，给予高相似度
+    const hasCoreWord = substringSim > 0;
+    const hasHighCharOverlap = charOverlapSim > 0.25;
+
+    if (hasCoreWord || hasHighCharOverlap) {
+      // 组合多种指标
+      const baseSim = Math.max(charOverlapSim, substringSim);
+      const boost = hasCoreWord ? 0.3 : 0; // 有核心词给予加分
+      return Math.min(baseSim + boost, 0.85);
+    }
+
+    // 4. 字符串相似度（Levenshtein Distance）
     const editSim = this.editDistanceSimilarity(name1, name2);
 
-    // 2. 语义相似度（关键词提取）
+    // 5. 语义相似度（关键词提取）
     const semanticSim = this.semanticSimilarity(name1, name2);
 
-    // 3. 包含关系（一个词是另一个的子串）
+    // 6. 包含关系（部分）
     const containmentSim = this.containmentSimilarity(name1, name2);
 
     // 加权组合
-    return editSim * 0.3 + semanticSim * 0.5 + containmentSim * 0.2;
+    return editSim * 0.15 + semanticSim * 0.30 + charOverlapSim * 0.35 + substringSim * 0.15 + containmentSim * 0.05;
+  }
+
+  /**
+   * 子串重叠相似度
+   * @param {string} name1 - 名称1
+   * @param {string} name2 - 名称2
+   * @returns {number} 相似度（0-1）
+   */
+  substringOverlapSimilarity(name1, name2) {
+    const n1 = name1.toLowerCase();
+    const n2 = name2.toLowerCase();
+
+    // 提取所有 2-3 字子串
+    const extractSubstrings = (str) => {
+      const subs = new Set();
+      for (let len = 2; len <= Math.min(3, str.length); len++) {
+        for (let i = 0; i <= str.length - len; i++) {
+          subs.add(str.substring(i, i + len));
+        }
+      }
+      return subs;
+    };
+
+    const substrings1 = extractSubstrings(n1);
+    const substrings2 = extractSubstrings(n2);
+
+    // 计算重叠度
+    const intersection = [...substrings1].filter(s => substrings2.has(s));
+    const union = new Set([...substrings1, ...substrings2]);
+
+    if (union.size === 0) return 0;
+
+    const jaccard = intersection.length / union.size;
+
+    // 如果有共同的核心词（2-3字），给予额外加分
+    const hasCoreOverlap = intersection.some(s => s.length >= 2);
+    if (hasCoreOverlap) {
+      return Math.min(jaccard * 1.5, 1.0); // 最多提升到 1.0
+    }
+
+    return jaccard;
+  }
+
+  /**
+   * 中文字符重叠相似度
+   * @param {string} name1 - 名称1
+   * @param {string} name2 - 名称2
+   * @returns {number} 相似度（0-1）
+   */
+  chineseCharOverlapSimilarity(name1, name2) {
+    const chars1 = name1.match(/[\u4e00-\u9fa5]/g) || [];
+    const chars2 = name2.match(/[\u4e00-\u9fa5]/g) || [];
+
+    if (chars1.length === 0 || chars2.length === 0) {
+      return 0;
+    }
+
+    const intersection = chars1.filter(c => chars2.includes(c));
+    const union = [...new Set([...chars1, ...chars2])];
+
+    return union.length > 0 ? intersection.length / union.length : 0;
   }
 
   /**
@@ -164,29 +249,30 @@ class CategoryMerger {
    * @returns {Array<string>} 关键词列表
    */
   extractKeywords(text) {
-    // 按空格、常见分隔符拆分
-    const segments = text.split(/[\s\-、，,\/\\\[\]()（）]+/);
+    const keywords = [];
 
-    // 中文按字符拆分（每个字都是一个潜在关键词）
+    // 1. 提取中文词语（2-4字的组合）
+    const chineseSegments = text.match(/[\u4e00-\u9fa5]{2,4}/g) || [];
+    keywords.push(...chineseSegments);
+
+    // 2. 提取中文字符（单个字作为备选）
     const chineseChars = text.match(/[\u4e00-\u9fa5]/g) || [];
+    keywords.push(...chineseChars);
 
-    // 英文单词（小写）
-    const englishWords = segments
-      .map(s => s.toLowerCase())
-      .filter(s => /^[a-z]+$/i.test(s) && s.length >= 2);
+    // 3. 提取英文单词（小写）
+    const englishWords = text.toLowerCase().match(/[a-z]{2,}/g) || [];
+    keywords.push(...englishWords);
 
-    // 过滤停用词
+    // 4. 过滤停用词
     const stopWords = new Set([
-      '的', '了', '和', '与', '或', '及', '等', 'a', 'an', 'the',
-      'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'with'
+      '的', '了', '和', '与', '或', '及', '等', '是', '在',
+      'a', 'an', 'the', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'with'
     ]);
 
-    const keywords = [
-      ...chineseChars,
-      ...englishWords.filter(w => !stopWords.has(w))
-    ];
+    const filteredKeywords = keywords.filter(k => k.length >= 2 && !stopWords.has(k));
 
-    return [...new Set(keywords)]; // 去重
+    // 去重并返回
+    return [...new Set(filteredKeywords)];
   }
 
   /**
