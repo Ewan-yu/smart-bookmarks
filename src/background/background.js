@@ -1133,13 +1133,15 @@ async function handleApplyCategories(request, sendResponse) {
 
     // 创建新分类（同时在浏览器收藏夹和IndexedDB中创建）
     for (const cat of categories) {
+      let categoryRecord = null;
+      let browserFolderId = null;
+
       if (cat.isNew) {
         // 检查分类是否已存在
         const existing = await get(STORES.CATEGORIES, `cat_${cat.name}`);
 
         if (!existing) {
           // 1. 先在浏览器收藏夹中创建文件夹
-          let browserFolderId = null;
           try {
             const folder = await chrome.bookmarks.create({
               parentId: bookmarksBarId, // 在"书签栏"下创建
@@ -1153,23 +1155,46 @@ async function handleApplyCategories(request, sendResponse) {
           }
 
           // 2. 在IndexedDB中保存分类（使用浏览器文件夹的ID作为parentId）
-          await addCategory({
+          categoryRecord = {
             id: `cat_${cat.name}`,
             name: cat.name,
             parentId: browserFolderId || bookmarksBarId || null, // 保存浏览器文件夹ID
             createdAt: Date.now()
-          });
+          };
+          await addCategory(categoryRecord);
           console.log(`[应用分类] 创建新分类: ${cat.name}, parentId: ${browserFolderId || bookmarksBarId}`);
+        } else {
+          categoryRecord = existing;
+          browserFolderId = existing.parentId;
+        }
+      } else {
+        // 使用现有分类
+        categoryRecord = await get(STORES.CATEGORIES, `cat_${cat.name}`);
+        if (categoryRecord) {
+          browserFolderId = categoryRecord.parentId;
         }
       }
 
-      // 更新收藏的分类
+      // 更新收藏的分类，并移动到浏览器文件夹
       for (const bookmarkId of cat.bookmarkIds) {
         const bookmark = await getBookmark(bookmarkId);
         if (bookmark) {
+          // 1. 更新 IndexedDB 中的 categoryId
           bookmark.categoryId = `cat_${cat.name}`;
           bookmark.updatedAt = Date.now();
           await addBookmark(bookmark);
+
+          // 2. 如果有浏览器文件夹ID，移动书签到该文件夹
+          if (browserFolderId && bookmark.browserId) {
+            try {
+              await chrome.bookmarks.move(bookmark.browserId, {
+                parentId: browserFolderId
+              });
+              console.log(`[应用分类] 移动书签到分类: ${bookmark.title} -> ${cat.name}`);
+            } catch (error) {
+              console.error(`[应用分类] 移动书签失败: ${bookmark.title}`, error);
+            }
+          }
         }
       }
     }
