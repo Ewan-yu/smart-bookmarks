@@ -431,22 +431,6 @@ ${bookmarksList}
 返回JSON：
 {"categories":[{"name":"分类名","confidence":0.9,"bookmarkIds":["id1"]}],"tags":[{"name":"标签","bookmarkId":"id1"}]}`;
 }
-      ? entry.slice(0, MAX_BOOKMARK_PROMPT_CHARS) + '...'
-      : entry;
-  }).join('\n');
-
-  const existingCategoriesText = existingCategories.length > 0
-    ? `已有分类：${existingCategories.join('、')}`
-    : '暂无已有分类';
-
-  return `${existingCategoriesText}
-
-收藏列表：
-${bookmarksList}
-
-返回JSON：
-{"categories":[{"name":"分类名","confidence":0.9,"bookmarkIds":["id1"]}],"tags":[{"name":"标签","bookmarkId":"id1"}]}`;
-}
 
 /**
  * 截断文本到指定长度
