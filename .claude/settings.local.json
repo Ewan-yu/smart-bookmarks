@@ -10,7 +10,9 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(node -c src/popup/popup.js 2>&1)",
-      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.js\" 2>&1)"
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.js\" 2>&1)",
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\api\\\\openai.js\" 2>&1)",
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\utils\\\\category-merger.js\" 2>&1)"
     ]
   }
 }

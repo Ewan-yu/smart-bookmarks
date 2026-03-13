@@ -1,5 +1,7 @@
 // Smart Bookmarks - OpenAI 兼容 API 调用
 
+import CategoryMerger from '../utils/category-merger.js';
+
 /**
  * 最大重试次数
  */
@@ -145,13 +147,47 @@ export async function analyzeBookmarks(
     }
   }
 
-  const summary = generateSummary(allCategories, existingCategories, bookmarks.length);
+  // ── 应用智能聚合去重（减少重复分类）────────────────────────────────────────────
+  const rawCategories = Array.from(allCategories.values());
+  const merger = new CategoryMerger({
+    similarityThreshold: 0.75,
+    minMergeSupport: 2
+  });
+
+  // 执行聚合
+  const mergeResult = merger.mergeCategories(rawCategories);
+  const mergedCategories = mergeResult.categories;
+
+  // 记录聚合日志到 batchLogs
+  if (mergeResult.report.mergedGroups > 0) {
+    batchLogs.push({
+      batchIndex: -1, // 特殊标记：这是聚合步骤
+      batchSize: 0,
+      bookmarks: [],
+      categories: mergedCategories,
+      tags: [],
+      usage: null,
+      warnings: [],
+      duration: 0,
+      fromCache: false,
+      mergeReport: mergeResult.report
+    });
+  }
+
+  const summary = generateSummary(
+    new Map(mergedCategories.map(c => [c.name.toLowerCase(), c])),
+    existingCategories,
+    bookmarks.length
+  );
+
+  // 在摘要中添加聚合信息
+  summary.mergeReport = mergeResult.report;
 
   return {
-    categories: Array.from(allCategories.values()),
+    categories: mergedCategories,
     tags: allTags,
     summary,
-    batchLogs   // 完整批次日志（含请求/响应报文），用于诊断
+    batchLogs
   };
 }
 
@@ -279,14 +315,65 @@ async function callOpenAI(apiUrl, apiKey, model, prompt) {
  * @returns {string}
  */
 function getSystemPrompt() {
-  return `你是收藏夹分类助手。根据标题、URL特征和页面摘要将收藏分类。
-规则：
-1. 优先复用已有分类，必要时新建（名称2-6字）
-2. 总分类数控制在5-15个，每个分类至少2条收藏
-3. 一条收藏可属于多个分类
-4. 提取细粒度标签辅助搜索
-5. 严格返回JSON，不要添加任何解释文字
-6. bookmarkIds使用输入中[ID:xxx]的xxx值，保持字符串格式`;
+  return `你是专业的收藏夹分类助手。根据标题、URL特征和页面摘要将收藏分类。
+
+## 分类原则
+
+### 1. 命名规范
+- 使用简洁的中文名称（2-6字）
+- 避免使用"的"、"和"、"与"、"或"等虚词
+- 优先使用行业标准术语（如：前端开发、后端开发、数据科学）
+- 保持分类名称在同一抽象层次
+
+### 2. 避免语义重复
+- 避免生成含义相近的分类
+- 例如：
+  * ❌ 错误：同时生成"系统架构"、"架构设计"、"软件架构"
+  * ✅ 正确：只生成"系统架构"
+  * ❌ 错误：同时生成"前端开发"、"前端UI"、"前端框架"
+  * ✅ 正确：只生成"前端开发"
+
+### 3. 数量控制
+- 每批书签生成 5-10 个主要分类
+- 每个分类至少包含 2 条收藏
+- 避免过度细分，保持分类的高层抽象
+
+### 4. 优先复用
+- 优先使用已有分类名称
+- 只有在必要时才创建新分类
+- 已有分类：{{existingCategories}}
+
+### 5. 多分类归属
+- 一条收藏可以属于多个分类
+- 例如：React 教程可以同时属于"前端开发"和"React"
+
+### 6. 标签提取
+- 提取细粒度标签辅助搜索
+- 标签比分类更具体（如：hooks、组件库）
+
+## 输出格式
+
+严格返回 JSON，不要添加任何解释文字：
+
+\`\`\`json
+{
+  "categories": [
+    {
+      "name": "分类名称",
+      "confidence": 0.9,
+      "bookmarkIds": ["id1", "id2"]
+    }
+  ],
+  "tags": [
+    {"name": "标签名", "bookmarkId": "id1"}
+  ]
+}
+\`\`\`
+
+## 注意事项
+- bookmarkIds 必须使用输入中 [ID:xxx] 的 xxx 值
+- confidence 范围 0-1，表示分类置信度
+- 严格按照示例格式输出`;
 }
 
 /**
@@ -327,6 +414,23 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
 
     // 控制单条长度
     return entry.length > MAX_BOOKMARK_PROMPT_CHARS
+      ? entry.slice(0, MAX_BOOKMARK_PROMPT_CHARS) + '...'
+      : entry;
+  }).join('\n');
+
+  // 动态替换已有分类
+  const existingCategoriesText = existingCategories.length > 0
+    ? `已有分类：${existingCategories.join('、')}`
+    : '暂无已有分类（这是首次分类）';
+
+  return `${existingCategoriesText}
+
+收藏列表：
+${bookmarksList}
+
+返回JSON：
+{"categories":[{"name":"分类名","confidence":0.9,"bookmarkIds":["id1"]}],"tags":[{"name":"标签","bookmarkId":"id1"}]}`;
+}
       ? entry.slice(0, MAX_BOOKMARK_PROMPT_CHARS) + '...'
       : entry;
   }).join('\n');
