@@ -3225,7 +3225,6 @@ function hideContextMenu() {
     menu.style.display = 'none';
   }
 }
-}
 
 // ─────────────────────────── 编辑对话框 ─────────────────────────
 
