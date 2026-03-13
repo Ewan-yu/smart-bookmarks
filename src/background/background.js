@@ -48,6 +48,82 @@ async function initDatabase() {
   return db;
 }
 
+/**
+ * 智能提取用户的技术栈分类
+ * 过滤掉通用分类，只保留技术栈相关的分类
+ * @param {Array} categories - 所有分类
+ * @returns {Array<string>} 技术栈分类名称列表
+ */
+function extractTechStackCategories(categories) {
+  // 通用分类关键词（这些不是技术栈，应该过滤掉）
+  const genericKeywords = [
+    '全部', '收藏', '书签', '未分类', '其他', '待清理',
+    '最近', '添加', '失效', '链接', '标签', '视图',
+    '教程', '文档', '工具', '资源', '学习', '开发'
+  ];
+
+  // 技术栈关键词（这些是真实的技术栈）
+  const techStackKeywords = [
+    // 前端
+    'react', 'vue', 'angular', 'svelte', 'solid', 'qwik', 'next', 'nuxt',
+    'ember', 'backbone', 'jquery', 'typescript', 'javascript',
+    // 后端
+    'java', 'spring', 'node', 'express', 'koa', 'nest', 'egg', 'think',
+    'python', 'django', 'flask', 'fastapi', 'tornado', 'scrapy',
+    'go', 'golang', 'gin', 'echo', 'beego', 'grpc',
+    '.net', 'c#', 'csharp', 'asp', 'core', 'mvc', 'entity', 'framework',
+    'php', 'laravel', 'symfony', 'thinkphp', 'wordpress', 'magento',
+    'ruby', 'rails', 'sinatra', ' padrino',
+    'rust', 'actix', 'rocket',
+    'c++', 'cpp',
+    // 数据库
+    'mysql', 'postgresql', 'postgres', 'mongodb', 'redis', 'elasticsearch',
+    'oracle', 'sqlserver', 'sqlite', 'mariadb',
+    // 移动端
+    'ios', 'swift', 'objectivec', 'android', 'kotlin', 'java', 'flutter',
+    'reactnative', 'reactnative', 'ionic', 'cordova', 'phonegap',
+    'dart', 'xamarin',
+    // 前端框架
+    'webpack', 'vite', 'babel', 'eslint', 'prettier', 'jest', 'vitest',
+    'rollup', 'parcel', 'snowpack', 'esbuild',
+    // 后端框架
+    'django', 'flask', 'express', 'koa', 'fastapi',
+    'springboot', 'micronaut', 'quarkus',
+    'asp.net', 'core',
+    // 运维
+    'docker', 'kubernetes', 'k8s', 'linux', 'ubuntu', 'centos', 'debian',
+    'nginx', 'apache', 'jenkins', 'travis', 'circleci', 'github', 'gitlab',
+    'aws', 'azure', 'gcp', 'alibaba', 'tencent', 'cloud',
+    'terraform', 'ansible', 'chef', 'puppet',
+    // 测试
+    'jest', 'mocha', 'jasmine', 'karma', 'cypress', 'selenium',
+    'junit', 'testng', 'pytest', 'rspec'
+  ];
+
+  const categoryNames = categories.map(c => c.name.toLowerCase());
+
+  // 过滤出技术栈相关的分类
+  const techCategories = categories.filter(category => {
+    const name = category.name.toLowerCase();
+
+    // 排除通用分类
+    if (genericKeywords.some(kw => name.includes(kw))) {
+      return false;
+    }
+
+    // 检查是否包含技术栈关键词
+    return techStackKeywords.some(kw => name.includes(kw));
+  });
+
+  // 提取分类名称
+  const techCategoryNames = techCategories.map(c => c.name);
+
+  console.log(`[分类检测] 总分类: ${categoryNames.length}, 技术栈分类: ${techCategoryNames.length}`);
+  console.log(`[分类检测] 用户技术栈: ${techCategoryNames.join(', ')}`);
+
+  return techCategoryNames;
+}
+
 // 监听插件安装事件
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('Extension installed/updated:', details.reason);
@@ -739,7 +815,8 @@ async function handleAIAnalyze(request, sendResponse) {
     }
 
     const categories = await getAllCategories();
-    const existingCategoryNames = categories.map(c => c.name);
+    // 智能提取用户的现有技术栈分类（过滤通用分类）
+    const existingCategoryNames = extractTechStackCategories(categories);
 
     const configResult = await chrome.storage.local.get('aiConfig');
     const aiConfig = configResult.aiConfig;
@@ -927,7 +1004,8 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
 
     // 获取现有分类作为参考
     const categories = await getAllCategories();
-    const existingCategoryNames = categories.map(c => c.name);
+    // 智能提取用户的现有技术栈分类（过滤通用分类）
+    const existingCategoryNames = extractTechStackCategories(categories);
 
     // 获取 AI 配置
     const configResult = await chrome.storage.local.get('aiConfig');

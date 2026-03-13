@@ -2096,9 +2096,8 @@ function showAnalysisConfirmDialog(analysisResult) {
     }
   });
 
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) closeDialog();
-  });
+  // 注意：移除了点击遮罩关闭的功能，防止误关闭
+  // 用户必须明确点击"取消"或"✓"按钮才能关闭
 
   setTimeout(() => dialog.classList.add('show'), 10);
 }

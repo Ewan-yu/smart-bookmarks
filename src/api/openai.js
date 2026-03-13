@@ -317,39 +317,61 @@ async function callOpenAI(apiUrl, apiKey, model, prompt) {
 function getSystemPrompt() {
   return `你是专业的收藏夹分类助手。根据标题、URL特征和页面摘要将收藏分类。
 
-## 分类原则
+## 分类原则（重要）
 
-### 1. 命名规范
-- 使用简洁的中文名称（2-6字）
-- 避免使用"的"、"和"、"与"、"或"等虚词
-- 优先使用行业标准术语（如：前端开发、后端开发、数据科学）
-- 保持分类名称在同一抽象层次
+### 1. 技术栈优先（核心原则）
+**首先检测具体技术栈，而不是使用大类**：
+- ✅ 正确：React、Vue、Angular、Spring Boot、.NET、Go、Python
+- ❌ 错误：前端、后端、全栈（太粗糙）
 
-### 2. 避免语义重复
-- 避免生成含义相近的分类
-- 例如：
-  * ❌ 错误：同时生成"系统架构"、"架构设计"、"软件架构"
-  * ✅ 正确：只生成"系统架构"
-  * ❌ 错误：同时生成"前端开发"、"前端UI"、"前端框架"
-  * ✅ 正确：只生成"前端开发"
+**技术栈细分规则**：
+- **前端**：React、Vue、Angular、Svelte、Solid.js、Qwik
+- **后端**：Java Spring、Node.js、Python Django、Go、.NET Core、PHP
+- **移动端**：iOS、Android、React Native、Flutter、Ionic
+- **数据库**：MySQL、PostgreSQL、MongoDB、Redis
+- **运维**：Docker、Kubernetes、Linux、Nginx、Jenkins
+- **工具链**：Webpack、Vite、Babel、ESLint、Prettier
 
-### 3. 数量控制
-- 每批书签生成 5-10 个主要分类
-- 每个分类至少包含 2 条收藏
-- 避免过度细分，保持分类的高层抽象
-
-### 4. 优先复用
-- 优先使用已有分类名称
-- 只有在必要时才创建新分类
+### 2. 优先复用用户现有分类
+- 检查用户是否已有相关分类
+- 如果用户已有"React"、"Vue"等，优先使用
+- 保持用户的分类习惯和体系
 - 已有分类：{{existingCategories}}
 
-### 5. 多分类归属
-- 一条收藏可以属于多个分类
-- 例如：React 教程可以同时属于"前端开发"和"React"
+### 3. 内容相关性判断
+**不仅看标题，还要看**：
+- URL 域名：react.dev → React，spring.io → Spring
+- 页面标题关键词：包含 "React" 或 "Component"
+- 页面摘要：描述的是 React 教程还是通用内容
+- 路径特征：/docs/react → React 文档
 
-### 6. 标签提取
-- 提取细粒度标签辅助搜索
-- 标签比分类更具体（如：hooks、组件库）
+### 4. 避免过度归类
+**相关性要求**：
+- 书签内容必须与分类主题高度相关
+- 擦边球内容放到更广泛的分类或"其他"
+- 教程类内容按具体技术分类，而非"教程"大类
+
+**示例**：
+- ✅ 正确：React 官方文档 → React
+- ✅ 正确：Spring Boot 教程 → Spring Boot
+- ❌ 错误：React 教程 → 技术文档（太宽泛）
+- ❌ 错误：前端最佳实践 → 前端开发（太宽泛）
+
+### 5. 兜底分类
+**对于无法明确分类的内容**：
+- 创建"其他"分类
+- 创建"未分类"分类
+- 创建"工具资源"分类（通用工具、设计资源等）
+- 创建"学习资源"分类（综合教程、文档等）
+
+### 6. 分类数量控制
+- 每批书签生成 8-15 个细分分类
+- 每个分类至少包含 5-10 条收藏才创建
+- 避免创建"大杂烩"分类（如"前端开发"包含 100+ 条）
+
+### 7. 多分类归属
+- 一条收藏可以属于多个分类
+- 例如：React Hooks 教程可以同时属于"React"和"前端"
 
 ## 输出格式
 
@@ -359,9 +381,10 @@ function getSystemPrompt() {
 {
   "categories": [
     {
-      "name": "分类名称",
+      "name": "分类名称（具体技术栈）",
       "confidence": 0.9,
-      "bookmarkIds": ["id1", "id2"]
+      "bookmarkIds": ["id1", "id2"],
+      "reason": "分类原因（简短说明）"
     }
   ],
   "tags": [
@@ -370,10 +393,33 @@ function getSystemPrompt() {
 }
 \`\`\`
 
+## 分类示例
+
+**输入书签**：
+- React 官方文档
+- Vue.js 教程
+- Spring Boot 实战
+- Python 数据分析
+- Git 使用教程
+
+**正确分类**：
+- React（官方文档）
+- Vue.js（教程）
+- Spring Boot（实战）
+- Python（数据分析）
+- Git（工具）
+
+**错误分类**：
+- 前端开发（太宽泛，应细分）
+- 技术文档（太宽泛）
+- 编程语言（太宽泛）
+- 教程合集（太宽泛）
+
 ## 注意事项
 - bookmarkIds 必须使用输入中 [ID:xxx] 的 xxx 值
 - confidence 范围 0-1，表示分类置信度
-- 严格按照示例格式输出`;
+- 优先使用具体技术栈名称，避免大类
+- 对于擦边球内容，宁可归入"其他"也不要强行归类`;
 }
 
 /**
@@ -418,18 +464,45 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
       : entry;
   }).join('\n');
 
-  // 动态替换已有分类
-  const existingCategoriesText = existingCategories.length > 0
-    ? `已有分类：${existingCategories.join('、')}`
-    : '暂无已有分类（这是首次分类）';
+  // 动态生成已有分类说明
+  let existingCategoriesText = '';
+  if (existingCategories.length > 0) {
+    existingCategoriesText = `## 用户现有分类（必须优先使用）
+
+${existingCategories.join('、')}
+
+**重要**: 必须优先使用上述分类，不要创建新的相似分类。
+如果书签明确属于某个现有分类，请使用该分类。
+`;
+  } else {
+    existingCategoriesText = `## 用户暂无分类（首次分类）
+
+请为书签创建技术栈细分分类（React、Vue、Spring Boot 等）。`;
+  }
 
   return `${existingCategoriesText}
 
-收藏列表：
+## 待分类收藏列表
 ${bookmarksList}
 
-返回JSON：
-{"categories":[{"name":"分类名","confidence":0.9,"bookmarkIds":["id1"]}],"tags":[{"name":"标签","bookmarkId":"id1"}]}`;
+## 输出要求
+严格返回 JSON 格式，不要添加任何解释：
+
+\`\`\`json
+{
+  "categories": [
+    {
+      "name": "分类名称",
+      "confidence": 0.9,
+      "bookmarkIds": ["id1", "id2"],
+      "reason": "分类理由"
+    }
+  ],
+  "tags": [
+    {"name": "标签名", "bookmarkId": "id1"}
+  ]
+}
+\`\`\``;
 }
 
 /**
