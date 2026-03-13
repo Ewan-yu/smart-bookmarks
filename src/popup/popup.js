@@ -90,6 +90,7 @@ function init() {
   initDragAndDrop();
   bindEvents();
   listenToMessages();
+  initKeyboardNavigation();
   loadBookmarks();
   restoreCheckingState();
 }
@@ -1346,8 +1347,232 @@ function bindEvents() {
     }
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hideContextMenu();
+    // Escape 键关闭所有模态元素
+    if (e.key === 'Escape') {
+      hideContextMenu();
+      closeEditDialog();
+    }
   });
+
+  // 添加键盘导航支持
+  initKeyboardNavigation();
+}
+
+/**
+ * 初始化键盘导航
+ */
+function initKeyboardNavigation() {
+  // 为书签列表添加键盘导航
+  const bookmarkList = elements.bookmarkList;
+  if (bookmarkList) {
+    bookmarkList.addEventListener('keydown', handleBookmarkListKeyboard);
+  }
+
+  // 为上下文菜单添加键盘导航
+  const contextMenu = elements.contextMenuEl;
+  if (contextMenu) {
+    contextMenu.addEventListener('keydown', handleContextMenuKeyboard);
+  }
+
+  // 为编辑对话框添加焦点管理
+  const editDialog = elements.editDialog;
+  if (editDialog) {
+    editDialog.addEventListener('keydown', handleEditDialogKeyboard);
+  }
+}
+
+/**
+ * 处理书签列表键盘导航
+ */
+function handleBookmarkListKeyboard(e) {
+  // 仅处理方向键、Enter、Space、Delete
+  if (
+!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Delete', 'Backspace', 'F10'].includes(e.key)
+) {
+    return;
+  }
+
+  // Shift+F10 打开上下文菜单
+  if (e.key === 'F10' && e.shiftKey) {
+    e.preventDefault();
+    const focusedItem = document.activeElement;
+    if (focusedItem && (focusedItem.classList.contains('tree-node') || focusedItem.classList.contains('bm-row') || focusedItem.classList.contains('bm-folder-row'))) {
+      const itemId = focusedItem.dataset?.id;
+      const item = state.bookmarks.find(b => b.id === itemId);
+      if (item) {
+        state.selectedItem = item;
+        const rect = focusedItem.getBoundingClientRect();
+        showContextMenu(item, rect.left, rect.bottom + 2);
+      }
+    }
+    return;
+  }
+
+  // Delete/Backspace 删除书签
+  if ((e.key === 'Delete' || e.key === 'Backspace') &&
+      e.target.matches('.tree-node, .bm-row, .bm-folder-row')) {
+    e.preventDefault();
+    const itemId = e.target.dataset.id;
+    const item = state.bookmarks.find(b => b.id === itemId);
+    if (item) {
+      deleteBookmark(item);
+    }
+    return;
+  }
+
+  // 方向键导航
+  const focusableItems = Array.from(elements.bookmarkList.querySelectorAll(
+    '.tree-node, .bm-row, .bm-folder-row, .sidebar-nav-item'
+  )).filter(el => el.tabIndex >= 0);
+
+  const currentIndex = focusableItems.indexOf(document.activeElement);
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const next = focusableItems[currentIndex + 1] || focusableItems[0];
+    next?.focus();
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const prev = focusableItems[currentIndex - 1] || focusableItems[focusableItems.length - 1];
+    prev?.focus();
+  } else if ((e.key === 'Enter' || e.key === ' ') &&
+             e.target.matches('.tree-node, .bm-row, .bm-folder-row')) {
+    e.preventDefault();
+    e.target.click();
+  }
+}
+
+/**
+ * 处理上下文菜单键盘导航
+ */
+function handleContextMenuKeyboard(e) {
+  const menuItems = elements.contextMenuEl.querySelectorAll('.ctx-item:not([disabled])');
+  const currentIndex = Array.from(menuItems).indexOf(document.activeElement);
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = menuItems[currentIndex + 1] || menuItems[0];
+    next?.focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = menuItems[currentIndex - 1] || menuItems[menuItems.length - 1];
+    prev?.focus();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideContextMenu();
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    e.stopPropagation();
+    document.activeElement?.click();
+  }
+}
+
+/**
+ * 关闭编辑对话框
+ */
+function closeEditDialog() {
+  const dialog = elements.editDialog;
+  if (dialog && dialog.style.display !== 'none') {
+    dialog.style.display = 'none';
+    // 恢复之前的焦点
+    const previousFocusSelector = dialog.dataset.previousFocus;
+    if (previousFocusSelector) {
+      // 尝试通过 id 查找
+      let previousFocus = document.getElementById(previousFocusSelector);
+      // 如果没找到，尝试通过选择器查找
+      if (!previousFocus) {
+        previousFocus = document.querySelector(previousFocusSelector);
+      }
+      // 如果还是没找到，尝试通过 data-bookmark-id 查找
+      if (!previousFocus && dialog.dataset.previousBookmarkId) {
+        previousFocus = document.querySelector(`[data-bookmark-id="${dialog.dataset.previousBookmarkId}"]`);
+      }
+      previousFocus?.focus();
+    }
+    // 清除表单错误
+    clearFormErrors(dialog);
+  }
+}
+
+/**
+ * 清除表单错误
+ */
+function clearFormErrors(dialog) {
+  dialog.querySelectorAll('[aria-invalid="true"]').forEach(el => {
+    el.setAttribute('aria-invalid', 'false');
+    el.classList.remove('input-error');
+  });
+  dialog.querySelectorAll('.field-error').forEach(el => el.remove());
+}
+
+/**
+ * 显示字段错误
+ */
+function showFieldError(fieldEl, message) {
+  if (!fieldEl) return;
+
+  fieldEl.setAttribute('aria-invalid', 'true');
+  fieldEl.classList.add('input-error');
+
+  // 移除已存在的错误消息
+  const existingError = fieldEl.parentElement.querySelector('.field-error');
+  if (existingError) existingError.remove();
+
+  // 添加新的错误消息
+  const errorEl = document.createElement('div');
+  errorEl.className = 'field-error';
+  errorEl.id = `${fieldEl.id}-error`;
+  errorEl.textContent = message;
+  errorEl.setAttribute('role', 'alert');
+  errorEl.setAttribute('aria-live', 'polite');
+
+  fieldEl.setAttribute('aria-describedby', errorEl.id);
+  fieldEl.parentElement.appendChild(errorEl);
+}
+
+/**
+ * 验证 URL 格式
+ */
+function isValidUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 处理编辑对话框键盘导航
+ */
+function handleEditDialogKeyboard(e) {
+  const dialog = elements.editDialog;
+  const focusableElements = dialog.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeEditDialog();
+    return;
+  }
+
+  if (e.key !== 'Tab') return;
+
+  const firstFocusable = focusableElements[0];
+  const lastFocusable = focusableElements[focusableElements.length - 1];
+
+  if (e.shiftKey) {
+    if (document.activeElement === firstFocusable) {
+      e.preventDefault();
+      lastFocusable?.focus();
+    }
+  } else {
+    if (document.activeElement === lastFocusable) {
+      e.preventDefault();
+      firstFocusable?.focus();
+    }
+  }
 }
 
 /**
@@ -2951,6 +3176,12 @@ function showContextMenu(item, x, y) {
   const menu = elements.contextMenuEl;
   if (!menu) return;
 
+  // 保存触发菜单的元素，以便关闭时恢复焦点
+  const activeElement = document.activeElement;
+  if (activeElement) {
+    menu.dataset.triggerElement = `[data-bookmark-id="${activeElement.dataset.bookmarkId}"]`;
+  }
+
   // 根据 item 类型显示/隐藏相关项目
   const isFolder = item.type === 'folder';
   menu.querySelectorAll('[data-for-folder]').forEach(el => {
@@ -2972,12 +3203,28 @@ function showContextMenu(item, x, y) {
   const top = (y + mH > vpH) ? Math.max(0, vpH - mH - 4) : y;
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
+
+  // 将焦点设置到第一个可见的菜单项
+  setTimeout(() => {
+    const firstItem = menu.querySelector('.ctx-item:not([style*="display: none"])');
+    if (firstItem) {
+      firstItem.focus();
+    }
+  }, 50);
 }
 
 function hideContextMenu() {
   if (elements.contextMenuEl) {
-    elements.contextMenuEl.style.display = 'none';
+    const menu = elements.contextMenuEl;
+    // 恢复焦点到触发菜单的元素
+    const triggerSelector = menu.dataset.triggerElement;
+    if (triggerSelector) {
+      const triggerEl = document.querySelector(triggerSelector);
+      triggerEl?.focus();
+    }
+    menu.style.display = 'none';
   }
+}
 }
 
 // ─────────────────────────── 编辑对话框 ─────────────────────────
@@ -2988,27 +3235,60 @@ function initEditDialog() {
 
   // 关闭按钮
   dialog.querySelector('#editDialogClose')?.addEventListener('click', () => {
-    dialog.style.display = 'none';
+    closeEditDialog();
   });
   dialog.querySelector('#editDialogCancel')?.addEventListener('click', () => {
-    dialog.style.display = 'none';
+    closeEditDialog();
   });
 
   // 点击遮罩关闭
   dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) dialog.style.display = 'none';
+    if (e.target === dialog) closeEditDialog();
   });
 
-  // 保存
+  // 保存按钮
   dialog.querySelector('#editDialogSave')?.addEventListener('click', async () => {
+    // 清除之前的错误
+    clearFormErrors(dialog);
+
     const item = state.selectedItem;
     if (!item) return;
 
-    const title = dialog.querySelector('#editTitle')?.value.trim();
-    const url = dialog.querySelector('#editUrl')?.value.trim();
-    const summary = dialog.querySelector('#editSummary')?.value.trim();
-    const tagsRaw = dialog.querySelector('#editTags')?.value.trim();
+    const titleEl = dialog.querySelector('#editTitle');
+    const urlEl = dialog.querySelector('#editUrl');
+    const summaryEl = dialog.querySelector('#editSummary');
+    const tagsEl = dialog.querySelector('#editTags');
+
+    const title = titleEl?.value.trim();
+    const url = urlEl?.value.trim();
+    const summary = summaryEl?.value.trim();
+    const tagsRaw = tagsEl?.value.trim();
     const tags = tagsRaw ? tagsRaw.split(/[,，\s]+/).filter(Boolean) : [];
+
+    // 表单验证
+    let hasError = false;
+
+    // 验证标题
+    if (!title) {
+      showFieldError(titleEl, '请输入名称');
+      hasError = true;
+    }
+
+    // 验证 URL（仅书签需要）
+    if (item.type !== 'folder' && !url) {
+      showFieldError(urlEl, '请输入网址');
+      hasError = true;
+    } else if (url && !isValidUrl(url)) {
+      showFieldError(urlEl, '请输入有效的网址（以 http:// 或 https:// 开头）');
+      hasError = true;
+    }
+
+    if (hasError) {
+      // 聚焦到第一个错误字段
+      const firstError = dialog.querySelector('[aria-invalid="true"]');
+      firstError?.focus();
+      return;
+    }
 
     try {
       await chrome.runtime.sendMessage({
@@ -3017,7 +3297,7 @@ function initEditDialog() {
         data: { title, url, summary, tags }
       });
       Toast.success('保存成功');
-      dialog.style.display = 'none';
+      closeEditDialog();
       await loadBookmarks();
     } catch (err) {
       Toast.error('保存失败：' + err.message);
@@ -3209,6 +3489,13 @@ function showEditDialog(item) {
   if (!dialog) return;
   state.selectedItem = item;
 
+  // 保存当前获得焦点的元素，以便关闭时恢复
+  const activeElement = document.activeElement;
+  if (activeElement) {
+    dialog.dataset.previousFocus = activeElement.id || activeElement.toString();
+    dialog.dataset.previousBookmarkId = activeElement.dataset.bookmarkId || '';
+  }
+
   const titleEl = dialog.querySelector('#editTitle');
   const urlEl = dialog.querySelector('#editUrl');
   const summaryEl = dialog.querySelector('#editSummary');
@@ -3229,6 +3516,17 @@ function showEditDialog(item) {
   if (regenBtn) regenBtn.style.display = item.type === 'folder' ? 'none' : '';
 
   dialog.style.display = 'flex';
+
+  // 设置焦点到第一个输入框
+  setTimeout(() => {
+    if (titleEl && item.type !== 'folder') {
+      titleEl.focus();
+      titleEl.select();
+    } else if (urlEl && item.url) {
+      urlEl.focus();
+      urlEl.select();
+    }
+  }, 100);
 }
 
 // ─────────────────────────── 重新生成摘要 ───────────────────────

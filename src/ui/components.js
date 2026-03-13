@@ -18,6 +18,11 @@ class ProgressBar {
   create() {
     const wrapper = document.createElement('div');
     wrapper.className = 'progress-bar-wrapper';
+    wrapper.setAttribute('role', 'progressbar');
+    wrapper.setAttribute('aria-valuenow', '0');
+    wrapper.setAttribute('aria-valuemin', '0');
+    wrapper.setAttribute('aria-valuemax', '100');
+    wrapper.setAttribute('aria-live', 'polite');
 
     this.element = document.createElement('div');
     this.element.className = 'progress-bar';
@@ -30,6 +35,7 @@ class ProgressBar {
     this.percentageElement = document.createElement('div');
     this.percentageElement.className = 'progress-bar-percentage';
     this.percentageElement.textContent = '0%';
+    this.percentageElement.setAttribute('aria-hidden', 'true');
 
     wrapper.appendChild(this.element);
     wrapper.appendChild(this.percentageElement);
@@ -46,11 +52,17 @@ class ProgressBar {
     if (!this.element) return;
 
     const fill = this.element.querySelector('.progress-bar-fill');
+    const wrapper = this.container;
     fill.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
+
+    // 更新 ARIA 属性
+    wrapper?.setAttribute('aria-valuenow', Math.round(percentage).toString());
+
     this.percentageElement.textContent = `${Math.round(percentage)}%`;
 
     if (text) {
       this.percentageElement.textContent = `${text} (${Math.round(percentage)}%)`;
+      wrapper?.setAttribute('aria-label', `${text} - ${Math.round(percentage)}%`);
     }
   }
 
@@ -102,13 +114,19 @@ class LoadingSpinner {
   create() {
     const wrapper = document.createElement('div');
     wrapper.className = `loading-spinner loading-spinner-${this.size}`;
+    wrapper.setAttribute('role', 'status');
+    wrapper.setAttribute('aria-live', 'polite');
+    wrapper.setAttribute('aria-busy', 'true');
+    wrapper.setAttribute('aria-label', this.text);
 
     const spinner = document.createElement('div');
     spinner.className = 'spinner';
+    spinner.setAttribute('aria-hidden', 'true');
 
     const text = document.createElement('div');
     text.className = 'loading-text';
     text.textContent = this.text;
+    text.setAttribute('aria-hidden', 'true');
 
     wrapper.appendChild(spinner);
     if (this.text) {
@@ -129,6 +147,7 @@ class LoadingSpinner {
     if (textElement) {
       textElement.textContent = text;
     }
+    this.element?.setAttribute('aria-label', text);
   }
 
   /**
@@ -170,6 +189,9 @@ class Toast {
   create() {
     this.element = document.createElement('div');
     this.element.className = `toast toast-${this.type}`;
+    this.element.setAttribute('role', 'status');
+    this.element.setAttribute('aria-live', 'polite');
+    this.element.setAttribute('aria-atomic', 'true');
 
     const icon = this.getIcon();
     const message = document.createElement('span');
@@ -180,6 +202,7 @@ class Toast {
       const iconElement = document.createElement('span');
       iconElement.className = 'toast-icon';
       iconElement.textContent = icon;
+      iconElement.setAttribute('aria-hidden', 'true');
       this.element.appendChild(iconElement);
     }
 
@@ -189,6 +212,7 @@ class Toast {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'toast-close';
     closeBtn.innerHTML = '×';
+    closeBtn.setAttribute('aria-label', '关闭提示');
     closeBtn.onclick = () => this.hide();
     this.element.appendChild(closeBtn);
 
@@ -221,6 +245,8 @@ class Toast {
     if (!container) {
       container = document.createElement('div');
       container.className = 'toast-container';
+      container.setAttribute('role', 'log');
+      container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
     }
 
@@ -300,14 +326,18 @@ class EmptyState {
   create() {
     const wrapper = document.createElement('div');
     wrapper.className = 'empty-state';
+    wrapper.setAttribute('role', 'status');
+    wrapper.setAttribute('aria-live', 'polite');
 
     const icon = document.createElement('div');
     icon.className = 'empty-state-icon';
     icon.textContent = this.icon;
+    icon.setAttribute('aria-hidden', 'true');
 
     const title = document.createElement('div');
     title.className = 'empty-state-title';
     title.textContent = this.title;
+    title.id = `empty-state-${Math.random().toString(36).substr(2, 9)}`;
 
     wrapper.appendChild(icon);
     wrapper.appendChild(title);
@@ -324,6 +354,7 @@ class EmptyState {
       actionBtn.className = 'empty-state-action';
       actionBtn.textContent = this.actionText;
       actionBtn.onclick = this.onAction;
+      actionBtn.setAttribute('aria-describedby', title.id);
       wrapper.appendChild(actionBtn);
     }
 

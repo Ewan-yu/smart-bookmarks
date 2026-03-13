@@ -10,31 +10,37 @@
 <body class="bg-white text-slate-800 antialiased" style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;display:flex;flex-direction:column;">
 
   <!-- ===== Header ===== -->
-  <header class="flex items-center gap-3 px-5 py-0 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md flex-shrink-0" style="height:52px;">
+  <header class="flex items-center gap-3 px-5 py-0 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md flex-shrink-0" style="height:52px;" role="banner">
     <!-- Logo -->
     <div class="flex items-center gap-2 flex-shrink-0">
-      <span class="text-xl leading-none select-none">🔖</span>
+      <span class="text-xl leading-none select-none" aria-hidden="true">🔖</span>
       <h1 class="text-white font-semibold text-base tracking-wide whitespace-nowrap">Smart Bookmarks</h1>
     </div>
     <!-- 搜索框 -->
     <div class="flex-1 max-w-2xl mx-4 relative">
-      <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+      <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none" aria-hidden="true">
         <svg class="w-4 h-4 text-white/60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </div>
+      <label for="searchInput" class="sr-only">搜索收藏</label>
       <input type="text" id="searchInput"
         class="w-full pl-9 pr-4 py-2 bg-white/15 border border-white/30 rounded-xl text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition-all duration-200"
         placeholder="搜索任意收藏内容，支持全文搜索"
-        autocomplete="off" />
+        autocomplete="off"
+        aria-label="搜索收藏"
+        aria-describedby="search-hint" />
+      <span id="search-hint" class="sr-only">输入关键词搜索书签、标签和描述</span>
       <div id="searchSuggestions"
         class="search-suggestions absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
-        style="display: none;"></div>
+        style="display: none;"
+        role="listbox"
+        aria-label="搜索建议"></div>
     </div>
     <!-- 右侧工具栏 -->
-    <div class="flex items-center gap-1 flex-shrink-0">
-      <button id="syncBtn" class="header-btn" title="同步浏览器收藏夹">🔄</button>
-      <button id="importBtn" class="header-btn" title="从 JSON 文件导入收藏">📥</button>
-      <button id="exportBtn" class="header-btn" title="导出收藏到 JSON 文件">📤</button>
-      <button id="settingsBtn" class="header-btn" title="设置">⚙️</button>
+    <div class="flex items-center gap-1 flex-shrink-0" role="toolbar" aria-label="工具栏">
+      <button id="syncBtn" class="header-btn" title="同步浏览器收藏夹" aria-label="同步浏览器收藏夹">🔄</button>
+      <button id="importBtn" class="header-btn" title="从 JSON 文件导入收藏" aria-label="从 JSON 文件导入收藏">📥</button>
+      <button id="exportBtn" class="header-btn" title="导出收藏到 JSON 文件" aria-label="导出收藏到 JSON 文件">📤</button>
+      <button id="settingsBtn" class="header-btn" title="设置" aria-label="打开设置">⚙️</button>
     </div>
   </header>
 
@@ -42,98 +48,98 @@
   <div class="flex flex-1 min-h-0 overflow-hidden">
 
     <!-- ===== 左侧目录栏 ===== -->
-    <aside id="sidebar" class="flex-shrink-0 flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden select-none" style="width:260px;">
+    <aside id="sidebar" class="flex-shrink-0 flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden select-none" style="width:260px;" role="navigation" aria-label="侧边栏导航">
       <!-- 固定入口 -->
-      <div class="flex-shrink-0 pt-2 pb-1 px-2">
-        <button class="sidebar-nav-item active" id="navAll" data-nav="all">
-          <span class="sidebar-nav-icon">📚</span>
+      <div class="flex-shrink-0 pt-2 pb-1 px-2" role="list">
+        <button class="sidebar-nav-item active" id="navAll" data-nav="all" role="listitem" tabindex="0">
+          <span class="sidebar-nav-icon" aria-hidden="true">📚</span>
           <span class="sidebar-nav-label">全部收藏</span>
-          <span class="sidebar-nav-count" id="navAllCount"></span>
+          <span class="sidebar-nav-count" id="navAllCount" aria-label="收藏数量"></span>
         </button>
-        <button class="sidebar-nav-item" id="navRecent" data-nav="recent">
-          <span class="sidebar-nav-icon">🕐</span>
+        <button class="sidebar-nav-item" id="navRecent" data-nav="recent" role="listitem" tabindex="0">
+          <span class="sidebar-nav-icon" aria-hidden="true">🕐</span>
           <span class="sidebar-nav-label">最近添加</span>
         </button>
-        <button class="sidebar-nav-item" id="navBroken" data-nav="broken">
-          <span class="sidebar-nav-icon">⚠️</span>
+        <button class="sidebar-nav-item" id="navBroken" data-nav="broken" role="listitem" tabindex="0">
+          <span class="sidebar-nav-icon" aria-hidden="true">⚠️</span>
           <span class="sidebar-nav-label">失效链接</span>
-          <span class="sidebar-nav-count broken" id="navBrokenCount" style="display:none;"></span>
+          <span class="sidebar-nav-count broken" id="navBrokenCount" style="display:none;" aria-label="失效链接数量"></span>
         </button>
-        <button class="sidebar-nav-item" id="navTags" data-nav="tags">
-          <span class="sidebar-nav-icon">🏷️</span>
+        <button class="sidebar-nav-item" id="navTags" data-nav="tags" role="listitem" tabindex="0">
+          <span class="sidebar-nav-icon" aria-hidden="true">🏷️</span>
           <span class="sidebar-nav-label">标签视图</span>
         </button>
       </div>
-      <div class="sidebar-divider"></div>
+      <div class="sidebar-divider" role="separator" aria-hidden="true"></div>
       <!-- 文件夹树（可滚动） -->
-      <div class="flex-1 overflow-y-auto py-1 px-2" id="sidebarTree">
+      <div class="flex-1 overflow-y-auto py-1 px-2" id="sidebarTree" role="tree" aria-label="文件夹树">
         <div class="flex items-center gap-1 px-2 py-1 mb-1">
           <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">收藏夹</span>
         </div>
-        <div id="sidebarTreeContent" class="text-sm"></div>
+        <div id="sidebarTreeContent" class="text-sm" role="group" aria-label="收藏夹列表"></div>
       </div>
       <!-- 任务面板（内嵌左下角） -->
-      <div id="taskPanel" class="task-panel collapsed">
+      <div id="taskPanel" class="task-panel collapsed" role="complementary" aria-label="任务面板">
         <div class="task-panel-header" id="taskPanelHeader">
           <span class="task-panel-title">⚡ 任务</span>
-          <button id="taskPanelToggle" class="task-panel-btn" title="折叠/展开">
+          <button id="taskPanelToggle" class="task-panel-btn" title="折叠/展开" aria-expanded="false" aria-controls="taskPanelBody">
             <svg id="taskPanelChevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
           </button>
         </div>
         <div class="task-panel-quick">
-          <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏">🤖 <span>分析</span></button>
-          <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析">🔬 <span>调试</span></button>
-          <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接">⚠️ <span>检测</span></button>
+          <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏" aria-label="AI 智能分析并分类收藏">🤖 <span>分析</span></button>
+          <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析" aria-label="调试分析">🔬 <span>调试</span></button>
+          <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接" aria-label="检测失效链接">⚠️ <span>检测</span></button>
         </div>
         <div class="task-panel-body" id="taskPanelBody">
-          <div id="analyzeProgressSection" class="task-progress-section" style="display:none;">
+          <div id="analyzeProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
               <span class="task-progress-label">🤖 AI 分析</span>
               <div class="flex items-center gap-2">
-                <span id="analyzeProgressCount" class="task-count-badge">0/0</span>
-                <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
+                <span id="analyzeProgressCount" class="task-count-badge" aria-label="分析进度">0/0</span>
+                <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;" aria-label="取消分析">✕ 取消</button>
               </div>
             </div>
-            <div class="task-progress-bar-wrap">
+            <div class="task-progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="AI 分析进度">
               <div id="analyzeProgressFill" class="task-progress-fill indigo" style="width:0%"></div>
             </div>
-            <div id="analyzeProgressSub" class="task-progress-sub"></div>
+            <div id="analyzeProgressSub" class="task-progress-sub" aria-live="polite"></div>
           </div>
-          <div id="checkProgressSection" class="task-progress-section" style="display:none;">
+          <div id="checkProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
               <span class="task-progress-label">⚠️ 链接检测</span>
               <div class="flex items-center gap-2">
-                <span id="checkProgressEta" class="text-xs text-slate-400"></span>
-                <span id="checkProgressCount" class="task-count-badge">0/0</span>
-                <button id="cancelCheckBtn" class="task-cancel-btn" style="display:none;">✕ 取消</button>
+                <span id="checkProgressEta" class="text-xs text-slate-400" aria-label="预计剩余时间"></span>
+                <span id="checkProgressCount" class="task-count-badge" aria-label="检测进度">0/0</span>
+                <button id="cancelCheckBtn" class="task-cancel-btn" style="display:none;" aria-label="取消检测">✕ 取消</button>
               </div>
             </div>
-            <div class="task-progress-bar-wrap">
+            <div class="task-progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="链接检测进度">
               <div id="checkProgressFill" class="task-progress-fill amber" style="width:0%"></div>
             </div>
-            <div id="checkProgressSub" class="task-progress-sub"></div>
+            <div id="checkProgressSub" class="task-progress-sub" aria-live="polite"></div>
           </div>
         </div>
       </div>
       <!-- 底部状态栏 -->
       <div class="flex-shrink-0 px-3 py-1.5 border-t border-slate-200 bg-slate-100/50">
-        <div id="sidebarStats" class="text-xs text-slate-400 text-center"></div>
+        <div id="sidebarStats" class="text-xs text-slate-400 text-center" role="status" aria-live="polite"></div>
       </div>
     </aside>
 
     <!-- ===== 可拖拽分割线 ===== -->
-    <div id="sidebarResizer" class="sidebar-resizer flex-shrink-0"></div>
+    <div id="sidebarResizer" class="sidebar-resizer flex-shrink-0" role="separator" aria-orientation="vertical" aria-label="调整侧边栏宽度"></div>
 
     <!-- ===== 右侧主区域 ===== -->
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
+    <main class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white" role="main" aria-label="书签列表">
       <!-- 面包屑导航 -->
-      <div class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-100 bg-white" style="min-height:42px;">
-        <div id="breadcrumb" class="flex items-center gap-1 text-sm text-slate-500 flex-1 min-w-0 overflow-hidden"></div>
-        <div id="searchStats" class="text-xs text-slate-400 flex-shrink-0" style="display: none;"></div>
-        <div id="folderStats" class="text-xs text-slate-400 flex-shrink-0"></div>
+      <div class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-100 bg-white" style="min-height:42px;" role="navigation" aria-label="面包屑导航">
+        <nav id="breadcrumb" class="flex items-center gap-1 text-sm text-slate-500 flex-1 min-w-0 overflow-hidden" aria-label="当前位置"></nav>
+        <div id="searchStats" class="text-xs text-slate-400 flex-shrink-0" style="display: none;" role="status" aria-live="polite"></div>
+        <div id="folderStats" class="text-xs text-slate-400 flex-shrink-0" aria-live="polite"></div>
       </div>
       <!-- 内容列表 -->
-      <div class="flex-1 min-h-0 overflow-y-auto" id="bookmarkList">
+      <div class="flex-1 min-h-0 overflow-y-auto" id="bookmarkList" role="region" aria-label="书签内容" aria-live="polite">
         <div class="flex flex-col items-center justify-center h-full gap-3 text-slate-400 py-16">
           <svg class="w-7 h-7 animate-spin text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -148,48 +154,50 @@
   <!-- 任务面板已移至左侧 sidebar 底部 -->
 
   <!-- ===== 右键上下文菜单 ===== -->
-  <div id="contextMenuEl" class="ctx-menu" style="display:none;">
-    <button class="ctx-item" data-action="open">在新标签页中打开</button>
-    <button class="ctx-item" data-action="openIncognito">在无痕窗口中打开</button>
-    <button class="ctx-item" data-action="openGroup">在新标签页分组打开</button>
-    <button class="ctx-item" data-action="openWindow">在新窗口中打开</button>
-    <div class="ctx-separator"></div>
-    <button class="ctx-item" data-action="edit">修改</button>
-    <button class="ctx-item" data-action="cut">剪切</button>
-    <button class="ctx-item" data-action="copy">复制链接</button>
-    <button class="ctx-item" data-action="paste">粘贴</button>
-    <div class="ctx-separator"></div>
-    <button class="ctx-item" data-action="regenerateSummary">重新生成概述</button>
-    <div class="ctx-separator"></div>
-    <button class="ctx-item danger" data-action="delete">删除</button>
+  <div id="contextMenuEl" class="ctx-menu" style="display:none;" role="menu" aria-label="操作菜单">
+    <button class="ctx-item" data-action="open" role="menuitem" tabindex="-1">在新标签页中打开</button>
+    <button class="ctx-item" data-action="openIncognito" role="menuitem" tabindex="-1">在无痕窗口中打开</button>
+    <button class="ctx-item" data-action="openGroup" role="menuitem" tabindex="-1">在新标签页分组打开</button>
+    <button class="ctx-item" data-action="openWindow" role="menuitem" tabindex="-1">在新窗口中打开</button>
+    <div class="ctx-separator" role="separator"></div>
+    <button class="ctx-item" data-action="edit" role="menuitem" tabindex="-1">修改</button>
+    <button class="ctx-item" data-action="cut" role="menuitem" tabindex="-1">剪切</button>
+    <button class="ctx-item" data-action="copy" role="menuitem" tabindex="-1">复制链接</button>
+    <button class="ctx-item" data-action="paste" role="menuitem" tabindex="-1" aria-disabled="true">粘贴</button>
+    <div class="ctx-separator" role="separator"></div>
+    <button class="ctx-item" data-action="regenerateSummary" role="menuitem" tabindex="-1">重新生成概述</button>
+    <div class="ctx-separator" role="separator"></div>
+    <button class="ctx-item danger" data-action="delete" role="menuitem" tabindex="-1">删除</button>
   </div>
 
   <!-- ===== 编辑收藏对话框 ===== -->
-  <div id="editDialog" class="edit-dialog-overlay" style="display:none;">
+  <div id="editDialog" class="edit-dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="editDialogTitle">
     <div class="edit-dialog">
       <div class="edit-dialog-header">
         <h2 id="editDialogTitle">编辑收藏</h2>
-        <button id="editDialogClose" class="edit-dialog-close">&times;</button>
+        <button id="editDialogClose" class="edit-dialog-close" aria-label="关闭对话框">&times;</button>
       </div>
       <div class="edit-dialog-body">
         <div class="edit-field">
-          <label class="edit-label">名称</label>
-          <input type="text" id="editTitle" class="edit-input" placeholder="收藏标题" />
+          <label class="edit-label" for="editTitle">名称</label>
+          <input type="text" id="editTitle" class="edit-input" placeholder="收藏标题" aria-required="true" required />
         </div>
         <div class="edit-field" id="editUrlField">
-          <label class="edit-label">网址</label>
-          <input type="url" id="editUrl" class="edit-input" placeholder="https://..." />
+          <label class="edit-label" for="editUrl">网址</label>
+          <input type="url" id="editUrl" class="edit-input" placeholder="https://..." aria-required="true" required />
         </div>
         <div class="edit-field">
-          <label class="edit-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <label class="edit-label" for="editSummary" style="display:flex;align-items:center;justify-content:space-between;">
             <span>概述</span>
-            <button id="editRegenerateBtn" class="edit-regen-btn">🔄 重新生成</button>
+            <button id="editRegenerateBtn" class="edit-regen-btn" aria-label="重新生成概述">🔄 重新生成</button>
           </label>
-          <textarea id="editSummary" class="edit-textarea" rows="3" placeholder="对该收藏的简短描述..."></textarea>
+          <textarea id="editSummary" class="edit-textarea" rows="3" placeholder="对该收藏的简短描述..." aria-describedby="summary-hint"></textarea>
+          <span id="summary-hint" class="sr-only">输入书签的简短描述</span>
         </div>
         <div class="edit-field" id="editTagsField">
-          <label class="edit-label">标签</label>
-          <input type="text" id="editTags" class="edit-input" placeholder="用逗号分隔多个标签" />
+          <label class="edit-label" for="editTags">标签</label>
+          <input type="text" id="editTags" class="edit-input" placeholder="用逗号分隔多个标签" aria-describedby="tags-hint" />
+          <span id="tags-hint" class="sr-only">用逗号分隔多个标签，例如：技术, 前端, JavaScript</span>
         </div>
       </div>
       <div class="edit-dialog-footer">

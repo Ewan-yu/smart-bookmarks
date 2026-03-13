@@ -76,6 +76,10 @@ class TreeRenderer {
     li.className = 'tree-node';
     li.dataset.id = node.id;
     li.dataset.type = node.type || 'bookmark';
+    li.dataset.bookmarkId = node.id;
+    li.setAttribute('tabindex', '0');
+    li.setAttribute('role', 'button');
+    li.setAttribute('aria-label', node.type === 'folder' ? `文件夹：${node.title}` : `书签：${node.title}`);
 
     // 计算缩进
     const indent = level * 20;
