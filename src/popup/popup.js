@@ -1967,96 +1967,90 @@ function showAnalysisConfirmDialog(analysisResult) {
   const sortedCats = [...categories].sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
   const maxCount = sortedCats[0]?.bookmarkIds.length || 1;
 
+  // 生成分类列表 HTML
   const catRows = sortedCats.map(cat => {
-    const barW = Math.round((cat.bookmarkIds.length / maxCount) * 100);
-    const badge = cat.isNew
-      ? '<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:4px;flex-shrink:0;">新增</span>'
-      : '<span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;flex-shrink:0;">已有</span>';
+    const progressWidth = Math.round((cat.bookmarkIds.length / maxCount) * 100);
+    const badgeClass = cat.isNew ? 'new' : 'existing';
+    const badgeText = cat.isNew ? '新增' : '已有';
+
     const bookmarkItems = cat.bookmarkIds
       .map(id => bookmarkMap.get(String(id)))
       .filter(Boolean)
       .map(bm => `
-        <div style="padding:5px 0;border-bottom:1px solid #f8fafc;min-width:0;">
-          <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;
-                      white-space:nowrap;color:#374151;">${escapeHtml(bm.title)}</div>
-          <div style="font-size:11px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;
-                      white-space:nowrap;">${escapeHtml(bm.url)}</div>
+        <div class="analysis-bookmark-item">
+          <div class="analysis-bookmark-title">${escapeHtml(bm.title)}</div>
+          <div class="analysis-bookmark-url">${escapeHtml(bm.url)}</div>
         </div>
       `).join('');
+
     return `
-      <details style="border-bottom:1px solid #f1f5f9;">
-        <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;
-                        gap:8px;padding:10px 4px;user-select:none;">
-          ${badge}
-          <span style="font-size:13px;font-weight:600;flex:1;overflow:hidden;
-                       text-overflow:ellipsis;white-space:nowrap;color:#1e293b;">
-            ${escapeHtml(cat.name)}
-          </span>
-          <span style="font-size:12px;color:#94a3b8;flex-shrink:0;">${cat.bookmarkIds.length} 个</span>
-          <div style="width:48px;height:4px;background:#e2e8f0;border-radius:2px;flex-shrink:0;">
-            <div style="width:${barW}%;height:100%;background:#818cf8;border-radius:2px;"></div>
+      <details class="analysis-category-item">
+        <summary class="analysis-category-header">
+          <span class="analysis-category-badge ${badgeClass}">${badgeText}</span>
+          <span class="analysis-category-name">${escapeHtml(cat.name)}</span>
+          <span class="analysis-category-count">${cat.bookmarkIds.length} 个</span>
+          <div class="analysis-category-progress">
+            <div class="analysis-category-progress-fill" style="width: ${progressWidth}%"></div>
           </div>
         </summary>
-        <div style="padding:4px 0 10px 56px;">
-          ${bookmarkItems || '<div style="font-size:12px;color:#94a3b8;padding:4px 0;">无书签</div>'}
+        <div class="analysis-bookmark-list">
+          ${bookmarkItems || '<div class="analysis-empty-state">暂无书签</div>'}
         </div>
       </details>
     `;
   }).join('');
 
+  // 生成标签部分 HTML
   const tagsSection = uniqueTagNames.length > 0 ? `
-    <div style="padding:0 16px 4px;border-top:1px solid #f1f5f9;">
+    <div class="analysis-tags-section">
       <details>
-        <summary style="list-style:none;cursor:pointer;padding:10px 0;font-size:13px;
-                        font-weight:600;color:#475569;user-select:none;display:flex;
-                        align-items:center;gap:6px;">
-          <span>🏷 标签建议</span>
-          <span style="font-weight:400;font-size:12px;color:#94a3b8;">${uniqueTagNames.length} 个</span>
+        <summary class="analysis-tags-header">
+          <span class="analysis-tags-title">🏷 标签建议</span>
+          <span class="analysis-tags-count">${uniqueTagNames.length} 个</span>
         </summary>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 0 10px;">
+        <div class="analysis-tags-list">
           ${uniqueTagNames.map(name => `
-            <span style="background:#f8fafc;color:#475569;font-size:12px;padding:3px 10px;
-                         border-radius:12px;border:1px solid #e2e8f0;">${escapeHtml(name)}</span>
+            <span class="analysis-tag-item">${escapeHtml(name)}</span>
           `).join('')}
         </div>
       </details>
     </div>
   ` : '';
 
+  // 生成对话框 HTML
   const dialog = document.createElement('div');
   dialog.className = 'confirm-dialog-overlay';
   dialog.innerHTML = `
-    <div class="confirm-dialog" style="max-width:560px;">
-      <div class="dialog-header">
+    <div class="confirm-dialog analysis-dialog">
+      <div class="dialog-header analysis-dialog-header">
         <h2>🤖 AI 整理建议</h2>
-        <button class="dialog-close" id="dialogClose">&times;</button>
+        <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
-      <div class="dialog-content" style="padding:0;">
+      <div class="dialog-content analysis-dialog-content">
         <!-- 概要指标 -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #f1f5f9;">
-          <div style="text-align:center;padding:14px 8px;">
-            <div style="font-size:22px;font-weight:700;color:#1e293b;">${summary.totalBookmarks}</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">个收藏</div>
+        <div class="analysis-summary">
+          <div class="analysis-summary-item">
+            <div class="analysis-summary-value">${summary.totalBookmarks}</div>
+            <div class="analysis-summary-label">个收藏</div>
           </div>
-          <div style="text-align:center;padding:14px 8px;border-left:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
-            <div style="font-size:22px;font-weight:700;color:#6366f1;">${categories.length}</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              个分类${newCatCount > 0 ? ` <span style="color:#1d4ed8;">(${newCatCount} 新增)</span>` : ''}
+          <div class="analysis-summary-item">
+            <div class="analysis-summary-value primary">${categories.length}</div>
+            <div class="analysis-summary-label">
+              个分类${newCatCount > 0 ? ` <span class="analysis-summary-highlight">(${newCatCount} 新增)</span>` : ''}
             </div>
           </div>
-          <div style="text-align:center;padding:14px 8px;">
-            <div style="font-size:22px;font-weight:700;color:#0891b2;">${uniqueTagNames.length}</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">个标签建议</div>
+          <div class="analysis-summary-item">
+            <div class="analysis-summary-value success">${uniqueTagNames.length}</div>
+            <div class="analysis-summary-label">个标签建议</div>
           </div>
         </div>
+
         <!-- 分类方案 -->
-        <div style="padding:0 16px;">
-          <div style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.05em;
-                      padding:10px 4px 4px;">📁 分类整理方案</div>
-          <div style="max-height:300px;overflow-y:auto;">
-            ${catRows || '<div style="color:#94a3b8;font-size:13px;padding:12px 4px;">暂无分类建议</div>'}
-          </div>
+        <div class="analysis-categories-header">📁 分类整理方案</div>
+        <div class="analysis-categories-list">
+          ${catRows || '<div class="analysis-empty-state">暂无分类建议</div>'}
         </div>
+
         ${tagsSection}
       </div>
       <div class="dialog-footer">

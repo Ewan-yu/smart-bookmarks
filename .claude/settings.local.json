@@ -6,7 +6,11 @@
       "Bash(cd \"F:\\\\tmp\\\\smart-bookmarks\" && npm run build)",
       "Bash(cat >> \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.css\" << 'EOF'\n\n/* ===== 左侧目录树拖拽样式 ===== */\n.sf-item.drag-over {\n  background: #dbeafe !important;\n  border-radius: 6px;\n}\n\n.sf-item.drag-over .sf-item-row {\n  background: #eff6ff;\n  font-weight: 500;\n}\nEOF)",
       "Bash(node -c src/popup/popup.js 2>&1 | head -20)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -c src/popup/popup.js 2>&1)",
+      "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\popup\\\\popup.js\" 2>&1)"
     ]
   }
 }
