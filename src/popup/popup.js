@@ -2082,10 +2082,12 @@ function showAnalysisConfirmDialog(analysisResult) {
       confirmBtn.textContent = '整理中...';
       const response = await chrome.runtime.sendMessage({
         type: 'APPLY_CATEGORIES',
-        categories: analysisResult.categories
+        categories: analysisResult.categories,
+        tags: analysisResult.tags || []
       });
       if (response.error) throw new Error(response.error);
-      Toast.success(`整理完成！已应用 ${analysisResult.categories.length} 个分类`);
+      const tagCount = analysisResult.tags?.length || 0;
+      Toast.success(`整理完成！已应用 ${analysisResult.categories.length} 个分类${tagCount > 0 ? `，${tagCount} 个标签` : ''}`);
       await loadBookmarks();
       closeDialog();
     } catch (error) {

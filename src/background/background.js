@@ -9,6 +9,7 @@ import {
   deleteBookmark,
   getAllCategories,
   addCategory,
+  getAllTags,
   get,
   addTag,
   clearAllData,
@@ -49,79 +50,125 @@ async function initDatabase() {
 }
 
 /**
- * 智能提取用户的技术栈分类
- * 过滤掉通用分类，只保留技术栈相关的分类
+ * 智能提取用户的有意义分类
+ * 过滤掉通用分类，保留有意义的分类（技术、设计、财经、人文、书籍等）
  * @param {Array} categories - 所有分类
- * @returns {Array<string>} 技术栈分类名称列表
+ * @returns {Array<string>} 有意义的分类名称列表
  */
 function extractTechStackCategories(categories) {
-  // 通用分类关键词（这些不是技术栈，应该过滤掉）
+  // 通用分类关键词（这些不是有意义的分类，应该过滤掉）
   const genericKeywords = [
     '全部', '收藏', '书签', '未分类', '其他', '待清理',
     '最近', '添加', '失效', '链接', '标签', '视图',
-    '教程', '文档', '工具', '资源', '学习', '开发'
+    '我的', '常用', '工作', '生活', '娱乐',
+    'to-do', 'todo', 'inbox', 'done', 'archive'
   ];
 
-  // 技术栈关键词（这些是真实的技术栈）
-  const techStackKeywords = [
-    // 前端
-    'react', 'vue', 'angular', 'svelte', 'solid', 'qwik', 'next', 'nuxt',
-    'ember', 'backbone', 'jquery', 'typescript', 'javascript',
-    // 后端
-    'java', 'spring', 'node', 'express', 'koa', 'nest', 'egg', 'think',
-    'python', 'django', 'flask', 'fastapi', 'tornado', 'scrapy',
-    'go', 'golang', 'gin', 'echo', 'beego', 'grpc',
-    '.net', 'c#', 'csharp', 'asp', 'core', 'mvc', 'entity', 'framework',
-    'php', 'laravel', 'symfony', 'thinkphp', 'wordpress', 'magento',
-    'ruby', 'rails', 'sinatra', ' padrino',
-    'rust', 'actix', 'rocket',
-    'c++', 'cpp',
-    // 数据库
-    'mysql', 'postgresql', 'postgres', 'mongodb', 'redis', 'elasticsearch',
-    'oracle', 'sqlserver', 'sqlite', 'mariadb',
-    // 移动端
-    'ios', 'swift', 'objectivec', 'android', 'kotlin', 'java', 'flutter',
-    'reactnative', 'reactnative', 'ionic', 'cordova', 'phonegap',
-    'dart', 'xamarin',
-    // 前端框架
-    'webpack', 'vite', 'babel', 'eslint', 'prettier', 'jest', 'vitest',
-    'rollup', 'parcel', 'snowpack', 'esbuild',
+  // 技术类关键词
+  const techKeywords = [
+    // 前端框架 & 库
+    'react', 'vue', 'angular', 'svelte', 'solid', 'qwik',
+    'nextjs', 'nuxtjs', 'remix', 'astro',
+    'typescript', 'javascript', 'html', 'css', 'tailwind', 'bootstrap',
     // 后端框架
-    'django', 'flask', 'express', 'koa', 'fastapi',
-    'springboot', 'micronaut', 'quarkus',
-    'asp.net', 'core',
-    // 运维
-    'docker', 'kubernetes', 'k8s', 'linux', 'ubuntu', 'centos', 'debian',
-    'nginx', 'apache', 'jenkins', 'travis', 'circleci', 'github', 'gitlab',
-    'aws', 'azure', 'gcp', 'alibaba', 'tencent', 'cloud',
-    'terraform', 'ansible', 'chef', 'puppet',
-    // 测试
-    'jest', 'mocha', 'jasmine', 'karma', 'cypress', 'selenium',
-    'junit', 'testng', 'pytest', 'rspec'
+    'java', 'spring', 'node', 'nodejs', 'express', 'python', 'django', 'flask',
+    'go', 'golang', '.net', 'c#', 'php', 'ruby', 'rust',
+    // 数据库
+    'mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch',
+    // 移动端
+    'ios', 'android', 'flutter', 'reactnative', 'dart',
+    // 运维 & 工具
+    'docker', 'kubernetes', 'linux', 'nginx', 'git', 'webpack', 'vite',
+    // 技术领域（中文）
+    '前端', '后端', '全栈', '数据库', '运维', '测试', '算法', '架构'
+  ];
+
+  // 设计类关键词
+  const designKeywords = [
+    'figma', 'sketch', 'adobe', 'photoshop', 'illustrator', 'xd',
+    'ui', 'ux', '产品设计', '交互设计', '平面设计',
+    '图标', '插画', '字体', '配色', '设计资源',
+    '设计', '原型', '动效', '品牌', '视觉'
+  ];
+
+  // 财经商业类关键词
+  const financeKeywords = [
+    '投资', '理财', '股票', '基金', '债券', '保险',
+    '创业', '企业管理', '营销', 'seo', '商业',
+    '经济', '财经', '金融', '市场', '战略'
+  ];
+
+  // 人文社科类关键词
+  const humanitiesKeywords = [
+    '历史', '哲学', '心理学', '社会学', '政治', '法律',
+    '文学', '艺术', '文化', '宗教', '人类学'
+  ];
+
+  // 书籍阅读类关键词
+  const bookKeywords = [
+    '书单', '书籍', '电子书', '阅读', '读书笔记', '书评',
+    'library', 'book', 'reading'
+  ];
+
+  // 所有有意义的关键词
+  const meaningfulKeywords = [
+    ...techKeywords,
+    ...designKeywords,
+    ...financeKeywords,
+    ...humanitiesKeywords,
+    ...bookKeywords
   ];
 
   const categoryNames = categories.map(c => c.name.toLowerCase());
 
-  // 过滤出技术栈相关的分类
-  const techCategories = categories.filter(category => {
+  // 过滤出有意义的分类
+  const meaningfulCategories = categories.filter(category => {
     const name = category.name.toLowerCase();
 
-    // 排除通用分类
-    if (genericKeywords.some(kw => name.includes(kw))) {
+    // 排除通用分类（精确匹配或包含）
+    if (genericKeywords.some(kw => name === kw || name === `${kw}s`)) {
       return false;
     }
 
-    // 检查是否包含技术栈关键词
-    return techStackKeywords.some(kw => name.includes(kw));
+    // 检查是否包含有意义的关键词
+    const hasMeaningfulKeyword = meaningfulKeywords.some(kw => name.includes(kw));
+
+    if (hasMeaningfulKeyword) {
+      return true;
+    }
+
+    // 启发式规则：识别可能有意义的分类
+    // 1. 分类名称中包含特定领域的词汇
+    const meaningfulPatterns = [
+      // 技术栈组合
+      /.*全栈.*/i, /.*full-?stack.*/i, /.*frontend.*/i, /.*backend.*/i,
+      /.*前端.*/i, /.*后端.*/i, /.*服务端.*/i,
+      // 技术领域
+      /.*数据库.*/i, /.*运维.*/i, /.*测试.*/i, /.*安全.*/i,
+      /.*性能.*/i, /.*优化.*/i, /.*架构.*/i,
+      // 设计领域
+      /.*设计.*/i, /.*ui.*/i, /.*ux.*/i,
+      // 内容领域
+      /.*管理.*/i, /.*开发.*/i,
+    ];
+
+    const matchesPattern = meaningfulPatterns.some(pattern => pattern.test(name));
+
+    // 2. 分类名称是英文驼峰或连字符格式，可能是一个技术框架或工具
+    // 例如：ReactHooks, Vue-Router, Next-Auth
+    const isTechFormat = /^[A-Z][a-zA-Z0-9]*(?:[-_][A-Z][a-zA-Z0-9]*)+$/.test(name) ||
+                         /^[a-z]+(?:[-_][a-z0-9]+)*\.(?:js|ts|css|json)$/.test(name);
+
+    return matchesPattern || isTechFormat;
   });
 
   // 提取分类名称
-  const techCategoryNames = techCategories.map(c => c.name);
+  const meaningfulCategoryNames = meaningfulCategories.map(c => c.name);
 
-  console.log(`[分类检测] 总分类: ${categoryNames.length}, 技术栈分类: ${techCategoryNames.length}`);
-  console.log(`[分类检测] 用户技术栈: ${techCategoryNames.join(', ')}`);
+  console.log(`[分类检测] 总分类: ${categoryNames.length}, 有意义分类: ${meaningfulCategoryNames.length}`);
+  console.log(`[分类检测] 用户分类: ${meaningfulCategoryNames.join(', ')}`);
 
-  return techCategoryNames;
+  return meaningfulCategoryNames;
 }
 
 // 监听插件安装事件
@@ -595,11 +642,12 @@ async function handleGetBookmarks(request, sendResponse) {
     const database = await initDatabase();
     const bookmarks = await getAllBookmarks();
     const categories = await getAllCategories();
+    const tags = await getAllTags();
 
     sendResponse({
       bookmarks,
       categories,
-      tags: [] // TODO: 实现获取标签的功能
+      tags
     });
   } catch (error) {
     console.error('Failed to get bookmarks:', error);
@@ -815,8 +863,10 @@ async function handleAIAnalyze(request, sendResponse) {
     }
 
     const categories = await getAllCategories();
-    // 智能提取用户的现有技术栈分类（过滤通用分类）
-    const existingCategoryNames = extractTechStackCategories(categories);
+    // 获取所有用户分类的名称（不过滤，让AI自己判断使用哪些）
+    const existingCategoryNames = categories.map(c => c.name);
+
+    console.log(`[AI分析] 用户现有分类 (${existingCategoryNames.length}个): ${existingCategoryNames.join(', ')}`);
 
     const configResult = await chrome.storage.local.get('aiConfig');
     const aiConfig = configResult.aiConfig;
@@ -825,6 +875,12 @@ async function handleAIAnalyze(request, sendResponse) {
       sendResponse({ error: '请先在设置中配置 AI API' });
       return;
     }
+
+    // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
+    sendResponse({ started: true });
+
+    // 创建取消令牌（在开始分析前创建，确保后续操作可以取消）
+    currentAnalysisCancelToken = { cancelled: false };
 
     // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
     sendResponse({ started: true });
@@ -896,9 +952,6 @@ async function handleAIAnalyze(request, sendResponse) {
         console.log(`[AI] 已将 ${updateTasks.length} 条摘要描述写入 IndexedDB`);
       }
     }
-
-    // 创建取消令牌
-    currentAnalysisCancelToken = { cancelled: false };
 
     const analysisResult = await analyzeBookmarks(
       aiConfig,
@@ -980,6 +1033,8 @@ async function handleAIAnalyze(request, sendResponse) {
         data: { error: error.message }
       }).catch(() => {});
     }
+  } finally {
+    // 确保取消令牌总是被清理（无论成功、失败还是取消）
     currentAnalysisCancelToken = null;
   }
 }
@@ -1004,8 +1059,10 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
 
     // 获取现有分类作为参考
     const categories = await getAllCategories();
-    // 智能提取用户的现有技术栈分类（过滤通用分类）
-    const existingCategoryNames = extractTechStackCategories(categories);
+    // 获取所有用户分类的名称（不过滤，让AI自己判断）
+    const existingCategoryNames = categories.map(c => c.name);
+
+    console.log(`[AI Debug] 用户现有分类 (${existingCategoryNames.length}个): ${existingCategoryNames.join(', ')}`);
 
     // 获取 AI 配置
     const configResult = await chrome.storage.local.get('aiConfig');
@@ -1048,23 +1105,61 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
  */
 async function handleApplyCategories(request, sendResponse) {
   try {
-    const { categories } = request;
+    const { categories, tags = [] } = request;
 
     await initDatabase();
 
-    // 创建新分类
+    // 获取浏览器书签栏根目录ID（用于新建分类的父目录）
+    const getBookmarksBarId = async () => {
+      const tree = await chrome.bookmarks.getTree();
+      // 查找"书签栏"节点
+      function findBookmarksBar(nodes) {
+        for (const node of nodes) {
+          if (node.title === '书签栏' || node.title === 'Bookmarks Bar') {
+            return node.id;
+          }
+          if (node.children) {
+            const found = findBookmarksBar(node.children);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+      return findBookmarksBar(tree);
+    };
+
+    const bookmarksBarId = await getBookmarksBarId();
+    console.log(`[应用分类] 书签栏根目录ID: ${bookmarksBarId}`);
+
+    // 创建新分类（同时在浏览器收藏夹和IndexedDB中创建）
     for (const cat of categories) {
       if (cat.isNew) {
         // 检查分类是否已存在
         const existing = await get(STORES.CATEGORIES, `cat_${cat.name}`);
 
         if (!existing) {
+          // 1. 先在浏览器收藏夹中创建文件夹
+          let browserFolderId = null;
+          try {
+            const folder = await chrome.bookmarks.create({
+              parentId: bookmarksBarId, // 在"书签栏"下创建
+              title: cat.name,
+              index: 0 // 添加到书签栏顶部
+            });
+            browserFolderId = folder.id;
+            console.log(`[应用分类] 在浏览器中创建文件夹: ${cat.name}, ID: ${browserFolderId}, parentId: ${bookmarksBarId}`);
+          } catch (error) {
+            console.error(`[应用分类] 创建浏览器文件夹失败: ${cat.name}`, error);
+          }
+
+          // 2. 在IndexedDB中保存分类（使用浏览器文件夹的ID作为parentId）
           await addCategory({
             id: `cat_${cat.name}`,
             name: cat.name,
-            parentId: null,
+            parentId: browserFolderId || bookmarksBarId || null, // 保存浏览器文件夹ID
             createdAt: Date.now()
           });
+          console.log(`[应用分类] 创建新分类: ${cat.name}, parentId: ${browserFolderId || bookmarksBarId}`);
         }
       }
 
@@ -1079,6 +1174,66 @@ async function handleApplyCategories(request, sendResponse) {
       }
     }
 
+    // 保存标签
+    // 注意：AI返回的tags格式是 [{ name, bookmarkId }]，需要聚合为 [{ name, bookmarkIds }]
+    console.log(`[应用分类] 开始保存 ${tags.length} 个标签...`);
+
+    // 聚合相同标签名的bookmarkId
+    const tagMap = new Map();
+    for (const tag of tags) {
+      const tagName = tag.name;
+      const bookmarkId = tag.bookmarkId;
+
+      if (!bookmarkId) continue;
+
+      if (!tagMap.has(tagName)) {
+        tagMap.set(tagName, new Set());
+      }
+      tagMap.get(tagName).add(bookmarkId);
+    }
+
+    // 批量保存标签
+    for (const [tagName, bookmarkIdSet] of tagMap.entries()) {
+      const bookmarkIds = Array.from(bookmarkIdSet);
+
+      // 检查标签是否已存在
+      const existing = await get(STORES.TAGS, `tag_${tagName}`);
+
+      if (!existing) {
+        // 创建新标签
+        await addTag({
+          id: `tag_${tagName}`,
+          name: tagName,
+          bookmarkIds: bookmarkIds,
+          createdAt: Date.now()
+        });
+        console.log(`[应用分类] 创建新标签: ${tagName}, 书签数: ${bookmarkIds.length}`);
+      } else {
+        // 合并书签到已有标签
+        const mergedBookmarkIds = [...new Set([...existing.bookmarkIds, ...bookmarkIds])];
+        existing.bookmarkIds = mergedBookmarkIds;
+        existing.updatedAt = Date.now();
+        await addTag(existing);
+        console.log(`[应用分类] 更新已有标签: ${tagName}, 书签数: ${mergedBookmarkIds.length}`);
+      }
+
+      // 同时更新书签的 tags 字段（用于标签视图显示）
+      for (const bookmarkId of bookmarkIds) {
+        const bookmark = await getBookmark(bookmarkId);
+        if (bookmark) {
+          // 确保 tags 字段存在
+          if (!bookmark.tags) bookmark.tags = [];
+          // 如果标签还没有添加到书签，则添加
+          if (!bookmark.tags.includes(tagName)) {
+            bookmark.tags.push(tagName);
+            bookmark.updatedAt = Date.now();
+            await addBookmark(bookmark);
+          }
+        }
+      }
+    }
+
+    console.log(`[应用分类] 完成！创建了 ${categories.length} 个分类，${tags.length} 个标签`);
     sendResponse({ success: true });
   } catch (error) {
     console.error('Failed to apply categories:', error);
