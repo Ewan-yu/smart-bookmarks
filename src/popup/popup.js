@@ -10,6 +10,7 @@ console.log('Smart Bookmarks popup loaded');
 const elements = {
   searchInput: document.getElementById('searchInput'),
   analyzeBtn: document.getElementById('analyzeBtn'),
+  mergeSuggestBtn: document.getElementById('mergeSuggestBtn'),
   debugAnalyzeBtn: document.getElementById('debugAnalyzeBtn'),
   checkBrokenBtn: document.getElementById('checkBrokenBtn'),
   syncBtn: document.getElementById('syncBtn'),
@@ -1357,6 +1358,7 @@ function bindEvents() {
 
   // 分析
   elements.analyzeBtn.addEventListener('click', handleAnalyze);
+  elements.mergeSuggestBtn.addEventListener('click', handleMergeSuggestions);
   elements.debugAnalyzeBtn.addEventListener('click', handleDebugAnalyze);
   elements.checkBrokenBtn.addEventListener('click', handleCheckBrokenLinks);
 
@@ -1819,6 +1821,39 @@ async function checkIsParentFolder(parentId, childId) {
   }
 
   return false;
+}
+
+/**
+ * 处理 AI 合并建议
+ * 检测重复分类并显示合并建议
+ */
+async function handleMergeSuggestions() {
+  if (state.categories.length < 2) {
+    Toast.info('分类数量不足，无需合并');
+    return;
+  }
+
+  Toast.info('正在分析重复分类...');
+
+  try {
+    // 动态导入 CategoryMerger
+    const { default: CategoryMerger } = await import('../utils/category-merger.js');
+    const merger = new CategoryMerger();
+
+    // 生成合并建议
+    const suggestions = merger.generateMergeSuggestions(state.categories);
+
+    if (suggestions.length === 0) {
+      Toast.info('未检测到需要合并的重复分类');
+      return;
+    }
+
+    // 显示合并建议对话框
+    showMergeSuggestionsDialog(suggestions, state.categories);
+  } catch (error) {
+    console.error('Merge suggestions error:', error);
+    Toast.error('生成合并建议失败：' + error.message);
+  }
 }
 
 /**

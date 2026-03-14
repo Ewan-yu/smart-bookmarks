@@ -1270,6 +1270,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .task-quick-btn:hover { opacity: .88; transform: translateY(-1px); }
 .task-quick-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .task-quick-btn.indigo { background: #eef2ff; color: #4338ca; }
+.task-quick-btn.purple { background: #f5f3ff; color: #7c3aed; }
 .task-quick-btn.emerald { background: #ecfdf5; color: #065f46; }
 .task-quick-btn.amber  { background: #fffbeb; color: #92400e; }
 
