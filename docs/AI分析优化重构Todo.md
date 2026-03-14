@@ -371,7 +371,52 @@ generateMergeSuggestions(categories) {
 
 ---
 
-#### 3.6 文件夹管理功能测试
+#### 3.6 实现文件夹创建和重命名 ✅
+- [x] 实现 `handleCreateCategory()` 消息处理
+- [x] 实现 `handleUpdateCategory()` 消息处理
+- [x] 先创建浏览器文件夹，再使用其 ID 作为分类 ID
+- [x] 右键菜单新增"新建子文件夹"和"重命名"项
+- [x] 创建/重命名对话框 UI
+- [x] 编辑对话框支持文件夹类型（只显示名称字段）
+- [x] 修复 ID 格式不一致问题
+- [x] 添加 `notifyBookmarkChanged()` 通知刷新
+
+**文件**:
+- `src/background/background.js`
+- `src/popup/popup.js`
+- `src/popup/popup.html`
+
+**API**:
+```javascript
+// 创建文件夹
+{
+  type: 'CREATE_CATEGORY',
+  name: string,
+  parentId: string | null
+}
+
+// 更新文件夹
+{
+  type: 'UPDATE_CATEGORY',
+  id: string,
+  name: string
+}
+```
+
+**验收标准**:
+- [x] 创建文件夹只创建一个（不重复）
+- [x] 文件夹 ID 格式统一（cat_${browserId}）
+- [x] 删除文件夹成功
+- [x] 重命名文件夹成功
+- [x] 左侧目录实时更新
+- [x] 浏览器收藏夹同步
+
+**负责人**: 开发
+**工时**: 4 小时
+
+---
+
+#### 3.7 文件夹管理功能测试
 - [ ] 删除空文件夹
 - [ ] 删除含子文件夹的文件夹
 - [ ] 删除根文件夹
@@ -928,6 +973,56 @@ state.subscribe(path, callback)
 - ⏳ 单元测试（文件夹管理功能）
 - ⏳ 浏览器加载测试（验证所有功能）
 - ⏳ 边界情况测试（大量书签、深层嵌套）
+
+---
+
+## 📝 最近更新日志（2026-03-14 续）
+
+### ✅ Phase 3 文件夹管理功能完善
+
+#### 新增完成的工作
+
+**1. 文件夹创建功能** (`src/background/background.js`)
+- ✅ 重构 `handleCreateCategory()` 函数
+- ✅ 先创建浏览器文件夹，再使用其 ID 作为分类 ID
+- ✅ 解决重复创建问题（原来创建 2 次，现在只创建 1 次）
+- ✅ ID 格式统一为 `cat_${browserId}`
+
+**2. 文件夹重命名功能** (`src/background/background.js`)
+- ✅ 添加 `deleteCategory` 导入（之前缺失）
+- ✅ 修复 `STORES.categories` 大小写错误（应为 `STORES.CATEGORIES`）
+- ✅ 添加 `notifyBookmarkChanged()` 通知 popup 刷新
+
+**3. 编辑对话框优化** (`src/popup/popup.js`)
+- ✅ 修复编辑对话框保存时统一发送 `UPDATE_BOOKMARK` 的问题
+- ✅ 根据 `item.type` 发送不同的消息（文件夹 → UPDATE_CATEGORY）
+- ✅ 修复焦点恢复错误（`activeElement.toString()` 导致 querySelector 错误）
+- ✅ 添加 try-catch 防止焦点恢复失败
+- ✅ 对话框按钮 ID 冲突修复（改用 `data-*` 属性）
+
+**4. 右键菜单优化** (`src/popup/popup.js`)
+- ✅ 删除操作根据类型调用不同函数（文件夹 → deleteFolder）
+- ✅ 上下文菜单焦点恢复优化
+
+#### 提交记录
+- `f34f794` fix: 修复文件夹创建、删除和重命名功能
+- `64759cf` fix: 修复文件夹重命名和编辑对话框的问题
+
+#### 实际效果
+- ✅ 创建文件夹：只创建一个（插件 + 原生收藏夹各 1 个）
+- ✅ 删除文件夹：子内容自动移到父文件夹
+- ✅ 重命名文件夹：只显示一个"保存成功"提示
+- ✅ 编辑对话框：支持文件夹类型（隐藏 URL 字段）
+- ✅ 左侧目录：实时更新无需刷新
+- ✅ 原生收藏夹：完全同步
+
+#### 已修复的问题
+1. ✅ 重复创建文件夹（原来创建 2 次）
+2. ✅ 删除文件夹失败（STORES.categories 大小写错误）
+3. ✅ 删除操作调用错误 API（未区分文件夹和书签）
+4. ✅ 重命名 querySelector 错误（activeElement.toString()）
+5. ✅ 对话框按钮 ID 冲突
+6. ✅ 焦点恢复失败
 
 ---
 
