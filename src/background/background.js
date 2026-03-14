@@ -2139,7 +2139,7 @@ async function handleUpdateCategory(request, sendResponse) {
     category.updatedAt = Date.now();
 
     await addCategory(category);
-    console.log(`[UPDATE_CATEGORY] Category updated: ${id}`);
+    console.log(`[UPDATE_CATEGORY] Category updated: ${id}, new name: ${name}`);
 
     // 同步到浏览器收藏夹
     try {
@@ -2151,6 +2151,9 @@ async function handleUpdateCategory(request, sendResponse) {
     } catch (browserError) {
       console.debug('[UPDATE_CATEGORY] Browser folder update skipped:', browserError.message);
     }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('category-updated', id);
 
     sendResponse({
       success: true

@@ -1518,17 +1518,17 @@ function closeEditDialog() {
     // 恢复之前的焦点
     const previousFocusSelector = dialog.dataset.previousFocus;
     if (previousFocusSelector) {
-      // 尝试通过 id 查找
-      let previousFocus = document.getElementById(previousFocusSelector);
-      // 如果没找到，尝试通过选择器查找
-      if (!previousFocus) {
-        previousFocus = document.querySelector(previousFocusSelector);
+      try {
+        // 尝试通过 id 查找
+        let previousFocus = document.getElementById(previousFocusSelector);
+        // 如果没找到，尝试通过选择器查找
+        if (!previousFocus) {
+          previousFocus = document.querySelector(previousFocusSelector);
+        }
+        previousFocus?.focus();
+      } catch (e) {
+        console.debug('[closeEditDialog] Failed to restore focus:', e.message);
       }
-      // 如果还是没找到，尝试通过 data-bookmark-id 查找
-      if (!previousFocus && dialog.dataset.previousBookmarkId) {
-        previousFocus = document.querySelector(`[data-bookmark-id="${dialog.dataset.previousBookmarkId}"]`);
-      }
-      previousFocus?.focus();
     }
     // 清除表单错误
     clearFormErrors(dialog);
@@ -3374,11 +3374,22 @@ function initEditDialog() {
     }
 
     try {
-      await chrome.runtime.sendMessage({
-        type: 'UPDATE_BOOKMARK',
-        id: item.id,
-        data: { title, url, summary, tags }
-      });
+      // 根据类型发送不同的消息
+      if (item.type === 'folder') {
+        // 文件夹：只更新名称
+        await chrome.runtime.sendMessage({
+          type: 'UPDATE_CATEGORY',
+          id: item.id,
+          name: title
+        });
+      } else {
+        // 书签：更新所有字段
+        await chrome.runtime.sendMessage({
+          type: 'UPDATE_BOOKMARK',
+          id: item.id,
+          data: { title, url, summary, tags }
+        });
+      }
       Toast.success('保存成功');
       closeEditDialog();
       await loadBookmarks();
@@ -3574,9 +3585,11 @@ function showEditDialog(item) {
 
   // 保存当前获得焦点的元素，以便关闭时恢复
   const activeElement = document.activeElement;
-  if (activeElement) {
-    dialog.dataset.previousFocus = activeElement.id || activeElement.toString();
-    dialog.dataset.previousBookmarkId = activeElement.dataset.bookmarkId || '';
+  if (activeElement && activeElement.id) {
+    dialog.dataset.previousFocus = activeElement.id;
+  }
+  if (activeElement && activeElement.dataset && activeElement.dataset.bookmarkId) {
+    dialog.dataset.previousBookmarkId = activeElement.dataset.bookmarkId;
   }
 
   const titleEl = dialog.querySelector('#editTitle');
