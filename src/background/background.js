@@ -600,6 +600,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleMergeFolders(request, sendResponse);
       return true;
 
+    case 'CREATE_CATEGORY':
+      handleCreateCategory(request, sendResponse);
+      return true;
+
+    case 'UPDATE_CATEGORY':
+      handleUpdateCategory(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -1623,16 +1631,26 @@ async function handleMoveBookmark(request, sendResponse) {
     const bookmark = await getBookmark(bookmarkId);
     if (!bookmark) {
       // 也可能是文件夹（分类）
-      const category = await get(STORES.categories, bookmarkId);
-      if (!category) {
+      try {
+        const category = await get(STORES.CATEGORIES, bookmarkId);
+        if (!category) {
+          sendResponse({
+            success: false,
+            error: '书签或文件夹不存在'
+          });
+          return;
+        }
+        // 移动文件夹
+        await moveCategory(category, targetFolderId);
+      } catch (dbError) {
+        // categories object store 可能不存在，检查是否是内置特殊文件夹
+        console.log('[MOVE] Category not in DB, checking special folders:', bookmarkId);
         sendResponse({
           success: false,
-          error: '书签或文件夹不存在'
+          error: '系统文件夹无法移动'
         });
         return;
       }
-      // 移动文件夹
-      await moveCategory(category, targetFolderId);
     } else {
       // 移动书签
       await moveBookmarkToFolder(bookmark, targetFolderId);
@@ -2029,6 +2047,112 @@ async function getNextSortOrder(parentId) {
   const maxOrder = Math.max(...siblings.map(s => s.sortOrder || 0), 0);
   return maxOrder + 1;
 }
+
+/**
+ * 创建新分类
+ */
+async function handleCreateCategory(request, sendResponse) {
+  try {
+    const { name, parentId } = request;
+    console.log(`[CREATE_CATEGORY] Creating category: ${name} under ${parentId}`);
+
+    await initDatabase();
+
+    // 生成唯一 ID
+    const id = 'cat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const sortOrder = await getNextSortOrder(parentId || null);
+
+    const category = {
+      id,
+      name,
+      parentId: parentId || null,
+      sortOrder,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    await addCategory(category);
+    console.log(`[CREATE_CATEGORY] Category created: ${id}`);
+
+    // 尝试在浏览器收藏夹中创建文件夹
+    try {
+      let parentBrowserId = '1'; // 书签栏根目录
+      if (parentId && parentId.startsWith('cat_')) {
+        parentBrowserId = parentId.replace('cat_', '');
+      }
+
+      const browserFolder = await chrome.bookmarks.create({
+        parentId: parentBrowserId,
+        title: name
+      });
+
+      console.log(`[CREATE_CATEGORY] Browser folder created: ${browserFolder.id}`);
+    } catch (browserError) {
+      console.debug('[CREATE_CATEGORY] Browser folder creation skipped or failed:', browserError.message);
+    }
+
+    sendResponse({
+      success: true,
+      category
+    });
+  } catch (error) {
+    console.error('[CREATE_CATEGORY] Failed to create category:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * 更新分类
+ */
+async function handleUpdateCategory(request, sendResponse) {
+  try {
+    const { id, name } = request;
+    console.log(`[UPDATE_CATEGORY] Updating category: ${id} to ${name}`);
+
+    await initDatabase();
+
+    const category = await get(STORES.CATEGORIES, id);
+    if (!category) {
+      sendResponse({
+        success: false,
+        error: '文件夹不存在'
+      });
+      return;
+    }
+
+    // 更新名称
+    category.name = name;
+    category.updatedAt = Date.now();
+
+    await addCategory(category);
+    console.log(`[UPDATE_CATEGORY] Category updated: ${id}`);
+
+    // 同步到浏览器收藏夹
+    try {
+      if (category.id.startsWith('cat_')) {
+        const browserId = category.id.replace('cat_', '');
+        await chrome.bookmarks.update(browserId, { title: name });
+        console.log(`[UPDATE_CATEGORY] Browser folder updated: ${browserId}`);
+      }
+    } catch (browserError) {
+      console.debug('[UPDATE_CATEGORY] Browser folder update skipped:', browserError.message);
+    }
+
+    sendResponse({
+      success: true
+    });
+  } catch (error) {
+    console.error('[UPDATE_CATEGORY] Failed to update category:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
 
 // 定期同步（可选）
 // chrome.alarms.create('syncBookmarks', { periodInMinutes: 30 });

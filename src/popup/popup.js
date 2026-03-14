@@ -468,7 +468,7 @@ function renderSidebarLevel(nodes, depth) {
       e.preventDefault();
       e.stopPropagation();
       state.selectedItem = node;
-      showContextMenu(node, e.clientX, e.clientY);
+      showContextMenu(node, e.clientX, e.clientY, { source: 'sidebar' });
     });
 
     li.appendChild(row);
@@ -1711,6 +1711,14 @@ function handleContextMenuAction(action) {
 
     case 'mergeFolder':
       if (item.type === 'folder') showMergeFolderDialog(item);
+      break;
+
+    case 'addSubFolder':
+      if (item.type === 'folder') showAddSubFolderDialog(item);
+      break;
+
+    case 'renameFolder':
+      if (item.type === 'folder') showRenameFolderDialog(item);
       break;
   }
 }
@@ -3212,7 +3220,7 @@ function initContextMenu() {
   });
 }
 
-function showContextMenu(item, x, y) {
+function showContextMenu(item, x, y, options = {}) {
   const menu = elements.contextMenuEl;
   if (!menu) return;
 
@@ -3220,6 +3228,7 @@ function showContextMenu(item, x, y) {
   console.log('[showContextMenu] item:', item);
   console.log('[showContextMenu] item.type:', item.type);
   console.log('[showContextMenu] isFolder?', item.type === 'folder');
+  console.log('[showContextMenu] options:', options);
 
   // 保存触发菜单的元素，以便关闭时恢复焦点
   const activeElement = document.activeElement;
@@ -3227,19 +3236,30 @@ function showContextMenu(item, x, y) {
     menu.dataset.triggerElement = `[data-bookmark-id="${activeElement.dataset.bookmarkId}"]`;
   }
 
-  // 根据 item 类型显示/隐藏相关项目
-  const isFolder = item.type === 'folder';
-
-  // 显示/隐藏文件夹专用菜单项
-  const folderItems = menu.querySelectorAll('[data-for-folder]');
-  console.log('[showContextMenu] Found folder items:', folderItems.length);
-  folderItems.forEach(el => {
-    const display = isFolder ? '' : 'none';
-    el.style.display = display;
-    console.log('[showContextMenu] Folder item:', el.dataset.action, 'display:', display);
+  // 重置所有菜单项为显示状态
+  menu.querySelectorAll('.ctx-item, .ctx-separator').forEach(el => {
+    el.style.display = '';
   });
 
-  // 显示/隐藏书签专用菜单项（如果有的话）
+  const isFolder = item.type === 'folder';
+  const isSidebar = options.source === 'sidebar';
+
+  // 左侧边栏专用菜单项
+  menu.querySelectorAll('[data-for-sidebar-only]').forEach(el => {
+    el.style.display = isSidebar ? '' : 'none';
+  });
+
+  // 右侧区域专用菜单项
+  menu.querySelectorAll('[data-for-content-only]').forEach(el => {
+    el.style.display = isSidebar ? 'none' : '';
+  });
+
+  // 文件夹专用菜单项（两侧通用）
+  menu.querySelectorAll('[data-for-folder]').forEach(el => {
+    el.style.display = isFolder ? '' : 'none';
+  });
+
+  // 书签专用菜单项
   menu.querySelectorAll('[data-for-bookmark]').forEach(el => {
     el.style.display = isFolder ? 'none' : '';
   });
@@ -3999,6 +4019,174 @@ function generateMergeSuggestionsFromResult(analysisResult) {
   // 否则使用 CategoryMerger 生成建议
   // 这里需要动态导入，因为 CategoryMerger 可能在 background 中
   return [];
+}
+
+// ─────────────────────────── 左侧边栏文件夹管理 ───────────────────────────
+
+/**
+ * 显示新建子文件夹对话框
+ */
+function showAddSubFolderDialog(parentFolder) {
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog-overlay';
+  dialog.innerHTML = `
+    <div class="confirm-dialog" style="max-width: 400px;">
+      <div class="dialog-header">
+        <h2>➕ 新建子文件夹</h2>
+        <button class="dialog-close" id="dialogClose">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <p style="margin-bottom: 12px; color: var(--c-text-2);">
+          在 <strong>${escapeHtml(parentFolder.title)}</strong> 下创建新文件夹：
+        </p>
+        <div class="edit-field">
+          <label class="edit-label" for="newFolderName">文件夹名称</label>
+          <input type="text" id="newFolderName" class="edit-input" placeholder="例如: 前端开发" style="width: 100%;" />
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-cancel" id="dialogCancel">取消</button>
+        <button class="btn btn-primary" id="dialogConfirm">创建</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeBtn = dialog.querySelector('#dialogClose');
+  const cancelBtn = dialog.querySelector('#dialogCancel');
+  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const nameInput = dialog.querySelector('#newFolderName');
+
+  const closeDialog = () => {
+    dialog.classList.add('hide');
+    setTimeout(() => dialog.remove(), 300);
+  };
+
+  closeBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  confirmBtn.addEventListener('click', async () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      Toast.warning('请输入文件夹名称');
+      return;
+    }
+
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '创建中...';
+
+      const response = await chrome.runtime.sendMessage({
+        type: 'CREATE_CATEGORY',
+        name: name,
+        parentId: parentFolder.id
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      Toast.success('文件夹已创建');
+      await loadBookmarks();
+      closeDialog();
+    } catch (error) {
+      console.error('Create folder failed:', error);
+      Toast.error(`创建失败: ${error.message}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '创建';
+    }
+  });
+
+  setTimeout(() => {
+    nameInput.focus();
+    nameInput.select();
+  }, 100);
+
+  setTimeout(() => dialog.classList.add('show'), 10);
+}
+
+/**
+ * 显示重命名文件夹对话框
+ */
+function showRenameFolderDialog(folder) {
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog-overlay';
+  dialog.innerHTML = `
+    <div class="confirm-dialog" style="max-width: 400px;">
+      <div class="dialog-header">
+        <h2>✏️ 重命名文件夹</h2>
+        <button class="dialog-close" id="dialogClose">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <div class="edit-field">
+          <label class="edit-label" for="renameFolderName">文件夹名称</label>
+          <input type="text" id="renameFolderName" class="edit-input" placeholder="输入新的名称" style="width: 100%;" />
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-cancel" id="dialogCancel">取消</button>
+        <button class="btn btn-primary" id="dialogConfirm">保存</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeBtn = dialog.querySelector('#dialogClose');
+  const cancelBtn = dialog.querySelector('#dialogCancel');
+  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const nameInput = dialog.querySelector('#renameFolderName');
+
+  nameInput.value = folder.title || '';
+
+  const closeDialog = () => {
+    dialog.classList.add('hide');
+    setTimeout(() => dialog.remove(), 300);
+  };
+
+  closeBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  confirmBtn.addEventListener('click', async () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      Toast.warning('请输入文件夹名称');
+      return;
+    }
+
+    if (name === folder.title) {
+      closeDialog();
+      return;
+    }
+
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '保存中...';
+
+      const response = await chrome.runtime.sendMessage({
+        type: 'UPDATE_CATEGORY',
+        id: folder.id,
+        name: name
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      Toast.success('文件夹已重命名');
+      await loadBookmarks();
+      closeDialog();
+    } catch (error) {
+      console.error('Rename folder failed:', error);
+      Toast.error(`重命名失败: ${error.message}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '保存';
+    }
+  });
+
+  setTimeout(() => {
+    nameInput.focus();
+    nameInput.select();
+  }, 100);
+
+  setTimeout(() => dialog.classList.add('show'), 10);
 }
 
 // 启动应用

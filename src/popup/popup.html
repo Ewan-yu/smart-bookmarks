@@ -155,20 +155,29 @@
 
   <!-- ===== 右键上下文菜单 ===== -->
   <div id="contextMenuEl" class="ctx-menu" style="display:none;" role="menu" aria-label="操作菜单">
-    <button class="ctx-item" data-action="open" role="menuitem" tabindex="-1">在新标签页中打开</button>
-    <button class="ctx-item" data-action="openIncognito" role="menuitem" tabindex="-1">在无痕窗口中打开</button>
-    <button class="ctx-item" data-action="openGroup" role="menuitem" tabindex="-1">在新标签页分组打开</button>
-    <button class="ctx-item" data-action="openWindow" role="menuitem" tabindex="-1">在新窗口中打开</button>
-    <div class="ctx-separator" role="separator"></div>
+    <!-- 左侧边栏专用菜单项 -->
+    <button class="ctx-item" data-action="addSubFolder" data-for-sidebar-only style="display:none;" role="menuitem" tabindex="-1">➕ 新建子文件夹</button>
+    <button class="ctx-item" data-action="renameFolder" data-for-sidebar-only data-for-folder style="display:none;" role="menuitem" tabindex="-1">✏️ 重命名</button>
+    <div class="ctx-separator" data-for-sidebar-only style="display:none;" role="separator"></div>
+
+    <!-- 右侧区域专用菜单项 -->
+    <button class="ctx-item" data-action="open" data-for-content-only style="display:none;" role="menuitem" tabindex="-1">在新标签页中打开</button>
+    <button class="ctx-item" data-action="openIncognito" data-for-content-only style="display:none;" role="menuitem" tabindex="-1">在无痕窗口中打开</button>
+    <div class="ctx-separator" data-for-content-only style="display:none;" role="separator"></div>
+
+    <!-- 通用菜单项 -->
     <button class="ctx-item" data-action="edit" role="menuitem" tabindex="-1">修改</button>
     <button class="ctx-item" data-action="cut" role="menuitem" tabindex="-1">剪切</button>
     <button class="ctx-item" data-action="copy" role="menuitem" tabindex="-1">复制链接</button>
     <button class="ctx-item" data-action="paste" role="menuitem" tabindex="-1" aria-disabled="true">粘贴</button>
     <div class="ctx-separator" role="separator"></div>
-    <button class="ctx-item" data-action="regenerateSummary" role="menuitem" tabindex="-1">重新生成概述</button>
-    <!-- 文件夹专用菜单项 -->
+
+    <!-- 右侧区域书签专用 -->
+    <button class="ctx-item" data-action="regenerateSummary" data-for-content-only data-for-bookmark style="display:none;" role="menuitem" tabindex="-1">重新生成概述</button>
+
+    <!-- 文件夹专用菜单项（两侧通用） -->
     <button class="ctx-item" data-action="openFolder" data-for-folder style="display:none;" role="menuitem" tabindex="-1">打开文件夹</button>
-    <button class="ctx-item" data-action="mergeFolder" data-for-folder style="display:none;" role="menuitem" tabindex="-1">合并到...</button>
+    <button class="ctx-item" data-action="mergeFolder" data-for-folder data-for-content-only style="display:none;" role="menuitem" tabindex="-1">合并到...</button>
     <div class="ctx-separator" data-for-folder style="display:none;" role="separator"></div>
     <button class="ctx-item danger" data-action="delete" role="menuitem" tabindex="-1">删除</button>
   </div>
