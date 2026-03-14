@@ -1702,7 +1702,11 @@ function handleContextMenuAction(action) {
       break;
 
     case 'delete':
-      deleteBookmark(item);
+      if (item.type === 'folder') {
+        deleteFolder(item);
+      } else {
+        deleteBookmark(item);
+      }
       break;
 
     case 'openFolder':
@@ -3232,8 +3236,11 @@ function showContextMenu(item, x, y, options = {}) {
 
   // 保存触发菜单的元素，以便关闭时恢复焦点
   const activeElement = document.activeElement;
-  if (activeElement) {
+  if (activeElement && activeElement.dataset && activeElement.dataset.bookmarkId) {
     menu.dataset.triggerElement = `[data-bookmark-id="${activeElement.dataset.bookmarkId}"]`;
+  } else {
+    // 如果当前焦点元素没有 bookmarkId，清除之前的 triggerElement
+    delete menu.dataset.triggerElement;
   }
 
   // 重置所有菜单项为显示状态
@@ -3292,8 +3299,12 @@ function hideContextMenu() {
     // 恢复焦点到触发菜单的元素
     const triggerSelector = menu.dataset.triggerElement;
     if (triggerSelector) {
-      const triggerEl = document.querySelector(triggerSelector);
-      triggerEl?.focus();
+      try {
+        const triggerEl = document.querySelector(triggerSelector);
+        triggerEl?.focus();
+      } catch (e) {
+        console.debug('[hideContextMenu] Failed to restore focus:', e.message);
+      }
     }
     menu.style.display = 'none';
   }
@@ -4033,7 +4044,7 @@ function showAddSubFolderDialog(parentFolder) {
     <div class="confirm-dialog" style="max-width: 400px;">
       <div class="dialog-header">
         <h2>➕ 新建子文件夹</h2>
-        <button class="dialog-close" id="dialogClose">&times;</button>
+        <button class="dialog-close" data-add-dialog-close>&times;</button>
       </div>
       <div class="dialog-content">
         <p style="margin-bottom: 12px; color: var(--c-text-2);">
@@ -4045,17 +4056,17 @@ function showAddSubFolderDialog(parentFolder) {
         </div>
       </div>
       <div class="dialog-footer">
-        <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm">创建</button>
+        <button class="btn btn-cancel" data-add-dialog-cancel>取消</button>
+        <button class="btn btn-primary" data-add-dialog-confirm>创建</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(dialog);
 
-  const closeBtn = dialog.querySelector('#dialogClose');
-  const cancelBtn = dialog.querySelector('#dialogCancel');
-  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const closeBtn = dialog.querySelector('[data-add-dialog-close]');
+  const cancelBtn = dialog.querySelector('[data-add-dialog-cancel]');
+  const confirmBtn = dialog.querySelector('[data-add-dialog-confirm]');
   const nameInput = dialog.querySelector('#newFolderName');
 
   const closeDialog = () => {
@@ -4114,7 +4125,7 @@ function showRenameFolderDialog(folder) {
     <div class="confirm-dialog" style="max-width: 400px;">
       <div class="dialog-header">
         <h2>✏️ 重命名文件夹</h2>
-        <button class="dialog-close" id="dialogClose">&times;</button>
+        <button class="dialog-close" data-rename-dialog-close>&times;</button>
       </div>
       <div class="dialog-content">
         <div class="edit-field">
@@ -4123,17 +4134,17 @@ function showRenameFolderDialog(folder) {
         </div>
       </div>
       <div class="dialog-footer">
-        <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm">保存</button>
+        <button class="btn btn-cancel" data-rename-dialog-cancel>取消</button>
+        <button class="btn btn-primary" data-rename-dialog-confirm>保存</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(dialog);
 
-  const closeBtn = dialog.querySelector('#dialogClose');
-  const cancelBtn = dialog.querySelector('#dialogCancel');
-  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const closeBtn = dialog.querySelector('[data-rename-dialog-close]');
+  const cancelBtn = dialog.querySelector('[data-rename-dialog-cancel]');
+  const confirmBtn = dialog.querySelector('[data-rename-dialog-confirm]');
   const nameInput = dialog.querySelector('#renameFolderName');
 
   nameInput.value = folder.title || '';

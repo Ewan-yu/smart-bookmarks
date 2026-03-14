@@ -9,6 +9,7 @@ import {
   deleteBookmark,
   getAllCategories,
   addCategory,
+  deleteCategory,
   getAllTags,
   get,
   addTag,
@@ -1782,7 +1783,7 @@ async function handleDeleteFolder(request, sendResponse) {
     await initDatabase();
 
     // 1. 获取文件夹信息
-    const folder = await get(STORES.categories, folderId);
+    const folder = await get(STORES.CATEGORIES, folderId);
     if (!folder) {
       sendResponse({ error: '文件夹不存在' });
       return;
@@ -1800,7 +1801,7 @@ async function handleDeleteFolder(request, sendResponse) {
     for (const child of allChildren) {
       // 更新子文件夹的 parentId
       if (child.type === 'folder' || child.id.startsWith('cat_')) {
-        const childCategory = await get(STORES.categories, child.id);
+        const childCategory = await get(STORES.CATEGORIES, child.id);
         if (childCategory) {
           childCategory.parentId = targetParentId;
           childCategory.updatedAt = Date.now();
@@ -1878,8 +1879,8 @@ async function handleMergeFolders(request, sendResponse) {
 
     // 1. 验证源和目标都是文件夹
     const [source, target] = await Promise.all([
-      get(STORES.categories, sourceId),
-      get(STORES.categories, targetId)
+      get(STORES.CATEGORIES, sourceId),
+      get(STORES.CATEGORIES, targetId)
     ]);
 
     if (!source) {
@@ -1906,7 +1907,7 @@ async function handleMergeFolders(request, sendResponse) {
     for (const child of allChildren) {
       // 更新子文件夹的 parentId
       if (child.type === 'folder' || child.id.startsWith('cat_')) {
-        const childCategory = await get(STORES.categories, child.id);
+        const childCategory = await get(STORES.CATEGORIES, child.id);
         if (childCategory) {
           childCategory.parentId = targetId;
           childCategory.updatedAt = Date.now();
@@ -2050,6 +2051,9 @@ async function getNextSortOrder(parentId) {
 
 /**
  * 创建新分类
+ * 1. 先在浏览器收藏夹中创建文件夹
+ * 2. 使用浏览器文件夹 ID 作为分类 ID（cat_${browserId}）
+ * 3. 将分类保存到 IndexedDB
  */
 async function handleCreateCategory(request, sendResponse) {
   try {
@@ -2058,8 +2062,31 @@ async function handleCreateCategory(request, sendResponse) {
 
     await initDatabase();
 
-    // 生成唯一 ID
-    const id = 'cat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    // 1. 先在浏览器收藏夹中创建文件夹
+    let browserFolderId = null;
+    try {
+      let parentBrowserId = '1'; // 书签栏根目录
+      if (parentId && parentId.startsWith('cat_')) {
+        parentBrowserId = parentId.replace('cat_', '');
+      }
+
+      const browserFolder = await chrome.bookmarks.create({
+        parentId: parentBrowserId,
+        title: name
+      });
+      browserFolderId = browserFolder.id;
+      console.log(`[CREATE_CATEGORY] Browser folder created: ${browserFolderId}`);
+    } catch (browserError) {
+      console.error('[CREATE_CATEGORY] Failed to create browser folder:', browserError);
+      sendResponse({
+        success: false,
+        error: `创建浏览器文件夹失败: ${browserError.message}`
+      });
+      return;
+    }
+
+    // 2. 使用浏览器文件夹 ID 作为分类 ID
+    const id = 'cat_' + browserFolderId;
     const sortOrder = await getNextSortOrder(parentId || null);
 
     const category = {
@@ -2071,25 +2098,9 @@ async function handleCreateCategory(request, sendResponse) {
       updatedAt: Date.now()
     };
 
+    // 3. 保存到 IndexedDB
     await addCategory(category);
     console.log(`[CREATE_CATEGORY] Category created: ${id}`);
-
-    // 尝试在浏览器收藏夹中创建文件夹
-    try {
-      let parentBrowserId = '1'; // 书签栏根目录
-      if (parentId && parentId.startsWith('cat_')) {
-        parentBrowserId = parentId.replace('cat_', '');
-      }
-
-      const browserFolder = await chrome.bookmarks.create({
-        parentId: parentBrowserId,
-        title: name
-      });
-
-      console.log(`[CREATE_CATEGORY] Browser folder created: ${browserFolder.id}`);
-    } catch (browserError) {
-      console.debug('[CREATE_CATEGORY] Browser folder creation skipped or failed:', browserError.message);
-    }
 
     sendResponse({
       success: true,
