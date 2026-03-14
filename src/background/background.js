@@ -592,6 +592,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleMoveBookmark(request, sendResponse);
       return true;
 
+    case 'DELETE_FOLDER':
+      handleDeleteFolder(request, sendResponse);
+      return true;
+
+    case 'MERGE_FOLDERS':
+      handleMergeFolders(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -1739,6 +1747,287 @@ async function moveCategory(category, targetParentId) {
   } catch (browserError) {
     console.debug(`[MOVE] Browser folder sync warning: ${browserError.message}`);
   }
+}
+
+// ===== 文件夹管理功能 =====
+
+/**
+ * 删除文件夹
+ * 删除文件夹后，其中的子内容（书签和子文件夹）会移动到父文件夹
+ * 如果是根文件夹，子内容移动到顶级目录
+ */
+async function handleDeleteFolder(request, sendResponse) {
+  try {
+    const { folderId } = request;
+    console.log(`[DELETE_FOLDER] Deleting folder: ${folderId}`);
+
+    await initDatabase();
+
+    // 1. 获取文件夹信息
+    const folder = await get(STORES.categories, folderId);
+    if (!folder) {
+      sendResponse({ error: '文件夹不存在' });
+      return;
+    }
+
+    // 2. 获取所有子内容（书签和子文件夹）
+    const allChildren = await getAllDescendants(folderId);
+
+    // 3. 确定目标父文件夹
+    const targetParentId = folder.parentId || null;
+
+    console.log(`[DELETE_FOLDER] Moving ${allChildren.length} children to parent: ${targetParentId || 'root'}`);
+
+    // 4. 移动所有子内容到父文件夹
+    for (const child of allChildren) {
+      // 更新子文件夹的 parentId
+      if (child.type === 'folder' || child.id.startsWith('cat_')) {
+        const childCategory = await get(STORES.categories, child.id);
+        if (childCategory) {
+          childCategory.parentId = targetParentId;
+          childCategory.updatedAt = Date.now();
+          await addCategory(childCategory);
+
+          // 同步到浏览器收藏夹
+          if (childCategory.id.startsWith('cat_')) {
+            try {
+              const browserId = childCategory.id.replace('cat_', '');
+              let targetBrowserId = targetParentId === null ? '1' : targetParentId.replace('cat_', '');
+              await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
+            } catch (e) {
+              console.debug(`[DELETE_FOLDER] Browser sync warning for ${child.id}:`, e.message);
+            }
+          }
+        }
+      } else {
+        // 书签
+        const childBookmark = await getBookmark(child.id);
+        if (childBookmark) {
+          childBookmark.parentCategoryId = targetParentId;
+          childBookmark.updatedAt = Date.now();
+          await addBookmark(childBookmark);
+
+          // 同步到浏览器收藏夹
+          if (/^\d+$/.test(childBookmark.id)) {
+            try {
+              let targetBrowserId = targetParentId === null ? '1' : targetParentId.replace('cat_', '');
+              await chrome.bookmarks.move(childBookmark.id, { parentId: targetBrowserId });
+            } catch (e) {
+              console.debug(`[DELETE_FOLDER] Browser sync warning for ${child.id}:`, e.message);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. 删除文件夹
+    await deleteCategory(folderId);
+
+    // 同步删除浏览器文件夹
+    if (folder.id.startsWith('cat_')) {
+      try {
+        const browserId = folder.id.replace('cat_', '');
+        await chrome.bookmarks.removeTree(browserId);
+        console.log(`[DELETE_FOLDER] Removed browser folder: ${browserId}`);
+      } catch (e) {
+        console.debug(`[DELETE_FOLDER] Browser folder removal warning:`, e.message);
+      }
+    }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('folder-deleted', folderId);
+
+    sendResponse({
+      success: true,
+      movedCount: allChildren.length
+    });
+  } catch (error) {
+    console.error('[DELETE_FOLDER] Failed to delete folder:', error);
+    sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * 合并两个文件夹
+ * 将源文件夹的所有内容移动到目标文件夹，然后删除源文件夹
+ */
+async function handleMergeFolders(request, sendResponse) {
+  try {
+    const { sourceId, targetId } = request;
+    console.log(`[MERGE_FOLDERS] Merging ${sourceId} into ${targetId}`);
+
+    await initDatabase();
+
+    // 1. 验证源和目标都是文件夹
+    const [source, target] = await Promise.all([
+      get(STORES.categories, sourceId),
+      get(STORES.categories, targetId)
+    ]);
+
+    if (!source) {
+      sendResponse({ error: '源文件夹不存在' });
+      return;
+    }
+    if (!target) {
+      sendResponse({ error: '目标文件夹不存在' });
+      return;
+    }
+
+    // 2. 检查是否会造成循环嵌套
+    if (await isDescendant(targetId, sourceId)) {
+      sendResponse({ error: '不能将文件夹合并到其子文件夹' });
+      return;
+    }
+
+    // 3. 获取源文件夹的所有子内容
+    const allChildren = await getAllDescendants(sourceId);
+
+    console.log(`[MERGE_FOLDERS] Moving ${allChildren.length} items from ${sourceId} to ${targetId}`);
+
+    // 4. 移动所有子内容到目标文件夹
+    for (const child of allChildren) {
+      // 更新子文件夹的 parentId
+      if (child.type === 'folder' || child.id.startsWith('cat_')) {
+        const childCategory = await get(STORES.categories, child.id);
+        if (childCategory) {
+          childCategory.parentId = targetId;
+          childCategory.updatedAt = Date.now();
+          await addCategory(childCategory);
+
+          // 同步到浏览器收藏夹
+          if (childCategory.id.startsWith('cat_')) {
+            try {
+              const browserId = childCategory.id.replace('cat_', '');
+              const targetBrowserId = targetId.replace('cat_', '');
+              await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
+            } catch (e) {
+              console.debug(`[MERGE_FOLDERS] Browser sync warning for ${child.id}:`, e.message);
+            }
+          }
+        }
+      } else {
+        // 书签
+        const childBookmark = await getBookmark(child.id);
+        if (childBookmark) {
+          childBookmark.parentCategoryId = targetId;
+          childBookmark.updatedAt = Date.now();
+          await addBookmark(childBookmark);
+
+          // 同步到浏览器收藏夹
+          if (/^\d+$/.test(childBookmark.id)) {
+            try {
+              const targetBrowserId = targetId.replace('cat_', '');
+              await chrome.bookmarks.move(childBookmark.id, { parentId: targetBrowserId });
+            } catch (e) {
+              console.debug(`[MERGE_FOLDERS] Browser sync warning for ${child.id}:`, e.message);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. 删除源文件夹
+    await deleteCategory(sourceId);
+
+    // 同步删除浏览器文件夹
+    if (source.id.startsWith('cat_')) {
+      try {
+        const browserId = source.id.replace('cat_', '');
+        await chrome.bookmarks.removeTree(browserId);
+        console.log(`[MERGE_FOLDERS] Removed source browser folder: ${browserId}`);
+      } catch (e) {
+        console.debug(`[MERGE_FOLDERS] Browser folder removal warning:`, e.message);
+      }
+    }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('folders-merged', { sourceId, targetId });
+
+    sendResponse({
+      success: true,
+      movedCount: allChildren.length
+    });
+  } catch (error) {
+    console.error('[MERGE_FOLDERS] Failed to merge folders:', error);
+    sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * 获取文件夹的所有后代（递归）
+ * @param {string} folderId - 文件夹 ID
+ * @returns {Array} 所有后代项（书签和子文件夹）
+ */
+async function getAllDescendants(folderId) {
+  const allDescendants = [];
+
+  // 获取直接子书签
+  const allBookmarks = await getAllBookmarks();
+  const childBookmarks = allBookmarks.filter(bm => bm.parentCategoryId === folderId);
+  allDescendants.push(...childBookmarks);
+
+  // 获取直接子文件夹
+  const allCategories = await getAllCategories();
+  const childFolders = allCategories.filter(cat => cat.parentId === folderId);
+  allDescendants.push(...childFolders);
+
+  // 递归获取子文件夹的后代
+  for (const folder of childFolders) {
+    const subDescendants = await getAllDescendants(folder.id);
+    allDescendants.push(...subDescendants);
+  }
+
+  return allDescendants;
+}
+
+/**
+ * 检查是否是后代（防止循环嵌套）
+ * @param {string} ancestorId - 祖先 ID
+ * @param {string} descendantId - 后代 ID
+ * @returns {boolean} 是否是后代关系
+ */
+async function isDescendant(ancestorId, descendantId) {
+  const allCategories = await getAllCategories();
+
+  let currentId = descendantId;
+  let iterations = 0;
+  const maxIterations = 100; // 防止无限循环
+
+  while (currentId && iterations < maxIterations) {
+    iterations++;
+    if (currentId === ancestorId) {
+      return true;
+    }
+
+    // 查找当前节点的父节点
+    const current = allCategories.find(c => c.id === currentId);
+    if (!current || !current.parentId) {
+      break;
+    }
+
+    currentId = current.parentId;
+  }
+
+  return false;
+}
+
+/**
+ * 获取下一个排序号
+ * @param {string} parentId - 父文件夹 ID
+ * @returns {number} 下一个排序号
+ */
+async function getNextSortOrder(parentId) {
+  const allBookmarks = await getAllBookmarks();
+  const allCategories = await getAllCategories();
+
+  // 获取同级书签和文件夹
+  const siblings = [
+    ...allBookmarks.filter(bm => bm.parentCategoryId === parentId),
+    ...allCategories.filter(cat => cat.parentId === parentId)
+  ];
+
+  const maxOrder = Math.max(...siblings.map(s => s.sortOrder || 0), 0);
+  return maxOrder + 1;
 }
 
 // 定期同步（可选）

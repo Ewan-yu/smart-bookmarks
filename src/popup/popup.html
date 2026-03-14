@@ -166,7 +166,10 @@
     <button class="ctx-item" data-action="paste" role="menuitem" tabindex="-1" aria-disabled="true">粘贴</button>
     <div class="ctx-separator" role="separator"></div>
     <button class="ctx-item" data-action="regenerateSummary" role="menuitem" tabindex="-1">重新生成概述</button>
-    <div class="ctx-separator" role="separator"></div>
+    <!-- 文件夹专用菜单项 -->
+    <button class="ctx-item" data-action="openFolder" data-for-folder style="display:none;" role="menuitem" tabindex="-1">打开文件夹</button>
+    <button class="ctx-item" data-action="mergeFolder" data-for-folder style="display:none;" role="menuitem" tabindex="-1">合并到...</button>
+    <div class="ctx-separator" data-for-folder style="display:none;" role="separator"></div>
     <button class="ctx-item danger" data-action="delete" role="menuitem" tabindex="-1">删除</button>
   </div>
 

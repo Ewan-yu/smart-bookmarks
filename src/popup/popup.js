@@ -1667,6 +1667,10 @@ function handleContextMenuAction(action) {
     case 'openFolder':
       if (item.type === 'folder') navigateToFolder(item.id);
       break;
+
+    case 'mergeFolder':
+      if (item.type === 'folder') showMergeFolderDialog(item);
+      break;
   }
 }
 
@@ -3559,6 +3563,388 @@ function highlightKeywords(text, searchTerm) {
   if (keywords.length === 0) return escapeHtml(text);
   const regex = new RegExp(`(${keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
   return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+}
+
+// ─────────────────────────── 文件夹管理 ───────────────────────────
+
+/**
+ * 显示合并文件夹对话框
+ */
+function showMergeFolderDialog(sourceFolder) {
+  // 获取所有同级文件夹作为目标选项
+  const siblings = state.bookmarks.filter(bm =>
+    bm.type === 'folder' &&
+    bm.parentId === sourceFolder.parentId &&
+    bm.id !== sourceFolder.id
+  );
+
+  if (siblings.length === 0) {
+    Toast.warning('没有同级文件夹可以合并');
+    return;
+  }
+
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog-overlay merge-dialog-overlay';
+  dialog.innerHTML = `
+    <div class="confirm-dialog merge-dialog">
+      <div class="dialog-header">
+        <h2>合并文件夹</h2>
+        <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <p style="margin-bottom: 16px;">
+          将 <strong>${escapeHtml(sourceFolder.title)}</strong> 合并到：
+        </p>
+        <div class="folder-list" style="max-height: 300px; overflow-y: auto;">
+          ${siblings.map(folder => {
+            // 计算子项数量
+            const childCount = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id).length;
+            return `
+              <label class="folder-option" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--c-border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+                <input type="radio" name="targetFolder" value="${folder.id}" style="flex-shrink: 0;" />
+                <span style="font-size: 18px;">📁</span>
+                <span style="flex: 1; font-weight: 500;">${escapeHtml(folder.title)}</span>
+                <span style="color: var(--c-text-2); font-size: 13px;">(${childCount} 项)</span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-cancel" id="dialogCancel">取消</button>
+        <button class="btn btn-primary" id="dialogConfirm">合并</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeBtn = dialog.querySelector('#dialogClose');
+  const cancelBtn = dialog.querySelector('#dialogCancel');
+  const confirmBtn = dialog.querySelector('#dialogConfirm');
+
+  const closeDialog = () => {
+    dialog.classList.add('hide');
+    setTimeout(() => {
+      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
+    }, 300);
+  };
+
+  closeBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  confirmBtn.addEventListener('click', async () => {
+    const selected = dialog.querySelector('input[name="targetFolder"]:checked');
+    if (!selected) {
+      Toast.warning('请选择目标文件夹');
+      return;
+    }
+
+    const targetId = selected.value;
+    const targetFolder = siblings.find(f => f.id === targetId);
+
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '合并中...';
+
+      const response = await chrome.runtime.sendMessage({
+        type: 'MERGE_FOLDERS',
+        sourceId: sourceFolder.id,
+        targetId: targetId
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      Toast.success(`已将 ${sourceFolder.title} 合并到 ${targetFolder.title}`);
+      await loadBookmarks();
+      closeDialog();
+    } catch (error) {
+      console.error('Merge folders failed:', error);
+      Toast.error(`合并失败: ${error.message}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '合并';
+    }
+  });
+
+  // 添加选项悬停效果
+  dialog.querySelectorAll('.folder-option').forEach(option => {
+    option.addEventListener('mouseenter', () => {
+      option.style.borderColor = 'var(--c-primary)';
+      option.style.backgroundColor = 'var(--c-bg-2)';
+    });
+    option.addEventListener('mouseleave', () => {
+      option.style.borderColor = 'var(--c-border)';
+      option.style.backgroundColor = '';
+    });
+  });
+
+  setTimeout(() => dialog.classList.add('show'), 10);
+}
+
+/**
+ * 显示删除文件夹确认对话框
+ */
+function showDeleteFolderDialog(folder) {
+  // 计算子项数量
+  const childBookmarks = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id);
+  const childFolders = state.bookmarks.filter(bm => bm.type === 'folder' && bm.parentId === folder.id);
+  const totalChildren = childBookmarks.length + childFolders.length;
+
+  const message = totalChildren > 0
+    ? `删除 "${escapeHtml(folder.title)}" 后，其中的 ${totalChildren} 项内容将移动到上级文件夹。确定要删除吗？`
+    : `确定要删除 "${escapeHtml(folder.title)}" 吗？`;
+
+  const dialog = new ConfirmDialog({
+    title: '确认删除文件夹',
+    message: message,
+    confirmText: '删除',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'DELETE_FOLDER',
+          folderId: folder.id
+        });
+
+        if (response.error) throw new Error(response.error);
+
+        const movedMsg = response.movedCount > 0
+          ? `（已移动 ${response.movedCount} 项内容）`
+          : '';
+        Toast.success(`文件夹已删除${movedMsg}`);
+        await loadBookmarks();
+      } catch (error) {
+        console.error('Delete folder failed:', error);
+        Toast.error(`删除失败: ${error.message}`);
+      }
+    }
+  });
+
+  dialog.show();
+}
+
+/**
+ * 删除文件夹（入口函数）
+ */
+function deleteFolder(folder) {
+  showDeleteFolderDialog(folder);
+}
+
+// ─────────────────────────── AI 合并建议 ───────────────────────────
+
+/**
+ * 显示 AI 合并建议对话框
+ * @param {Array} mergeSuggestions - 合并建议列表
+ * @param {Array} categories - 所有分类列表
+ */
+function showMergeSuggestionsDialog(mergeSuggestions, categories) {
+  if (!mergeSuggestions || mergeSuggestions.length === 0) {
+    Toast.info('未检测到需要合并的重复分类');
+    return;
+  }
+
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog-overlay ai-merge-dialog-overlay';
+  dialog.innerHTML = `
+    <div class="confirm-dialog ai-merge-dialog">
+      <div class="dialog-header">
+        <h2>🤖 AI 合并建议</h2>
+        <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <p style="margin-bottom: 16px; color: var(--c-text-2);">
+          检测到 ${mergeSuggestions.length} 组可能重复的分类，建议合并：
+        </p>
+        <div class="merge-suggestions-list">
+          ${mergeSuggestions.map((suggestion, index) => {
+            const confidencePercent = Math.round(suggestion.confidence * 100);
+            const confidenceLevel = confidencePercent >= 85 ? 'high' : confidencePercent >= 70 ? 'medium' : 'low';
+            const confidenceColor = confidenceLevel === 'high' ? '#10b981' : confidenceLevel === 'medium' ? '#f59e0b' : '#6b7280';
+            return `
+              <label class="merge-suggestion-item" style="display: block; padding: 12px; border: 1px solid var(--c-border); border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                  <input type="checkbox" checked data-index="${index}" style="flex-shrink: 0; margin-top: 4px;" />
+                  <div style="flex: 1; min-width: 0;">
+                    <div class="suggestion-content" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span class="source-name" style="font-weight: 600; color: var(--c-text-1);">${escapeHtml(suggestion.source)}</span>
+                      <span class="merge-arrow" style="color: var(--c-primary);">→</span>
+                      <span class="target-name" style="font-weight: 600; color: var(--c-primary);">${escapeHtml(suggestion.target)}</span>
+                    </div>
+                    <div class="suggestion-reason" style="margin-top: 4px; font-size: 12px; color: var(--c-text-2);">
+                      ${escapeHtml(suggestion.reason)}
+                    </div>
+                    <div class="suggestion-confidence" style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 12px; color: var(--c-text-2);">置信度:</span>
+                      <div style="flex: 1; max-width: 100px; height: 6px; background: var(--c-bg-3); border-radius: 3px; overflow: hidden;">
+                        <div style="width: ${confidencePercent}%; height: 100%; background: ${confidenceColor}; border-radius: 3px; transition: width 0.3s;"></div>
+                      </div>
+                      <span style="font-size: 12px; font-weight: 600; color: ${confidenceColor};">${confidencePercent}%</span>
+                    </div>
+                  </div>
+                </div>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <div class="dialog-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 10px;">
+          <button class="btn" id="dialogSelectAll" style="padding: 6px 12px; font-size: 13px;">全选</button>
+          <button class="btn" id="dialogDeselectAll" style="padding: 6px 12px; font-size: 13px;">取消全选</button>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-cancel" id="dialogCancel">取消</button>
+          <button class="btn btn-primary" id="dialogConfirm">应用选中合并</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeBtn = dialog.querySelector('#dialogClose');
+  const cancelBtn = dialog.querySelector('#dialogCancel');
+  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const selectAllBtn = dialog.querySelector('#dialogSelectAll');
+  const deselectAllBtn = dialog.querySelector('#dialogDeselectAll');
+
+  const closeDialog = () => {
+    dialog.classList.add('hide');
+    setTimeout(() => {
+      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
+    }, 300);
+  };
+
+  closeBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  // 全选/取消全选
+  selectAllBtn.addEventListener('click', () => {
+    dialog.querySelectorAll('.merge-suggestion-item input[type="checkbox"]').forEach(cb => {
+      cb.checked = true;
+    });
+  });
+
+  deselectAllBtn.addEventListener('click', () => {
+    dialog.querySelectorAll('.merge-suggestion-item input[type="checkbox"]').forEach(cb => {
+      cb.checked = false;
+    });
+  });
+
+  // 添加选项悬停效果
+  dialog.querySelectorAll('.merge-suggestion-item').forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      item.style.borderColor = 'var(--c-primary)';
+      item.style.backgroundColor = 'var(--c-bg-2)';
+    });
+    item.addEventListener('mouseleave', () => {
+      item.style.borderColor = 'var(--c-border)';
+      item.style.backgroundColor = '';
+    });
+  });
+
+  confirmBtn.addEventListener('click', async () => {
+    const selected = [];
+    dialog.querySelectorAll('.merge-suggestion-item input[type="checkbox"]:checked').forEach(cb => {
+      const index = parseInt(cb.dataset.index);
+      selected.push(mergeSuggestions[index]);
+    });
+
+    if (selected.length === 0) {
+      Toast.warning('请至少选择一个合并建议');
+      return;
+    }
+
+    // 确认对话框
+    const confirmMerge = confirm(`确定要合并 ${selected.length} 组分类吗？此操作不可撤销。`);
+    if (!confirmMerge) return;
+
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '合并中...';
+
+      // 执行合并操作
+      for (const suggestion of selected) {
+        // 查找源和目标分类的 ID
+        const sourceCat = categories.find(c => c.name === suggestion.source);
+        const targetCat = categories.find(c => c.name === suggestion.target);
+
+        if (sourceCat && targetCat) {
+          const response = await chrome.runtime.sendMessage({
+            type: 'MERGE_FOLDERS',
+            sourceId: sourceCat.id,
+            targetId: targetCat.id
+          });
+
+          if (response.error) {
+            console.error(`合并 ${suggestion.source} → ${suggestion.target} 失败:`, response.error);
+          }
+        }
+      }
+
+      Toast.success(`已合并 ${selected.length} 组分类`);
+      await loadBookmarks();
+      closeDialog();
+    } catch (error) {
+      console.error('Batch merge failed:', error);
+      Toast.error(`批量合并失败: ${error.message}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '应用选中合并';
+    }
+  });
+
+  // 更新按钮文本显示选中的数量
+  const updateButtonText = () => {
+    const selectedCount = dialog.querySelectorAll('.merge-suggestion-item input[type="checkbox"]:checked').length;
+    confirmBtn.textContent = selectedCount > 0 ? `应用选中合并 (${selectedCount})` : '应用选中合并';
+  };
+
+  dialog.querySelectorAll('.merge-suggestion-item input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', updateButtonText);
+  });
+
+  setTimeout(() => dialog.classList.add('show'), 10);
+}
+
+/**
+ * 从 AI 分析结果生成合并建议
+ * @param {Object} analysisResult - AI 分析结果
+ */
+function generateMergeSuggestionsFromResult(analysisResult) {
+  // 如果分析结果中已有合并报告，使用它
+  if (analysisResult.summary?.mergeReport?.details?.length > 0) {
+    const suggestions = [];
+    const processed = new Set();
+
+    for (const detail of analysisResult.summary.mergeReport.details) {
+      if (detail.mergedCount < 2) continue;
+
+      const cats = detail.categories.map(c => analysisResult.categories[c.index]);
+      if (!cats || cats.length < 2) continue;
+
+      // 选择名称最短的作为目标（通常最精确）
+      const sortedCats = [...cats].sort((a, b) => a.name.length - b.name.length);
+      const target = sortedCats[0];
+      const source = sortedCats[1];
+
+      const key = `${source.name}|${target.name}`;
+      if (processed.has(key)) continue;
+      processed.add(key);
+
+      suggestions.push({
+        source: source.name,
+        target: target.name,
+        confidence: 0.8, // 默认置信度
+        reason: 'AI 检测到语义重复'
+      });
+    }
+
+    return suggestions;
+  }
+
+  // 否则使用 CategoryMerger 生成建议
+  // 这里需要动态导入，因为 CategoryMerger 可能在 background 中
+  return [];
 }
 
 // 启动应用
