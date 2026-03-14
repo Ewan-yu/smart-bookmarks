@@ -5,7 +5,7 @@
 **当前状态**: ✅ Phase 1-3 已完成
 
 **最新更新**: 2026-03-14
-**当前阶段**: Phase 4 - popup.js 重构
+**当前阶段**: Phase 4 - popup.js 重构（已完成 4.1-4.4）
 
 ---
 
@@ -15,20 +15,20 @@
 1. ✅ 修复 AI 分析结果样式问题
 2. ✅ 实现 AI 分类智能聚合去重
 3. ✅ 新增文件夹删除/合并功能
-4. ⏳ popup.js 代码重构（待开发）
+4. ✅ popup.js 代码重构（Phase 4.1-4.4 已完成）
 
 ### 进度概览
 - ✅ Phase 1: AI 分析结果样式优化（0.5天）- **已完成**
 - ✅ Phase 2: AI 分类智能聚合去重（2天）- **已完成**
 - ✅ Phase 3: 文件夹管理功能（2.5天）- **已完成**
-- 🔄 Phase 4: popup.js 重构（6天）- **进行中** (54%)
+- 🔄 Phase 4: popup.js 重构（6天）- **进行中** (85%)
   - ✅ Phase 4.1: 基础设施（3个任务）- 已完成
   - ✅ Phase 4.2: 核心模块（3个任务）- 已完成
-  - ⏳ Phase 4.3: 功能模块（4个任务）- 待开发
-  - ⏳ Phase 4.4: UI 模块（3个任务）- 待开发
+  - ✅ Phase 4.3: 功能模块（4个任务）- 已完成
+  - ✅ Phase 4.4: UI 模块（3个任务）- 已完成
 - ⏳ Phase 5: 整合测试和上线（2天）- 待开发
 
-**总体进度**: 约 72% （6.5/9 天）
+**总体进度**: 约 85% （7.5/9 天）
 
 ### 成功标准
 - [x] AI 分析结果样式对比度符合 WCAG AA 标准
@@ -1271,9 +1271,141 @@ src/popup/
 5. **可维护性**：职责单一，易于理解和修改
 
 #### 下一步计划
-- ⏳ Phase 4.3: 功能模块（AI分析、链接检测、文件夹管理、拖拽）
-- ⏳ Phase 4.4: UI 模块（对话框、右键菜单、键盘导航）
 - ⏳ Phase 5: 整合测试和上线
+
+---
+
+## 📝 最近更新日志（2026-03-14 续 V）
+
+### ✅ Phase 4.3-4.4 功能模块和 UI 模块重构完成
+
+#### 新增完成的工作
+
+**Phase 4.3: 功能模块（4个模块）**
+
+**1. AI 分析模块** (`src/popup/modules/ai-analysis.js`)
+- ✅ `start(bookmarkIds)` - 启动 AI 分析
+- ✅ `cancel()` - 取消分析
+- ✅ `_showResumeDialog(session)` - 显示恢复对话框
+- ✅ `_showResultDialog(analysisResult)` - 显示结果确认对话框
+- ✅ `_applyAnalysis(analysisResult)` - 应用 AI 建议分类和标签
+- ✅ `debugAnalyze(bookmarkIds)` - 调试模式分析
+- ✅ 支持会话恢复（检测未完成的任务）
+- ✅ 进度 UI 更新
+
+**2. 链接检测模块** (`src/popup/modules/link-checker.js`)
+- ✅ `start(bookmarkIds)` - 启动链接检测
+- ✅ `cancel()` - 取消检测
+- ✅ `_showProgressUI()` - 显示进度
+- ✅ `_showResultsDialog(results)` - 显示检测结果
+- ✅ `_cleanupBrokenLinks(brokenItems)` - 清理失效链接
+- ✅ `getBrokenCount()` - 获取失效链接数量
+- ✅ 统计：已检测、有效、失效
+
+**3. 文件夹管理模块** (`src/popup/modules/folder-manager.js`)
+- ✅ `create(name, parentId)` - 创建文件夹
+- ✅ `rename(categoryId, newName)` - 重命名文件夹
+- ✅ `delete(categoryId)` - 删除文件夹（含子内容处理）
+- ✅ `merge(sourceId, targetId)` - 合并文件夹
+- ✅ `generateMergeSuggestions(getPathCallback)` - 生成合并建议
+- ✅ `showMergeSuggestionsDialog(suggestions)` - 显示合并建议对话框
+- ✅ `_isDescendant(parentId, childId)` - 防止循环嵌套
+- ✅ `getStats()` - 获取文件夹统计
+
+**4. 拖拽模块** (`src/popup/modules/drag-drop.js`)
+- ✅ `bindBookmarkRow(row, bookmark)` - 绑定书签拖拽
+- ✅ `bindFolderRow(row, folder)` - 绑定文件夹拖拽
+- ✅ `_reorderBookmarks(draggedId, targetId, clientY)` - 书签重排序
+- ✅ `_moveToFolder(itemId, targetFolderId, itemType)` - 移动到文件夹
+- ✅ `_showInsertPlaceholder(targetRow, clientY)` - 显示插入占位符
+- ✅ 侧边栏宽度调整（180-480px）
+- ✅ 焦点管理和样式清理
+
+**Phase 4.4: UI 模块（3个模块）**
+
+**5. 对话框模块** (`src/popup/modules/dialog.js`)
+- ✅ `BaseDialog` - 基础对话框类
+- ✅ `ConfirmDialog` - 确认对话框（是/否）
+- ✅ `PromptDialog` - 输入对话框（文本输入）
+- ✅ `SelectDialog` - 选择对话框（单选/多选）
+- ✅ `CustomDialog` - 自定义内容对话框
+- ✅ `dialogManager` - 对话框管理器（单例）
+- ✅ 焦点管理和 Tab 循环
+- ✅ Escape 关闭和遮罩点击关闭
+- ✅ 动画效果（show/hide class）
+
+**6. 右键菜单模块** (`src/popup/modules/context-menu.js`)
+- ✅ `show(item, x, y, options)` - 显示菜单
+- ✅ `hide()` - 隐藏菜单
+- ✅ `setMenuItems(items)` - 设置菜单项
+- ✅ 根据项目类型显示不同菜单项
+- ✅ 键盘导航（方向键、Enter、Escape）
+- ✅ 位置计算（防止超出视口）
+- ✅ 连续分隔符处理
+- ✅ 焦点恢复
+
+**7. 键盘导航模块** (`src/popup/modules/keyboard.js`)
+- ✅ `registerHandler(scope, shortcut, handler)` - 注册快捷键
+- ✅ `setScope(scope)` - 设置作用域
+- ✅ 列表导航（方向键）
+- ✅ 快捷键处理（Ctrl+K, Ctrl+F, F2, Delete 等）
+- ✅ Shift+F10 打开右键菜单
+- ✅ Escape 关闭所有模态元素
+- ✅ 快捷键帮助对话框
+- ✅ 焦点管理和滚动到可见区域
+
+#### 提交记录
+- `170c437` feat: 完成 Phase 4.3 功能模块提取
+- `3865d7b` feat: 完成 Phase 4.4 UI 模块提取
+
+#### 新建文件结构
+```
+src/popup/
+├── modules/
+│   ├── state.js              # 状态管理模块 (Phase 4.1)
+│   ├── bookmarks.js          # 书签管理模块 (Phase 4.2)
+│   ├── navigation.js         # 导航模块 (Phase 4.2)
+│   ├── search.js             # 搜索模块 (Phase 4.2)
+│   ├── ai-analysis.js        # AI 分析模块 (Phase 4.3) ✨ 新增
+│   ├── link-checker.js       # 链接检测模块 (Phase 4.3) ✨ 新增
+│   ├── folder-manager.js     # 文件夹管理模块 (Phase 4.3) ✨ 新增
+│   ├── drag-drop.js          # 拖拽模块 (Phase 4.3) ✨ 新增
+│   ├── dialog.js             # 对话框模块 (Phase 4.4) ✨ 新增
+│   ├── context-menu.js       # 右键菜单模块 (Phase 4.4) ✨ 新增
+│   └── keyboard.js           # 键盘导航模块 (Phase 4.4) ✨ 新增
+├── utils/
+│   ├── event-bus.js          # 事件总线 (Phase 4.1)
+│   └── helpers.js            # 工具函数 (Phase 4.1)
+```
+
+#### 技术亮点
+
+**功能模块**：
+1. **AI 分析会话恢复**：检测未完成任务，提示用户继续或重新开始
+2. **链接检测批量清理**：一键删除所有失效链接，带确认对话框
+3. **文件夹合并可视化**：显示完整路径、置信度、颜色区分
+4. **拖拽插入占位符**：蓝色进度条指示插入位置
+
+**UI 模块**：
+1. **对话框基类设计**：统一的焦点管理、Tab 循环、键盘支持
+2. **多种对话框类型**：确认、输入、选择、自定义内容
+3. **右键菜单动态显示**：根据项目类型（书签/文件夹）显示不同选项
+4. **键盘快捷键系统**：可注册的快捷键、作用域管理、帮助对话框
+
+#### 代码统计
+| 模块 | 文件 | 代码行数 |
+|------|------|----------|
+| AI 分析 | ai-analysis.js | 514 行 |
+| 链接检测 | link-checker.js | 369 行 |
+| 文件夹管理 | folder-manager.js | 543 行 |
+| 拖拽 | drag-drop.js | 633 行 |
+| 对话框 | dialog.js | 633 行 |
+| 右键菜单 | context-menu.js | 423 行 |
+| 键盘导航 | keyboard.js | 481 行 |
+| **合计** | **7 个模块** | **3596 行** |
+
+#### 下一步计划
+- ⏳ Phase 5: 整合测试和上线（回归测试、性能测试、Bug 修复、文档更新）
 
 ---
 
