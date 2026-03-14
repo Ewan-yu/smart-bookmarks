@@ -21,10 +21,14 @@
 - ✅ Phase 1: AI 分析结果样式优化（0.5天）- **已完成**
 - ✅ Phase 2: AI 分类智能聚合去重（2天）- **已完成**
 - ✅ Phase 3: 文件夹管理功能（2.5天）- **已完成**
-- ⏳ Phase 4: popup.js 重构（6天）- 待开发
+- 🔄 Phase 4: popup.js 重构（6天）- **进行中** (54%)
+  - ✅ Phase 4.1: 基础设施（3个任务）- 已完成
+  - ✅ Phase 4.2: 核心模块（3个任务）- 已完成
+  - ⏳ Phase 4.3: 功能模块（4个任务）- 待开发
+  - ⏳ Phase 4.4: UI 模块（3个任务）- 待开发
 - ⏳ Phase 5: 整合测试和上线（2天）- 待开发
 
-**总体进度**: 约 55% （5/9 天）
+**总体进度**: 约 72% （6.5/9 天）
 
 ### 成功标准
 - [x] AI 分析结果样式对比度符合 WCAG AA 标准
@@ -1148,6 +1152,128 @@ state.subscribe(path, callback)
 2. **路径构建算法**：递归向上遍历父分类，构建完整路径
 3. **优先级系统**：书签栏 > 其他位置
 4. **批量操作**：减少 API 调用次数，提升性能
+
+---
+
+## 📝 最近更新日志（2026-03-14 续 IV）
+
+### ✅ Phase 4.1-4.2 重构完成
+
+#### 新增完成的工作
+
+**1. 事件总线 (EventBus)** (`src/popup/utils/event-bus.js`)
+- ✅ 发布-订阅模式实现
+- ✅ 支持 `on()`, `off()`, `emit()`, `once()` API
+- ✅ 完善的错误处理（错误不中断其他监听器）
+- ✅ 定义 20+ 事件名称常量
+  - 书签事件：BOOKMARKS_LOADED, BOOKMARK_CHANGED, BOOKMARK_ADDED 等
+  - 分类事件：CATEGORIES_CHANGED, CATEGORY_ADDED 等
+  - 导航事件：NAVIGATION_CHANGED, FOLDER_SELECTED 等
+  - 搜索事件：SEARCH_PERFORMED, SEARCH_RESULTS_UPDATED 等
+  - AI 分析事件：ANALYSIS_STARTED, ANALYSIS_PROGRESS 等
+  - UI 事件：DIALOG_OPENED, CONTEXT_MENU_SHOWN 等
+
+**2. 状态管理模块** (`src/popup/modules/state.js`)
+- ✅ 响应式代理实现（Proxy）
+- ✅ 状态变更自动通知订阅者
+- ✅ 丰富的 API：
+  - `get(path)` - 获取状态值
+  - `set(path, value)` - 设置状态值
+  - `setMultiple(updates)` - 批量更新
+  - `update(path, key, value)` - 更新对象属性
+  - `add(path, item)` - 数组添加
+  - `remove(path, item)` - 数组删除
+  - `updateItem(path, finder, updater)` - 更新数组项
+  - `subscribe(path, callback)` - 订阅状态变更
+- ✅ 状态持久化支持（`export()`/`import()`）
+- ✅ 状态快照功能（用于调试）
+
+**3. 公共工具函数** (`src/popup/utils/helpers.js`)
+- ✅ **DOM 操作**：`createElement()`, `query()`, `queryAll()`, `escapeHtml()`
+- ✅ **格式化函数**：
+  - `truncateText()` - 截断文本
+  - `truncateUrl()` - 截断URL
+  - `formatDate()` - 格式化日期（支持相对时间）
+  - `formatFileSize()` - 格式化文件大小
+  - `formatNumber()` - 格式化数字
+  - `highlightKeyword()` - 高亮搜索关键词
+- ✅ **验证函数**：`isValidUrl()`, `isValidEmail()`, `isEmpty()`
+- ✅ **工具函数**：
+  - `debounce()` - 防抖
+  - `throttle()` - 节流
+  - `deepClone()` - 深度克隆
+  - `deepEqual()` - 深度比较
+  - `processBatch()` - 批量处理
+  - `normalizeUrl()` - URL 标准化
+  - `isInBookmarksBar()` - 判断是否在书签栏
+
+**4. 书签管理模块** (`src/popup/modules/bookmarks.js`)
+- ✅ `load()` - 加载所有书签和分类
+- ✅ `getAll()` - 获取所有书签
+- ✅ `getById(id)` - 根据ID获取书签
+- ✅ `getByCategory(categoryId)` - 根据分类获取书签
+- ✅ `getByTag(tag)` - 根据标签获取书签
+- ✅ `search(searchTerm)` - 搜索书签
+- ✅ `add(bookmarkData)` - 添加书签
+- ✅ `update(id, updates)` - 更新书签
+- ✅ `delete(ids)` - 删除书签（支持批量）
+- ✅ `moveToFolder(bookmarkId, targetFolderId)` - 移动书签到文件夹
+- ✅ `regenerateSummary(bookmarkId)` - 重新生成概述
+- ✅ `reorder(draggedId, targetId, clientY)` - 拖拽排序
+- ✅ `getStats()` - 获取统计信息
+
+**5. 导航模块** (`src/popup/modules/navigation.js`)
+- ✅ `switchView(view)` - 切换视图（全部/最近/失效/标签/文件夹）
+- ✅ `selectFolder(folderId)` - 选择文件夹
+- ✅ `renderSidebarNav()` - 渲染侧边栏导航
+- ✅ `renderFolderTree()` - 渲染文件夹树
+- ✅ `renderBreadcrumb()` - 渲染面包屑
+- ✅ `toggleSidebar()` - 展开/折叠侧边栏
+- ✅ 文件夹树递归渲染
+- ✅ 展开/折叠交互
+- ✅ 失效链接数量统计
+
+**6. 搜索模块** (`src/popup/modules/search.js`)
+- ✅ `performSearch(query, useAI)` - 执行搜索
+- ✅ `_localSearch(query)` - 本地文本搜索
+- ✅ `_aiSearch(query)` - AI 语义搜索（带降级）
+- ✅ `_showSuggestions(query)` - 显示搜索建议
+- ✅ `_getSuggestions(query)` - 获取建议（标签、分类）
+- ✅ `clearSearch()` - 清除搜索
+- ✅ `toggleAISearch(enabled)` - 切换 AI 搜索模式
+- ✅ `renderResults(results)` - 渲染搜索结果
+- ✅ 防抖输入处理（300ms）
+- ✅ 相关性排序算法
+
+#### 提交记录
+- `4ca9fe1` feat: Phase 4.1 基础设施重构完成
+- `8bd2bc8` feat: Phase 4.2 核心模块重构完成
+
+#### 新建文件结构
+```
+src/popup/
+├── modules/
+│   ├── state.js          # 状态管理模块 (新建)
+│   ├── bookmarks.js      # 书签管理模块 (新建)
+│   ├── navigation.js     # 导航模块 (新建)
+│   └── search.js         # 搜索模块 (新建)
+├── utils/
+│   ├── event-bus.js      # 事件总线 (新建)
+│   └── helpers.js        # 工具函数 (新建)
+└── test-modules.js       # 模块测试 (新建)
+```
+
+#### 技术亮点
+1. **模块化设计**：将 popup.js (4000+ 行) 拆分为多个独立模块
+2. **事件驱动**：通过 EventBus 实现模块间松耦合通信
+3. **响应式状态**：使用 Proxy 实现自动通知的状态管理
+4. **可测试性**：每个模块可独立测试
+5. **可维护性**：职责单一，易于理解和修改
+
+#### 下一步计划
+- ⏳ Phase 4.3: 功能模块（AI分析、链接检测、文件夹管理、拖拽）
+- ⏳ Phase 4.4: UI 模块（对话框、右键菜单、键盘导航）
+- ⏳ Phase 5: 整合测试和上线
 
 ---
 
