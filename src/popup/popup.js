@@ -755,8 +755,6 @@ function createFolderRow(folder) {
       el.classList.remove('drag-over');
     });
   });
-    showContextMenu(folder, e.clientX, e.clientY);
-  });
 
   return row;
 }
