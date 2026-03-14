@@ -463,6 +463,14 @@ function renderSidebarLevel(nodes, depth) {
       navigateToFolder(node.id);
     });
 
+    // 右键菜单
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.selectedItem = node;
+      showContextMenu(node, e.clientX, e.clientY);
+    });
+
     li.appendChild(row);
 
     // 在 row 上添加拖拽事件监听（更精确的控制）
@@ -684,6 +692,8 @@ function createFolderRow(folder) {
   const row = document.createElement('div');
   row.className = 'bm-folder-row';
   row.dataset.id = folder.id;
+  row.dataset.type = 'folder';
+  row.draggable = true; // 启用拖拽
 
   const bmCount = countBookmarksInFolder(folder);
   const subFolderCount = (folder.children || []).filter(c => c.type === 'folder').length;
@@ -712,6 +722,39 @@ function createFolderRow(folder) {
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     state.selectedItem = folder;
+    showContextMenu(folder, e.clientX, e.clientY);
+  });
+
+  // 拖拽开始
+  row.addEventListener('dragstart', (e) => {
+    state.draggedItem = folder;
+    state.draggedElement = row;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'folder',
+      id: folder.id,
+      data: folder
+    }));
+    e.dataTransfer.setDragImage(row, e.offsetX, e.offsetY);
+    row.classList.add('dragging');
+    row.style.opacity = '0.5';
+    console.log('[Folder Drag Start]', folder.title);
+  });
+
+  // 拖拽结束
+  row.addEventListener('dragend', (e) => {
+    console.log('[Folder Drag End]', folder.title);
+    row.classList.remove('dragging');
+    row.style.opacity = '1';
+    row.style.transform = '';
+    state.draggedItem = null;
+    state.draggedElement = null;
+
+    // 清除所有拖拽悬停样式
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+  });
     showContextMenu(folder, e.clientX, e.clientY);
   });
 
@@ -3175,6 +3218,11 @@ function showContextMenu(item, x, y) {
   const menu = elements.contextMenuEl;
   if (!menu) return;
 
+  // 调试：输出 item 信息
+  console.log('[showContextMenu] item:', item);
+  console.log('[showContextMenu] item.type:', item.type);
+  console.log('[showContextMenu] isFolder?', item.type === 'folder');
+
   // 保存触发菜单的元素，以便关闭时恢复焦点
   const activeElement = document.activeElement;
   if (activeElement) {
@@ -3183,9 +3231,17 @@ function showContextMenu(item, x, y) {
 
   // 根据 item 类型显示/隐藏相关项目
   const isFolder = item.type === 'folder';
-  menu.querySelectorAll('[data-for-folder]').forEach(el => {
-    el.style.display = isFolder ? '' : 'none';
+
+  // 显示/隐藏文件夹专用菜单项
+  const folderItems = menu.querySelectorAll('[data-for-folder]');
+  console.log('[showContextMenu] Found folder items:', folderItems.length);
+  folderItems.forEach(el => {
+    const display = isFolder ? '' : 'none';
+    el.style.display = display;
+    console.log('[showContextMenu] Folder item:', el.dataset.action, 'display:', display);
   });
+
+  // 显示/隐藏书签专用菜单项（如果有的话）
   menu.querySelectorAll('[data-for-bookmark]').forEach(el => {
     el.style.display = isFolder ? 'none' : '';
   });

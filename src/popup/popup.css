@@ -989,6 +989,19 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border-bottom: 1px solid #f8fafc;
 }
 .bm-folder-row:hover { background: #f8fafc; }
+.bm-folder-row[draggable="true"] { cursor: grab; }
+.bm-folder-row[draggable="true"]:active { cursor: grabbing; }
+.bm-folder-row.dragging {
+  opacity: 0.5;
+  background: #eef2ff;
+  transform: scale(0.98);
+}
+.bm-folder-row.drag-over {
+  background: #eef2ff !important;
+  border: 2px dashed #6366f1 !important;
+  border-radius: 8px !important;
+  transform: scale(1.02);
+}
 .bm-folder-icon { font-size: 18px; flex-shrink: 0; }
 .bm-folder-name {
   flex: 1; font-size: 14px; font-weight: 500; color: #1e293b;
