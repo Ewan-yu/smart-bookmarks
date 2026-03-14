@@ -11,6 +11,7 @@ const elements = {
   searchInput: document.getElementById('searchInput'),
   analyzeBtn: document.getElementById('analyzeBtn'),
   mergeSuggestBtn: document.getElementById('mergeSuggestBtn'),
+  deduplicateBtn: document.getElementById('deduplicateBtn'),
   debugAnalyzeBtn: document.getElementById('debugAnalyzeBtn'),
   checkBrokenBtn: document.getElementById('checkBrokenBtn'),
   syncBtn: document.getElementById('syncBtn'),
@@ -1359,6 +1360,7 @@ function bindEvents() {
   // 分析
   elements.analyzeBtn.addEventListener('click', handleAnalyze);
   elements.mergeSuggestBtn.addEventListener('click', handleMergeSuggestions);
+  elements.deduplicateBtn.addEventListener('click', handleDeduplicate);
   elements.debugAnalyzeBtn.addEventListener('click', handleDebugAnalyze);
   elements.checkBrokenBtn.addEventListener('click', handleCheckBrokenLinks);
 
@@ -1824,7 +1826,377 @@ async function checkIsParentFolder(parentId, childId) {
 }
 
 /**
- * 处理 AI 合并建议
+ * 处理去重功能
+ * 检测重复的书签和目录，优先保留书签栏中的内容
+ */
+async function handleDeduplicate() {
+  if (state.bookmarks.length === 0 && state.categories.length === 0) {
+    Toast.info('暂无数据，无需去重');
+    return;
+  }
+
+  Toast.info('正在检测重复项...');
+
+  try {
+    const duplicates = {
+      bookmarks: findDuplicateBookmarks(),
+      categories: findDuplicateCategories()
+    };
+
+    if (duplicates.bookmarks.length === 0 && duplicates.categories.length === 0) {
+      Toast.info('未检测到重复项');
+      return;
+    }
+
+    showDeduplicateDialog(duplicates);
+  } catch (error) {
+    console.error('Deduplicate error:', error);
+    Toast.error('去重检测失败：' + error.message);
+  }
+}
+
+/**
+ * 查找重复的书签（相同URL）
+ * 优先保留书签栏中的书签
+ */
+function findDuplicateBookmarks() {
+  const urlMap = new Map();
+  const duplicates = [];
+
+  for (const bookmark of state.bookmarks) {
+    if (!bookmark.url) continue;
+
+    const normalizedUrl = normalizeUrl(bookmark.url);
+
+    if (!urlMap.has(normalizedUrl)) {
+      urlMap.set(normalizedUrl, []);
+    }
+    urlMap.get(normalizedUrl).push(bookmark);
+  }
+
+  // 找出有重复的URL
+  for (const [url, bookmarkList] of urlMap) {
+    if (bookmarkList.length > 1) {
+      // 按优先级排序：书签栏 > 其他
+      bookmarkList.sort((a, b) => {
+        const aInBookmarksBar = isInBookmarksBar(a);
+        const bInBookmarksBar = isInBookmarksBar(b);
+        if (aInBookmarksBar && !bInBookmarksBar) return -1;
+        if (!aInBookmarksBar && bInBookmarksBar) return 1;
+        return 0;
+      });
+
+      const keep = bookmarkList[0]; // 保留第一个（优先级最高的）
+      const remove = bookmarkList.slice(1); // 删除其余的
+
+      duplicates.push({
+        type: 'bookmark',
+        url: url,
+        keep: keep,
+        remove: remove,
+        reason: remove.length > 0 ? `重复URL，保留书签栏中的书签` : `重复书签`
+      });
+    }
+  }
+
+  return duplicates;
+}
+
+/**
+ * 查找重复的目录
+ * 优先保留书签栏中的目录
+ */
+function findDuplicateCategories() {
+  const nameMap = new Map();
+  const duplicates = [];
+
+  for (const category of state.categories) {
+    if (!nameMap.has(category.name)) {
+      nameMap.set(category.name, []);
+    }
+    nameMap.get(category.name).push(category);
+  }
+
+  // 找出有重复名称的目录
+  for (const [name, categoryList] of nameMap) {
+    if (categoryList.length > 1) {
+      // 按优先级排序：书签栏 > 其他
+      categoryList.sort((a, b) => {
+        const aInBookmarksBar = isInBookmarksBar(a);
+        const bInBookmarksBar = isInBookmarksBar(b);
+        if (aInBookmarksBar && !bInBookmarksBar) return -1;
+        if (!aInBookmarksBar && bInBookmarksBar) return 1;
+        return 0;
+      });
+
+      const keep = categoryList[0];
+      const remove = categoryList.slice(1);
+
+      duplicates.push({
+        type: 'category',
+        name: name,
+        keep: keep,
+        remove: remove,
+        reason: `重复目录名称，保留书签栏中的目录`
+      });
+    }
+  }
+
+  return duplicates;
+}
+
+/**
+ * 标准化URL（用于去重比较）
+ */
+function normalizeUrl(url) {
+  try {
+    let normalized = url.trim().toLowerCase();
+
+    // 移除常见的跟踪参数
+    const urlObj = new URL(normalized);
+    const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid'];
+    paramsToRemove.forEach(param => urlObj.searchParams.delete(param));
+
+    normalized = urlObj.href;
+
+    // 移除末尾的 /
+    if (normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+
+    return normalized;
+  } catch (e) {
+    return url.trim().toLowerCase();
+  }
+}
+
+/**
+ * 检查书签/目录是否在书签栏中
+ */
+function isInBookmarksBar(item) {
+  if (!item) return false;
+
+  // 检查是否有路径信息
+  if (item.path && item.path.length > 0) {
+    // 如果路径的第一个元素是"书签栏"，则认为在书签栏中
+    return item.path[0] === '书签栏' || item.path[0] === 'Bookmarks Bar';
+  }
+
+  // 检查parentId（如果是根节点直接在书签栏下）
+  // 这里简化处理，实际情况可能需要更复杂的逻辑
+  return false;
+}
+
+/**
+ * 显示去重对话框
+ */
+function showDeduplicateDialog(duplicates) {
+  const bookmarkCount = duplicates.bookmarks.length;
+  const categoryCount = duplicates.categories.length;
+  const totalRemove = duplicates.bookmarks.reduce((sum, d) => sum + d.remove.length, 0) +
+                     duplicates.categories.reduce((sum, d) => sum + d.remove.length, 0);
+
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog-overlay';
+  dialog.innerHTML = `
+    <div class="confirm-dialog" style="max-width: 700px;">
+      <div class="dialog-header">
+        <h2>🗑️ 去重建议</h2>
+        <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <p style="margin-bottom: 16px; color: var(--c-text-2);">
+          检测到 <strong>${bookmarkCount}</strong> 组重复书签，<strong>${categoryCount}</strong> 组重复目录。
+          共可删除 <strong>${totalRemove}</strong> 项。
+        </p>
+
+        ${duplicates.bookmarks.length > 0 ? `
+          <div style="margin-bottom: 20px;">
+            <h3 style="font-size: 14px; font-weight: 600; color: var(--c-text); margin-bottom: 10px;">重复书签</h3>
+            <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 8px;">
+              ${duplicates.bookmarks.map((item, index) => `
+                <div class="dedup-item" data-type="bookmark" data-index="${index}" style="padding: 10px; border: 1px solid var(--c-border); border-radius: 6px; margin-bottom: 8px; background: var(--c-bg-alt);">
+                  <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-weight: 600; color: #10b981; font-size: 13px;">✓ 保留</span>
+                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">${escapeHtml(item.keep.title)}</span>
+                        ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                      </div>
+                      <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 6px;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
+                      <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复：</div>
+                      ${item.remove.map(r => `
+                        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--c-muted);">
+                          <span style="color: #ef4444;">✗</span>
+                          <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
+                          ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${duplicates.categories.length > 0 ? `
+          <div style="margin-bottom: 20px;">
+            <h3 style="font-size: 14px; font-weight: 600; color: var(--c-text); margin-bottom: 10px;">重复目录</h3>
+            <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 8px;">
+              ${duplicates.categories.map((item, index) => `
+                <div class="dedup-item" data-type="category" data-index="${index}" style="padding: 10px; border: 1px solid var(--c-border); border-radius: 6px; margin-bottom: 8px; background: var(--c-bg-alt);">
+                  <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-weight: 600; color: #10b981; font-size: 13px;">✓ 保留</span>
+                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">📁 ${escapeHtml(item.keep.name)}</span>
+                        ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                      </div>
+                      <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复目录：</div>
+                      ${item.remove.map(r => `
+                        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--c-muted);">
+                          <span style="color: #ef4444;">✗</span>
+                          <span style="text-decoration: line-through;">📁 ${escapeHtml(r.name)}</span>
+                          ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="padding: 12px; background: #fef3c7; border-radius: 6px; font-size: 12px; color: #92400e;">
+          ⚠️ 去重操作将永久删除选中的项目，请确认后再执行。书签栏中的内容具有更高的保留优先级。
+        </div>
+      </div>
+      <div class="dialog-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 10px;">
+          <button class="btn" id="dialogSelectAll" style="padding: 6px 12px; font-size: 13px;">全选</button>
+          <button class="btn" id="dialogDeselectAll" style="padding: 6px 12px; font-size: 13px;">取消全选</button>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-cancel" id="dialogCancel">取消</button>
+          <button class="btn btn-primary" id="dialogConfirm">执行去重</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  const closeBtn = dialog.querySelector('#dialogClose');
+  const cancelBtn = dialog.querySelector('#dialogCancel');
+  const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const selectAllBtn = dialog.querySelector('#dialogSelectAll');
+  const deselectAllBtn = dialog.querySelector('#dialogDeselectAll');
+
+  const closeDialog = () => {
+    dialog.classList.add('hide');
+    setTimeout(() => {
+      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
+    }, 300);
+  };
+
+  closeBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  selectAllBtn.addEventListener('click', () => {
+    dialog.querySelectorAll('.dedup-item input[type="checkbox"]').forEach(cb => cb.checked = true);
+  });
+
+  deselectAllBtn.addEventListener('click', () => {
+    dialog.querySelectorAll('.dedup-item input[type="checkbox"]').forEach(cb => cb.checked = false);
+  });
+
+  confirmBtn.addEventListener('click', async () => {
+    const selectedItems = {
+      bookmarks: [],
+      categories: []
+    };
+
+    dialog.querySelectorAll('.dedup-item input[type="checkbox"]:checked').forEach(cb => {
+      const item = cb.closest('.dedup-item');
+      const type = item.dataset.type;
+      const index = parseInt(item.dataset.index);
+
+      if (type === 'bookmark') {
+        selectedItems.bookmarks.push(duplicates.bookmarks[index]);
+      } else if (type === 'category') {
+        selectedItems.categories.push(duplicates.categories[index]);
+      }
+    });
+
+    if (selectedItems.bookmarks.length === 0 && selectedItems.categories.length === 0) {
+      Toast.warning('请至少选择一项');
+      return;
+    }
+
+    await executeDeduplicate(selectedItems, closeDialog);
+  });
+
+  setTimeout(() => dialog.classList.add('show'), 10);
+}
+
+/**
+ * 执行去重操作
+ */
+async function executeDeduplicate(selectedItems, closeDialog) {
+  try {
+    const toRemove = {
+      bookmarkIds: [],
+      categoryIds: []
+    };
+
+    // 收集需要删除的项
+    for (const item of selectedItems.bookmarks) {
+      for (const bookmark of item.remove) {
+        toRemove.bookmarkIds.push(bookmark.id);
+      }
+    }
+
+    for (const item of selectedItems.categories) {
+      for (const category of item.remove) {
+        toRemove.categoryIds.push(category.id);
+      }
+    }
+
+    // 调用后台删除
+    const result = await chrome.runtime.sendMessage({
+      type: 'BATCH_DELETE',
+      bookmarkIds: toRemove.bookmarkIds,
+      categoryIds: toRemove.categoryIds
+    });
+
+    if (result && result.success) {
+      Toast.success(`已删除 ${toRemove.bookmarkIds.length} 个书签，${toRemove.categoryIds.length} 个目录`);
+      closeDialog();
+      // 刷新数据
+      await loadBookmarks();
+    } else {
+      Toast.error('删除失败：' + (result?.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('Execute deduplicate error:', error);
+    Toast.error('执行去重失败：' + error.message);
+  }
+}
+
+/**
+ * 截断URL用于显示
+ */
+function truncateUrl(url, maxLength) {
+  if (url.length <= maxLength) return url;
+  return url.substring(0, maxLength) + '...';
+}
+
+/**
+ * 处理合并建议
  * 检测重复分类并显示合并建议
  */
 async function handleMergeSuggestions() {
@@ -1840,8 +2212,27 @@ async function handleMergeSuggestions() {
     const { default: CategoryMerger } = await import('../utils/category-merger.js');
     const merger = new CategoryMerger();
 
-    // 生成合并建议
-    const suggestions = merger.generateMergeSuggestions(state.categories);
+    // 构建分类路径的辅助函数
+    const buildCategoryPath = (category) => {
+      const path = [category.name];
+      let currentCat = category;
+
+      // 向上遍历父分类
+      while (currentCat.parentId) {
+        const parentCat = state.categories.find(c => c.id === currentCat.parentId);
+        if (!parentCat) break;
+        path.unshift(parentCat.name);
+        currentCat = parentCat;
+
+        // 防止无限循环（最多10层）
+        if (path.length > 10) break;
+      }
+
+      return path;
+    };
+
+    // 生成合并建议（带路径信息）
+    const suggestions = merger.generateMergeSuggestions(state.categories, buildCategoryPath);
 
     if (suggestions.length === 0) {
       Toast.info('未检测到需要合并的重复分类');
@@ -3165,16 +3556,6 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-/**
- * 截断 URL
- */
-function truncateUrl(url, maxLength) {
-  if (url.length <= maxLength) {
-    return url;
-  }
-  return url.substring(0, maxLength) + '...';
-}
-
 // ─────────────────────────── 侧栏宽度 ───────────────────────────
 
 function loadSidebarWidth() {
@@ -3863,10 +4244,10 @@ function deleteFolder(folder) {
   showDeleteFolderDialog(folder);
 }
 
-// ─────────────────────────── AI 合并建议 ───────────────────────────
+// ─────────────────────────── 合并建议 ───────────────────────────
 
 /**
- * 显示 AI 合并建议对话框
+ * 显示合并建议对话框
  * @param {Array} mergeSuggestions - 合并建议列表
  * @param {Array} categories - 所有分类列表
  */
@@ -3881,7 +4262,7 @@ function showMergeSuggestionsDialog(mergeSuggestions, categories) {
   dialog.innerHTML = `
     <div class="confirm-dialog ai-merge-dialog">
       <div class="dialog-header">
-        <h2>🤖 AI 合并建议</h2>
+        <h2>🔀 合并建议</h2>
         <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
       <div class="dialog-content">
@@ -3893,25 +4274,61 @@ function showMergeSuggestionsDialog(mergeSuggestions, categories) {
             const confidencePercent = Math.round(suggestion.confidence * 100);
             const confidenceLevel = confidencePercent >= 85 ? 'high' : confidencePercent >= 70 ? 'medium' : 'low';
             const confidenceColor = confidenceLevel === 'high' ? '#10b981' : confidenceLevel === 'medium' ? '#f59e0b' : '#6b7280';
+
+            // 构建源文件夹路径显示
+            const sourcePath = suggestion.sourcePath || [suggestion.source];
+            const targetPath = suggestion.targetPath || [suggestion.target];
+
+            const sourcePathDisplay = sourcePath.map((part, i) => {
+              const isLast = i === sourcePath.length - 1;
+              return `<span style="${isLast ? 'font-weight: 600; color: #ef4444;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+            }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+
+            const targetPathDisplay = targetPath.map((part, i) => {
+              const isLast = i === targetPath.length - 1;
+              return `<span style="${isLast ? 'font-weight: 600; color: #10b981;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+            }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+
             return `
-              <label class="merge-suggestion-item" style="display: block; padding: 12px; border: 1px solid var(--c-border); border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;">
-                <div style="display: flex; align-items: flex-start; gap: 10px;">
-                  <input type="checkbox" checked data-index="${index}" style="flex-shrink: 0; margin-top: 4px;" />
+              <label class="merge-suggestion-item" style="display: block; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <input type="checkbox" checked data-index="${index}" style="flex-shrink: 0; margin-top: 2px; width: 18px; height: 18px;" />
                   <div style="flex: 1; min-width: 0;">
-                    <div class="suggestion-content" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                      <span class="source-name" style="font-weight: 600; color: var(--c-text-1);">${escapeHtml(suggestion.source)}</span>
-                      <span class="merge-arrow" style="color: var(--c-primary);">→</span>
-                      <span class="target-name" style="font-weight: 600; color: var(--c-primary);">${escapeHtml(suggestion.target)}</span>
-                    </div>
-                    <div class="suggestion-reason" style="margin-top: 4px; font-size: 12px; color: var(--c-text-2);">
-                      ${escapeHtml(suggestion.reason)}
-                    </div>
-                    <div class="suggestion-confidence" style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
-                      <span style="font-size: 12px; color: var(--c-text-2);">置信度:</span>
-                      <div style="flex: 1; max-width: 100px; height: 6px; background: var(--c-bg-3); border-radius: 3px; overflow: hidden;">
-                        <div style="width: ${confidencePercent}%; height: 100%; background: ${confidenceColor}; border-radius: 3px; transition: width 0.3s;"></div>
+                    <!-- 路径显示区域 -->
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+                      <!-- 源文件夹路径 -->
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 11px; color: var(--c-text-2); font-weight: 600; text-transform: uppercase; white-space: nowrap; min-width: 60px;">合并源:</span>
+                        <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px;">
+                          ${sourcePathDisplay}
+                        </div>
                       </div>
-                      <span style="font-size: 12px; font-weight: 600; color: ${confidenceColor};">${confidencePercent}%</span>
+                      <!-- 合并指示箭头 -->
+                      <div style="display: flex; align-items: center; gap: 8px; padding-left: 68px;">
+                        <div style="flex: 1; height: 1px; background: linear-gradient(to right, var(--c-border), transparent);"></div>
+                        <span style="color: var(--c-primary); font-weight: 600; font-size: 14px; padding: 2px 8px; background: var(--c-primary); color: white; border-radius: 4px; white-space: nowrap;">合并到</span>
+                        <div style="flex: 1; height: 1px; background: linear-gradient(to left, var(--c-border), transparent);"></div>
+                      </div>
+                      <!-- 目标文件夹路径 -->
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 11px; color: var(--c-text-2); font-weight: 600; text-transform: uppercase; white-space: nowrap; min-width: 60px;">目标:</span>
+                        <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px;">
+                          ${targetPathDisplay}
+                        </div>
+                      </div>
+                    </div>
+                    <!-- 原因和置信度 -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px dashed var(--c-border);">
+                      <div style="flex: 1; font-size: 12px; color: var(--c-text-2);">
+                        ${escapeHtml(suggestion.reason)}
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                        <span style="font-size: 11px; color: var(--c-text-2);">置信度</span>
+                        <div style="width: 60px; height: 4px; background: var(--c-bg-3); border-radius: 2px; overflow: hidden;">
+                          <div style="width: ${confidencePercent}%; height: 100%; background: ${confidenceColor}; border-radius: 2px; transition: width 0.3s;"></div>
+                        </div>
+                        <span style="font-size: 12px; font-weight: 700; color: ${confidenceColor};">${confidencePercent}%</span>
+                      </div>
                     </div>
                   </div>
                 </div>

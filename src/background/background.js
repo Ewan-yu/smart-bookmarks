@@ -597,6 +597,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleDeleteFolder(request, sendResponse);
       return true;
 
+    case 'BATCH_DELETE':
+      handleBatchDelete(request, sendResponse);
+      return true;
+
     case 'MERGE_FOLDERS':
       handleMergeFolders(request, sendResponse);
       return true;
@@ -1862,6 +1866,115 @@ async function handleDeleteFolder(request, sendResponse) {
     });
   } catch (error) {
     console.error('[DELETE_FOLDER] Failed to delete folder:', error);
+    sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * 批量删除（书签和文件夹）
+ */
+async function handleBatchDelete(request, sendResponse) {
+  try {
+    const { bookmarkIds = [], categoryIds = [] } = request;
+    console.log(`[BATCH_DELETE] Deleting ${bookmarkIds.length} bookmarks and ${categoryIds.length} categories`);
+
+    await initDatabase();
+
+    let deletedBookmarkCount = 0;
+    let deletedCategoryCount = 0;
+    const errors = [];
+
+    // 删除书签
+    for (const bookmarkId of bookmarkIds) {
+      try {
+        await deleteBookmark(bookmarkId);
+        deletedBookmarkCount++;
+      } catch (e) {
+        errors.push(`删除书签 ${bookmarkId} 失败: ${e.message}`);
+      }
+    }
+
+    // 删除文件夹（从叶子节点开始，避免父节点先被删除）
+    const sortedCategories = [...categoryIds];
+    // 简单排序：按 ID 排序（假设 ID 结构反映层级关系）
+    sortedCategories.sort().reverse();
+
+    for (const categoryId of sortedCategories) {
+      try {
+        // 获取文件夹信息
+        const folder = await get(STORES.CATEGORIES, categoryId);
+        if (!folder) {
+          console.debug(`[BATCH_DELETE] Category not found: ${categoryId}`);
+          continue;
+        }
+
+        // 获取所有子内容并移动到父目录
+        const allChildren = await getAllDescendants(categoryId);
+        const targetParentId = folder.parentId || null;
+
+        for (const child of allChildren) {
+          if (child.type === 'category') {
+            const childCat = await get(STORES.CATEGORIES, child.id);
+            if (childCat) {
+              childCat.parentId = targetParentId;
+              childCat.updatedAt = Date.now();
+              await addCategory(childCat);
+            }
+          } else {
+            const childBookmark = await getBookmark(child.id);
+            if (childBookmark) {
+              childBookmark.parentCategoryId = targetParentId;
+              childBookmark.updatedAt = Date.now();
+              await addBookmark(childBookmark);
+
+              // 同步到浏览器
+              if (/^\d+$/.test(childBookmark.id)) {
+                try {
+                  let targetBrowserId = targetParentId === null ? '1' : targetParentId.replace('cat_', '');
+                  await chrome.bookmarks.move(childBookmark.id, { parentId: targetBrowserId });
+                } catch (e) {
+                  console.debug(`[BATCH_DELETE] Browser sync warning:`, e.message);
+                }
+              }
+            }
+          }
+        }
+
+        // 删除文件夹
+        await deleteCategory(categoryId);
+
+        // 同步删除浏览器文件夹
+        if (folder.id.startsWith('cat_')) {
+          try {
+            const browserId = folder.id.replace('cat_', '');
+            await chrome.bookmarks.removeTree(browserId);
+          } catch (e) {
+            console.debug(`[BATCH_DELETE] Browser folder removal warning:`, e.message);
+          }
+        }
+
+        deletedCategoryCount++;
+      } catch (e) {
+        errors.push(`删除文件夹 ${categoryId} 失败: ${e.message}`);
+      }
+    }
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('batch-deleted', {
+      bookmarkCount: deletedBookmarkCount,
+      categoryCount: deletedCategoryCount
+    });
+
+    sendResponse({
+      success: true,
+      deletedBookmarkCount,
+      deletedCategoryCount,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+    console.log(`[BATCH_DELETE] Completed: ${deletedBookmarkCount} bookmarks, ${deletedCategoryCount} categories deleted`);
+  } catch (error) {
+    console.error('[BATCH_DELETE] Failed:', error);
     sendResponse({ error: error.message });
   }
 }

@@ -423,9 +423,10 @@ class CategoryMerger {
   /**
    * 生成合并建议（用于 UI 展示）
    * @param {Array} categories - 分类列表
+   * @param {Function} getPathCallback - 可选的回调函数，用于获取分类路径
    * @returns {Array} 合并建议列表
    */
-  generateMergeSuggestions(categories) {
+  generateMergeSuggestions(categories, getPathCallback = null) {
     const suggestions = [];
     const used = new Set();
 
@@ -442,12 +443,20 @@ class CategoryMerger {
 
         if (similarity >= this.similarityThreshold) {
           // 找到一个合并建议
-          suggestions.push({
+          const suggestion = {
             source: categories[i].name,
             target: categories[j].name,
             confidence: similarity,
             reason: this.getMergeReason(categories[i].name, categories[j].name, similarity)
-          });
+          };
+
+          // 如果提供了路径回调，添加路径信息
+          if (getPathCallback) {
+            suggestion.sourcePath = getPathCallback(categories[i]);
+            suggestion.targetPath = getPathCallback(categories[j]);
+          }
+
+          suggestions.push(suggestion);
 
           used.add(i);
           used.add(j);
