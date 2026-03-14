@@ -210,11 +210,24 @@ export const Events = {
   CHECK_COMPLETED: 'check:completed',
   CHECK_CANCELLED: 'check:cancelled',
 
+  // 拖拽事件
+  DRAG_STARTED: 'drag:started',
+  DRAG_ENDED: 'drag:ended',
+  BOOKMARK_REORDERED: 'bookmark:reordered',
+  ITEM_MOVED_TO_FOLDER: 'item:moved:to:folder',
+
+  // 侧边栏事件
+  SIDEBAR_RESIZE_STARTED: 'sidebar:resize:started',
+  SIDEBAR_RESIZING: 'sidebar:resizing',
+  SIDEBAR_RESIZE_ENDED: 'sidebar:resize:ended',
+  SIDEBAR_TOGGLED: 'sidebar:toggled',
+
   // UI 事件
   DIALOG_OPENED: 'dialog:opened',
   DIALOG_CLOSED: 'dialog:closed',
   CONTEXT_MENU_SHOWN: 'contextmenu:shown',
   CONTEXT_MENU_HIDDEN: 'contextmenu:hidden',
+  KEYBOARD_ACTION: 'keyboard:action',
 
   // 数据同步事件
   SYNC_STARTED: 'sync:started',
@@ -223,7 +236,9 @@ export const Events = {
 
   // 状态事件
   STATE_CHANGED: 'state:changed',
-  ERROR_OCCURRED: 'error:occurred'
+  ERROR_OCCURRED: 'error:occurred',
+  VIEW_CHANGED: 'view:changed',
+  FOLDER_TREE_CHANGED: 'folder:tree:changed'
 };
 
 export default eventBus;
