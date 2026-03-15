@@ -4,7 +4,7 @@
  */
 
 import eventBus from '../utils/event-bus.js';
-import { escapeHtml, truncateUrl, formatDate } from '../utils/helpers.js';
+import { escapeHtml, truncateUrl, formatDate, asyncConfirm } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
 import dialogManager from './dialog.js';
 
@@ -332,7 +332,14 @@ class LinkCheckerManager {
       return { success: true, cleaned: 0 };
     }
 
-    const confirmed = confirm(`确定要删除 ${invalidIds.length} 个失效链接吗？此操作不可撤销。`);
+    const confirmed = await asyncConfirm({
+      title: '清理失效链接',
+      message: `确定要删除 ${invalidIds.length} 个失效链接吗？此操作不可撤销。`,
+      confirmText: '确认删除',
+      cancelText: '取消',
+      danger: true
+    });
+
     if (!confirmed) {
       return { success: false, error: '用户取消' };
     }

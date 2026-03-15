@@ -4,7 +4,7 @@
  */
 
 import eventBus from '../utils/event-bus.js';
-import { escapeHtml } from '../utils/helpers.js';
+import { escapeHtml, asyncConfirm } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
 
 /**
@@ -170,7 +170,14 @@ class FolderManager {
                       bookmarkManager.bookmarks.some(bm => bm.categoryId === categoryId);
 
     if (hasChildren) {
-      const confirmed = confirm(`删除文件夹 "${category.name}" 后，其子内容将移动到父文件夹。确定删除吗？`);
+      const confirmed = await asyncConfirm({
+        title: '删除文件夹',
+        message: `删除文件夹 "${category.name}" 后，其子内容将移动到父文件夹。确定删除吗？`,
+        confirmText: '确认删除',
+        cancelText: '取消',
+        danger: true
+      });
+
       if (!confirmed) {
         return { success: false, error: '用户取消' };
       }

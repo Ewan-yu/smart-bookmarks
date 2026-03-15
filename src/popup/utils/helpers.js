@@ -608,3 +608,25 @@ export function safeQueryAll(selector, values = {}, parent = document) {
 
   return parent.querySelectorAll(escapedSelector);
 }
+
+/**
+ * 异步确认对话框（替代原生 confirm）
+ * @param {Object} options - 对话框选项
+ * @returns {Promise<boolean>} 用户是否确认
+ */
+export async function asyncConfirm(options) {
+  return new Promise((resolve) => {
+    // 动态导入 dialogManager 避免循环依赖
+    import('../modules/dialog.js').then(({ default: dialogManager }) => {
+      const dialog = dialogManager.confirm({
+        ...options,
+        onConfirm: () => {
+          resolve(true);
+        },
+        onCancel: () => {
+          resolve(false);
+        }
+      });
+    });
+  });
+}
