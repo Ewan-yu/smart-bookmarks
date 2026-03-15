@@ -546,3 +546,65 @@ export function safeParseJSON(jsonStr, defaultValue = null) {
     return defaultValue;
   }
 }
+
+// ==================== 安全函数 ====================
+
+/**
+ * CSS.escape polyfill（用于旧浏览器）
+ * @param {string} value - 要转义的值
+ * @returns {string} 转义后的值
+ */
+function _cssEscape(value) {
+  if (typeof CSS !== 'undefined' && CSS.escape) {
+    return CSS.escape(value);
+  }
+
+  // 简单的 polyfill 实现
+  return String(value).replace(/[\0-\x1F\x7F-\x9F!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, (char) => {
+    return `\\${char.charCodeAt(0).toString(16)} `;
+  });
+}
+
+/**
+ * 安全的 querySelector（防止选择器注入）
+ * @param {string} selector - 选择器模板
+ * @param {Object} values - 要插入的值（键名为占位符）
+ * @param {Element} parent - 父元素（默认为 document）
+ * @returns {Element|null} 找到的元素
+ *
+ * @example
+ * // 而不是：document.querySelector(`.bm-row[data-id="${id}"]`)
+ * // 使用：
+ * safeQuery('.bm-row[data-id="{id}"]', { id: userProvidedId })
+ */
+export function safeQuery(selector, values = {}, parent = document) {
+  let escapedSelector = selector;
+
+  // 转义所有值并替换占位符
+  Object.entries(values).forEach(([key, value]) => {
+    const placeholder = `{${key}}`;
+    const escapedValue = _cssEscape(String(value));
+    escapedSelector = escapedSelector.replace(new RegExp(placeholder, 'g'), escapedValue);
+  });
+
+  return parent.querySelector(escapedSelector);
+}
+
+/**
+ * 安全的 querySelectorAll（防止选择器注入）
+ * @param {string} selector - 选择器模板
+ * @param {Object} values - 要插入的值
+ * @param {Element} parent - 父元素（默认为 document）
+ * @returns {NodeList} 找到的元素列表
+ */
+export function safeQueryAll(selector, values = {}, parent = document) {
+  let escapedSelector = selector;
+
+  Object.entries(values).forEach(([key, value]) => {
+    const placeholder = `{${key}}`;
+    const escapedValue = _cssEscape(String(value));
+    escapedSelector = escapedSelector.replace(new RegExp(placeholder, 'g'), escapedValue);
+  });
+
+  return parent.querySelectorAll(escapedSelector);
+}

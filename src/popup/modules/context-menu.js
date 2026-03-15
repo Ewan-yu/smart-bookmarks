@@ -29,6 +29,30 @@ class ContextMenuManager {
       return;
     }
 
+    // 保存事件处理器引用，以便后续可以移除
+    this._handleClick = (e) => {
+      const btn = e.target.closest('.ctx-item');
+      if (btn) {
+        const action = btn.dataset.action;
+        this._handleAction(action);
+        this.hide();
+      }
+    };
+
+    this._handleKeyboard = (e) => this._handleKeyboard(e);
+
+    this._handleDocumentClick = (e) => {
+      if (this.isVisible && !this.menuElement.contains(e.target)) {
+        this.hide();
+      }
+    };
+
+    this._handleDocumentContextMenu = (e) => {
+      if (this.isVisible && !e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row') && !e.target.closest('.tree-item')) {
+        this.hide();
+      }
+    };
+
     this._bindEvents();
     this._renderMenu();
   }
@@ -210,31 +234,16 @@ class ContextMenuManager {
    */
   _bindEvents() {
     // 点击菜单项
-    this.menuElement.addEventListener('click', (e) => {
-      const btn = e.target.closest('.ctx-item');
-      if (btn) {
-        const action = btn.dataset.action;
-        this._handleAction(action);
-        this.hide();
-      }
-    });
+    this.menuElement.addEventListener('click', this._handleClick);
 
     // 键盘导航
-    this.menuElement.addEventListener('keydown', (e) => this._handleKeyboard(e));
+    this.menuElement.addEventListener('keydown', this._handleKeyboard);
 
     // 点击外部关闭
-    document.addEventListener('click', (e) => {
-      if (this.isVisible && !this.menuElement.contains(e.target)) {
-        this.hide();
-      }
-    });
+    document.addEventListener('click', this._handleDocumentClick);
 
     // 右键其他地方关闭
-    document.addEventListener('contextmenu', (e) => {
-      if (this.isVisible && !e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row') && !e.target.closest('.tree-item')) {
-        this.hide();
-      }
-    });
+    document.addEventListener('contextmenu', this._handleDocumentContextMenu);
   }
 
   /**
@@ -500,6 +509,34 @@ class ContextMenuManager {
    */
   getCurrentItem() {
     return this.currentItem;
+  }
+
+  /**
+   * 清理事件监听器
+   * 注意：由于这是单例模式，通常不需要调用此方法
+   * 仅在扩展卸载或页面完全重新加载时使用
+   */
+  destroy() {
+    // 移除事件监听器
+    if (this.menuElement) {
+      this.menuElement.removeEventListener('click', this._handleClick);
+      this.menuElement.removeEventListener('keydown', this._handleKeyboard);
+    }
+
+    document.removeEventListener('click', this._handleDocumentClick);
+    document.removeEventListener('contextmenu', this._handleDocumentContextMenu);
+
+    // 清理处理器引用
+    this._handleClick = null;
+    this._handleKeyboard = null;
+    this._handleDocumentClick = null;
+    this._handleDocumentContextMenu = null;
+
+    // 清理状态
+    this.currentItem = null;
+    this.currentOptions = {};
+    this.previousFocus = null;
+    this.isVisible = false;
   }
 }
 

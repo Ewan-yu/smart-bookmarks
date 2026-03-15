@@ -5,7 +5,7 @@
 
 import eventBus from '../utils/event-bus.js';
 import stateManager from './state.js';
-import { safeSetStorage } from '../utils/helpers.js';
+import { safeSetStorage, safeQuery } from '../utils/helpers.js';
 
 /**
  * 拖拽管理器
@@ -173,20 +173,24 @@ class DragDropManager {
   }
 
   /**
-   * 书签拖拽开始
+   * 通用拖拽开始处理
+   * @param {DragEvent} e - 拖拽事件
+   * @param {Object} item - 拖拽项目
+   * @param {HTMLElement} row - 行元素
+   * @param {string} type - 项目类型 ('bookmark' | 'folder')
    * @private
    */
-  _onBookmarkDragStart(e, bookmark, row) {
+  _onDragStart(e, item, row, type) {
     this.dragState.isDragging = true;
-    this.dragState.draggedItem = bookmark;
+    this.dragState.draggedItem = item;
     this.dragState.draggedElement = row;
-    this.dragState.draggedType = 'bookmark';
+    this.dragState.draggedType = type;
 
     // 设置拖拽数据
     const dragData = JSON.stringify({
-      type: 'bookmark',
-      id: bookmark.id,
-      data: bookmark
+      type,
+      id: item.id,
+      data: item
     });
     e.dataTransfer.setData('text/plain', dragData);
     e.dataTransfer.effectAllowed = 'move';
@@ -197,9 +201,31 @@ class DragDropManager {
     row.classList.add('dragging');
 
     eventBus.emit(eventBus.Events.DRAG_STARTED, {
-      type: 'bookmark',
-      item: bookmark
+      type,
+      item
     });
+  }
+
+  /**
+   * 通用拖拽结束处理
+   * @param {DragEvent} e - 拖拽事件
+   * @param {string} type - 项目类型
+   * @private
+   */
+  _onDragEnd(e, type) {
+    this._cleanup();
+
+    eventBus.emit(eventBus.Events.DRAG_ENDED, {
+      type
+    });
+  }
+
+  /**
+   * 书签拖拽开始
+   * @private
+   */
+  _onBookmarkDragStart(e, bookmark, row) {
+    this._onDragStart(e, bookmark, row, 'bookmark');
   }
 
   /**
@@ -207,11 +233,7 @@ class DragDropManager {
    * @private
    */
   _onBookmarkDragEnd(e, row) {
-    this._cleanup();
-
-    eventBus.emit(eventBus.Events.DRAG_ENDED, {
-      type: 'bookmark'
-    });
+    this._onDragEnd(e, 'bookmark');
   }
 
   /**
@@ -235,10 +257,12 @@ class DragDropManager {
   }
 
   /**
-   * 书签拖拽离开
+   * 通用拖拽离开处理（带边界检查）
+   * @param {DragEvent} e - 拖拽事件
+   * @param {HTMLElement} row - 行元素
    * @private
    */
-  _onBookmarkDragLeave(e, row) {
+  _onDragLeave(e, row) {
     // 确保是真的离开元素（而不是进入子元素）
     const rect = row.getBoundingClientRect();
     const x = e.clientX;
@@ -247,6 +271,14 @@ class DragDropManager {
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       row.classList.remove('drag-over');
     }
+  }
+
+  /**
+   * 书签拖拽离开
+   * @private
+   */
+  _onBookmarkDragLeave(e, row) {
+    this._onDragLeave(e, row);
   }
 
   /**
@@ -278,27 +310,7 @@ class DragDropManager {
    * @private
    */
   _onFolderDragStart(e, folder, row) {
-    this.dragState.isDragging = true;
-    this.dragState.draggedItem = folder;
-    this.dragState.draggedElement = row;
-    this.dragState.draggedType = 'folder';
-
-    const dragData = JSON.stringify({
-      type: 'folder',
-      id: folder.id,
-      data: folder
-    });
-    e.dataTransfer.setData('text/plain', dragData);
-    e.dataTransfer.effectAllowed = 'move';
-
-    e.dataTransfer.setDragImage(row, e.offsetX, e.offsetY);
-
-    row.classList.add('dragging');
-
-    eventBus.emit(eventBus.Events.DRAG_STARTED, {
-      type: 'folder',
-      item: folder
-    });
+    this._onDragStart(e, folder, row, 'folder');
   }
 
   /**
@@ -306,11 +318,7 @@ class DragDropManager {
    * @private
    */
   _onFolderDragEnd(e, row) {
-    this._cleanup();
-
-    eventBus.emit(eventBus.Events.DRAG_ENDED, {
-      type: 'folder'
-    });
+    this._onDragEnd(e, 'folder');
   }
 
   /**
@@ -324,7 +332,7 @@ class DragDropManager {
   }
 
   /**
-   * 文件夹拖拽离开
+   * 文件夹拖拽离开（简化版，不需要边界检查）
    * @private
    */
   _onFolderDragLeave(e, row) {
@@ -452,7 +460,9 @@ class DragDropManager {
       const newBookmarks = [...folderBookmarks];
       newBookmarks.splice(draggedIndex, 1);
 
-      const targetRect = document.querySelector(`.bm-row[data-id="${targetId}"]`)?.getBoundingClientRect();
+      // 使用 safeQuery 防止选择器注入
+      const targetEl = safeQuery('.bm-row[data-id="{id}"]', { id: targetId });
+      const targetRect = targetEl?.getBoundingClientRect();
       const insertBefore = targetRect ? clientY < (targetRect.top + targetRect.height / 2) : true;
 
       const newIndex = insertBefore
@@ -475,9 +485,8 @@ class DragDropManager {
 
       stateManager.set('bookmarks', bookmarks);
 
-      // 立即在 DOM 中移动元素
-      const draggedEl = document.querySelector(`.bm-row[data-id="${draggedId}"]`);
-      const targetEl = document.querySelector(`.bm-row[data-id="${targetId}"]`);
+      // 立即在 DOM 中移动元素（使用 safeQuery 防止选择器注入）
+      const draggedEl = safeQuery('.bm-row[data-id="{id}"]', { id: draggedId });
 
       if (draggedEl && targetEl) {
         if (insertBefore) {

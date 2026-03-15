@@ -83,12 +83,15 @@ class KeyboardNavigationManager {
    * @private
    */
   _bindGlobalEvents() {
-    document.addEventListener('keydown', (e) => {
+    // 保存处理器引用以便后续清理
+    this._handleGlobalKeydown = (e) => {
       if (!this.isEnabled) return;
 
       const shortcut = this._getShortcutString(e);
       this._handleShortcut(shortcut, e);
-    });
+    };
+
+    document.addEventListener('keydown', this._handleGlobalKeydown);
   }
 
   /**
@@ -99,7 +102,8 @@ class KeyboardNavigationManager {
     const bookmarkList = document.getElementById('bookmarkList');
     if (!bookmarkList) return;
 
-    bookmarkList.addEventListener('keydown', (e) => {
+    // 保存处理器引用以便后续清理
+    this._handleListKeydown = (e) => {
       if (this.scope !== 'global') return;
 
       const handled = this._handleListNavigation(e);
@@ -107,7 +111,10 @@ class KeyboardNavigationManager {
         e.preventDefault();
         e.stopPropagation();
       }
-    });
+    };
+
+    this._bookmarkListElement = bookmarkList;
+    bookmarkList.addEventListener('keydown', this._handleListKeydown);
   }
 
   /**
@@ -485,6 +492,33 @@ class KeyboardNavigationManager {
     `;
 
     return html;
+  }
+
+  /**
+   * 清理事件监听器
+   * 注意：由于这是单例模式，通常不需要调用此方法
+   * 仅在扩展卸载或页面完全重新加载时使用
+   */
+  destroy() {
+    // 移除全局事件监听器
+    if (this._handleGlobalKeydown) {
+      document.removeEventListener('keydown', this._handleGlobalKeydown);
+      this._handleGlobalKeydown = null;
+    }
+
+    // 移除列表导航事件监听器
+    if (this._bookmarkListElement && this._handleListKeydown) {
+      this._bookmarkListElement.removeEventListener('keydown', this._handleListKeydown);
+      this._handleListKeydown = null;
+      this._bookmarkListElement = null;
+    }
+
+    // 清理处理器引用
+    this._handlers = {};
+
+    // 清理状态
+    this.isEnabled = true;
+    this.scope = 'global';
   }
 }
 
