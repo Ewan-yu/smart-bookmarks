@@ -441,16 +441,25 @@ class DragDropManager {
         }
       }
 
-      // 异步保存到数据库
+      // 异步保存到数据库（性能优化：并行处理所有更新请求）
       setTimeout(async () => {
-        for (const bookmark of newBookmarks) {
-          await chrome.runtime.sendMessage({
+        // 使用 Promise.all 并行发送所有更新请求，而非串行等待
+        // 这样可以将 N 个请求的总时间从 sum(latency) 降低到 max(latency)
+        const updatePromises = newBookmarks.map(bookmark =>
+          chrome.runtime.sendMessage({
             type: 'UPDATE_BOOKMARK',
             id: bookmark.id,
             data: { sortOrder: bookmark.sortOrder }
-          });
+          })
+        );
+
+        try {
+          await Promise.all(updatePromises);
+          Toast.success('排序已更新');
+        } catch (error) {
+          console.error('[DragDropManager] Batch update error:', error);
+          Toast.error('部分排序更新失败');
         }
-        Toast.success('排序已更新');
       }, 100);
 
       return { success: true };

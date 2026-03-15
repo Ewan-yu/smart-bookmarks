@@ -318,26 +318,39 @@ class ContextMenuManager {
     const isFolder = item.type === 'folder';
     const isSidebar = options.source === 'sidebar';
 
-    // 重置所有菜单项
-    this.menuElement.querySelectorAll('.ctx-item, .ctx-separator').forEach(el => {
-      el.style.display = '';
-    });
+    // 性能优化：合并DOM查询，一次性获取所有需要操作的元素
+    // 原先两次 querySelectorAll 会导致两次DOM遍历，现在只遍历一次
+    const allItems = this.menuElement.querySelectorAll('.ctx-item, .ctx-separator, [data-for]');
 
-    // 根据类型显示/隐藏
-    this.menuElement.querySelectorAll('[data-for]').forEach(el => {
-      const forType = el.dataset.for;
-      let shouldShow = false;
+    // 使用Set记录已处理的元素，避免重复操作
+    const processed = new Set();
 
-      if (forType === 'both') {
-        shouldShow = true;
-      } else if (forType === 'bookmark' && !isFolder) {
-        shouldShow = true;
-      } else if (forType === 'folder' && isFolder) {
-        shouldShow = true;
+    for (const el of allItems) {
+      // 跳过已处理的元素
+      if (processed.has(el)) continue;
+      processed.add(el);
+
+      // 重置所有菜单项和分隔符
+      if (el.classList.contains('ctx-item') || el.classList.contains('ctx-separator')) {
+        el.style.display = '';
       }
 
-      el.style.display = shouldShow ? '' : 'none';
-    });
+      // 根据类型显示/隐藏菜单项
+      if (el.hasAttribute('data-for')) {
+        const forType = el.dataset.for;
+        let shouldShow = false;
+
+        if (forType === 'both') {
+          shouldShow = true;
+        } else if (forType === 'bookmark' && !isFolder) {
+          shouldShow = true;
+        } else if (forType === 'folder' && isFolder) {
+          shouldShow = true;
+        }
+
+        el.style.display = shouldShow ? '' : 'none';
+      }
+    }
 
     // 隐藏连续的分隔符
     this._hideConsecutiveSeparators();

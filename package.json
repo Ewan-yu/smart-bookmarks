@@ -6,7 +6,12 @@
     "build:css": "tailwindcss -i src/popup/tailwind.input.css -o src/popup/tailwind.css --minify",
     "watch:css": "tailwindcss -i src/popup/tailwind.input.css -o src/popup/tailwind.css --watch",
     "build": "npm run build:css",
-    "dev": "npm run watch:css"
+    "dev": "npm run watch:css",
+    "release": "node scripts/release-prepare.js",
+    "release:major": "node scripts/release-prepare.js --major",
+    "release:minor": "node scripts/release-prepare.js --minor",
+    "release:patch": "node scripts/release-prepare.js --patch",
+    "release:dry": "node scripts/release-prepare.js --dry-run"
   },
   "keywords": [
     "bookmarks",
