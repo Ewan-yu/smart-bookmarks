@@ -1485,21 +1485,90 @@ src/popup/
 #### 待修复问题
 
 **高优先级 (P0)**:
-- [ ] 修复拖拽数据注入风险（验证数据结构）
-- [ ] 修复循环中串行异步操作（使用Promise.all）
-- [ ] 统一使用dialogManager替代手动创建对话框
+- [x] 修复拖拽数据注入风险（验证数据结构）✅ 已完成
+- [x] 修复循环中串行异步操作（使用Promise.all）✅ 已完成（drag-drop.js 已使用Promise.all）
+- [x] 统一使用dialogManager替代手动创建对话框 ✅ 已完成
 
 **中优先级 (P1)**:
-- [ ] 创建BaseTaskManager基类减少AI/Link模块重复代码
-- [ ] 统一拖拽事件处理代码
+- [x] 创建BaseTaskManager基类减少AI/Link模块重复代码 ✅ 已完成
+- [ ] 统一拖拽事件处理代码（书签和文件夹拖拽几乎相同）
 - [ ] 添加事件监听器清理机制
-- [ ] localStorage添加错误处理
+- [x] localStorage添加错误处理 ✅ 已完成
 - [ ] 使用CSS.escape防止选择器注入
 
 **低优先级 (P2)**:
 - [ ] 替换confirm()为dialogManager.confirm()
 - [ ] 优化字符串拼接使用DocumentFragment
 - [ ] 优化filter操作使用简单循环计数
+
+---
+
+## 📝 最近更新日志（2026-03-15 续）
+
+### ✅ Phase 5.3 高优先级问题修复完成
+
+#### 新增完成的工作
+
+**1. 拖拽数据验证** (`src/popup/modules/drag-drop.js`)
+- ✅ 添加 `_validateDragData()` 方法
+- ✅ 验证数据结构基本完整性
+- ✅ 验证必需字段（type, id）
+- ✅ 验证类型枚举值（bookmark/folder）
+- ✅ 验证ID格式（字符串、长度限制）
+- ✅ 添加 JSON.parse 错误处理
+- ✅ 防止恶意数据注入攻击
+
+**2. 统一对话框管理** (`src/popup/modules/ai-analysis.js`, `link-checker.js`)
+- ✅ ai-analysis.js: `_showResumeDialog()` 改用 dialogManager
+- ✅ ai-analysis.js: `_showResultDialog()` 改用 dialogManager
+- ✅ link-checker.js: `_showResultsDialog()` 改用 dialogManager
+- ✅ 移除手动创建对话框的重复代码（200+ 行）
+- ✅ 统一对话框生命周期管理
+
+**3. 安全的 localStorage 操作** (`src/popup/utils/helpers.js`)
+- ✅ 添加 `safeGetStorage()` - 带错误处理的读取
+- ✅ 添加 `safeSetStorage()` - 带错误处理的写入
+- ✅ 添加 `safeRemoveStorage()` - 带错误处理的删除
+- ✅ 添加 `safeParseJSON()` - 带错误处理的 JSON 解析
+- ✅ 处理隐私模式异常
+- ✅ 处理存储配额超限异常
+
+**4. 应用安全存储函数** (`src/popup/popup.js`, `drag-drop.js`)
+- ✅ popup.js: `loadSidebarWidth()` 使用 safeGetStorage
+- ✅ popup.js: `initResizer()` 使用 safeSetStorage
+- ✅ drag-drop.js: 侧边栏宽度保存使用 safeSetStorage
+
+**5. 基础任务管理器** (`src/popup/modules/base-task-manager.js`)
+- ✅ 创建 `BaseTaskManager` 基类
+- ✅ 提供通用任务生命周期管理
+- ✅ 提供进度UI管理
+- ✅ 提供事件绑定模板
+- ✅ 减少模块间重复代码（AI/Link 模块可继承）
+
+#### 提交记录
+- `40fe730` fix: Phase 5.3 代码审查高优先级问题修复
+
+#### 修复的高优先级问题
+1. ✅ 拖拽数据注入风险 - 添加完整的数据结构验证
+2. ✅ 统一对话框管理 - 全部改用 dialogManager
+3. ✅ localStorage 错误处理 - 添加安全包装函数
+4. ✅ 创建 BaseTaskManager - 为后续重构奠定基础
+
+#### 安全性提升
+1. **数据验证**: 拖拽数据现在经过严格验证，防止恶意注入
+2. **错误处理**: localStorage 操作失败不会导致应用崩溃
+3. **代码一致性**: 统一使用 dialogManager 减少安全漏洞风险
+
+#### 下一步待处理
+**中优先级 (P1)**:
+- 统一拖拽事件处理代码（书签和文件夹拖拽代码90%相同）
+- 添加事件监听器清理机制
+- 使用CSS.escape防止选择器注入
+
+**低优先级 (P2)**:
+- 替换 confirm() 为 dialogManager.confirm()
+- 优化字符串拼接使用 DocumentFragment
+- 优化 filter 操作
 
 ---
 
