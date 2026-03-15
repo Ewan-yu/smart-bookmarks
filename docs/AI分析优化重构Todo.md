@@ -1491,10 +1491,10 @@ src/popup/
 
 **中优先级 (P1)**:
 - [x] 创建BaseTaskManager基类减少AI/Link模块重复代码 ✅ 已完成
-- [ ] 统一拖拽事件处理代码（书签和文件夹拖拽几乎相同）
-- [ ] 添加事件监听器清理机制
+- [x] 统一拖拽事件处理代码 ✅ 已完成
+- [x] 添加事件监听器清理机制 ✅ 已完成
 - [x] localStorage添加错误处理 ✅ 已完成
-- [ ] 使用CSS.escape防止选择器注入
+- [x] 使用CSS.escape防止选择器注入 ✅ 已完成
 
 **低优先级 (P2)**:
 - [ ] 替换confirm()为dialogManager.confirm()
@@ -1569,6 +1569,53 @@ src/popup/
 - 替换 confirm() 为 dialogManager.confirm()
 - 优化字符串拼接使用 DocumentFragment
 - 优化 filter 操作
+
+---
+
+## 📝 最近更新日志（2026-03-15 续 IV）
+
+### ✅ P1 中优先级问题修复完成
+
+#### 新增完成的工作
+
+**1. 统一拖拽事件处理** (`src/popup/modules/drag-drop.js`)
+- ✅ 提取通用方法 `_onDragStart()` - 统一处理拖拽开始
+- ✅ 提取通用方法 `_onDragEnd()` - 统一处理拖拽结束
+- ✅ 提取通用方法 `_onDragLeave()` - 统一处理拖拽离开（带边界检查）
+- ✅ 书签和文件夹拖拽共用同一套逻辑
+- ✅ 减少重复代码 50+ 行
+
+**2. 事件监听器清理机制** (`context-menu.js`, `keyboard.js`)
+- ✅ context-menu.js:
+  - 保存事件处理器引用为实例属性
+  - 添加 `destroy()` 方法正确移除事件监听器
+  - 清理 document 上的点击和上下文菜单事件
+- ✅ keyboard.js:
+  - 保存全局键盘事件处理器引用
+  - 保存列表导航事件处理器引用
+  - 添加 `destroy()` 方法清理所有事件监听器
+  - 防止内存泄漏
+
+**3. 防止选择器注入** (`helpers.js`, `drag-drop.js`)
+- ✅ helpers.js: 添加 `safeQuery()` 安全查询函数
+- ✅ helpers.js: 添加 `safeQueryAll()` 安全查询函数
+- ✅ 包含 CSS.escape polyfill（兼容旧浏览器）
+- ✅ drag-drop.js: 更新所有 querySelector 调用使用安全函数
+- ✅ 防止恶意 ID 导致的选择器注入攻击
+
+#### 提交记录
+- `45408a3` fix: 完成 P1 中优先级问题修复
+
+#### 代码质量提升
+1. **减少重复**: 拖拽代码从 100+ 行减少到 60 行
+2. **内存安全**: 正确清理事件监听器，防止内存泄漏
+3. **安全加固**: 防止选择器注入攻击
+
+#### 剩余待处理
+**低优先级 (P2)**:
+- [ ] 替换 confirm() 为 dialogManager.confirm()
+- [ ] 优化字符串拼接使用 DocumentFragment
+- [ ] 优化 filter 操作使用简单循环计数
 
 ---
 
