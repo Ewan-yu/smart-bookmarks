@@ -6,6 +6,7 @@
 import eventBus from '../utils/event-bus.js';
 import { escapeHtml, truncateUrl, formatDate } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
+import dialogManager from './dialog.js';
 
 /**
  * 链接检测管理器
@@ -219,70 +220,68 @@ class LinkCheckerManager {
     const broken = results.filter(r => r.status === 'invalid' || r.status === 'uncertain');
     const valid = results.filter(r => r.status === 'valid');
 
-    const dialog = document.createElement('div');
-    dialog.className = 'confirm-dialog-overlay';
-    dialog.innerHTML = `
-      <div class="confirm-dialog" style="max-width: 600px;">
-        <div class="dialog-header">
-          <h2>⚠️ 链接检测结果</h2>
-          <button class="dialog-close" data-check-close>&times;</button>
+    // 构建结果摘要 HTML
+    const summaryHtml = `
+      <div class="check-result-summary">
+        <div class="check-stat-item">
+          <span class="check-stat-label">已检测</span>
+          <span class="check-stat-value">${results.length}</span>
         </div>
-        <div class="dialog-content">
-          <div class="check-result-summary">
-            <div class="check-stat-item">
-              <span class="check-stat-label">已检测</span>
-              <span class="check-stat-value">${results.length}</span>
-            </div>
-            <div class="check-stat-item">
-              <span class="check-stat-label">有效</span>
-              <span class="check-stat-value" style="color: var(--c-success);">${valid.length}</span>
-            </div>
-            <div class="check-stat-item">
-              <span class="check-stat-label">失效</span>
-              <span class="check-stat-value" style="color: var(--c-danger);">${broken.length}</span>
-            </div>
-          </div>
-
-          ${broken.length > 0 ? `
-            <div class="broken-bookmarks-section">
-              <h3 style="font-size: 14px; font-weight: 600; margin: 16px 0 12px;">失效链接</h3>
-              <div class="broken-bookmarks-list" style="max-height: 300px; overflow-y: auto;">
-                ${broken.map(item => this._renderBrokenItem(item)).join('')}
-              </div>
-            </div>
-          ` : `
-            <div class="empty-state">
-              <h3>✓ 所有链接都有效</h3>
-              <p>没有发现失效链接</p>
-            </div>
-          `}
+        <div class="check-stat-item">
+          <span class="check-stat-label">有效</span>
+          <span class="check-stat-value" style="color: var(--c-success);">${valid.length}</span>
         </div>
-        <div class="dialog-footer">
-          <button class="btn btn-cancel" data-check-close>关闭</button>
-          ${broken.length > 0 ? `
-            <button class="btn btn-primary" style="background: var(--c-danger);" data-check-cleanup>
-              清理失效链接
-            </button>
-          ` : ''}
+        <div class="check-stat-item">
+          <span class="check-stat-label">失效</span>
+          <span class="check-stat-value" style="color: var(--c-danger);">${broken.length}</span>
         </div>
       </div>
+
+      ${broken.length > 0 ? `
+        <div class="broken-bookmarks-section">
+          <h3 style="font-size: 14px; font-weight: 600; margin: 16px 0 12px;">失效链接</h3>
+          <div class="broken-bookmarks-list" style="max-height: 300px; overflow-y: auto;">
+            ${broken.map(item => this._renderBrokenItem(item)).join('')}
+          </div>
+        </div>
+      ` : `
+        <div class="empty-state">
+          <h3>✓ 所有链接都有效</h3>
+          <p>没有发现失效链接</p>
+        </div>
+      `}
     `;
 
-    document.body.appendChild(dialog);
-
-    // 绑定事件
-    dialog.querySelector('[data-check-close]').addEventListener('click', () => {
-      dialog.remove();
-    });
+    // 构建按钮配置
+    const buttons = [
+      {
+        text: '关闭',
+        class: 'btn-cancel',
+        onClick: () => {
+          // 点击关闭，只关闭对话框
+        }
+      }
+    ];
 
     if (broken.length > 0) {
-      dialog.querySelector('[data-check-cleanup]').addEventListener('click', () => {
-        this._cleanupBrokenLinks(broken);
-        dialog.remove();
+      buttons.push({
+        text: '清理失效链接',
+        class: 'btn-primary',
+        style: 'background: var(--c-danger);',
+        onClick: () => {
+          this._cleanupBrokenLinks(broken);
+        }
       });
     }
 
-    setTimeout(() => dialog.classList.add('show'), 10);
+    // 使用 dialogManager 创建对话框
+    const dialog = dialogManager.custom({
+      title: '⚠️ 链接检测结果',
+      content: summaryHtml,
+      buttons: buttons
+    });
+
+    dialog.show();
   }
 
   /**

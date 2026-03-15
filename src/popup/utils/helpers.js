@@ -476,3 +476,73 @@ export function formatPath(path, separator = ' › ') {
   if (!Array.isArray(path)) return '';
   return path.join(separator);
 }
+
+// ==================== 存储函数 ====================
+
+/**
+ * 安全地从 localStorage 读取数据
+ * 处理隐私模式和存储配额超限等异常情况
+ * @param {string} key - 存储键
+ * @param {*} defaultValue - 默认值（当读取失败或不存在时返回）
+ * @returns {*} 存储的值或默认值
+ */
+export function safeGetStorage(key, defaultValue = null) {
+  try {
+    const item = localStorage.getItem(key);
+    if (item === null) return defaultValue;
+    return item;
+  } catch (error) {
+    console.warn(`[Storage] Failed to read localStorage key "${key}":`, error.message);
+    // 可能是隐私模式或存储已满
+    return defaultValue;
+  }
+}
+
+/**
+ * 安全地向 localStorage 写入数据
+ * 处理隐私模式和存储配额超限等异常情况
+ * @param {string} key - 存储键
+ * @param {string} value - 要存储的值
+ * @returns {boolean} 是否成功
+ */
+export function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+    return true;
+  } catch (error) {
+    console.warn(`[Storage] Failed to write localStorage key "${key}":`, error.message);
+    // 可能是隐私模式或存储已满
+    return false;
+  }
+}
+
+/**
+ * 安全地从 localStorage 移除数据
+ * @param {string} key - 存储键
+ * @returns {boolean} 是否成功
+ */
+export function safeRemoveStorage(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    console.warn(`[Storage] Failed to remove localStorage key "${key}":`, error.message);
+    return false;
+  }
+}
+
+/**
+ * 解析 JSON 字符串（带错误处理）
+ * @param {string} jsonStr - JSON字符串
+ * @param {*} defaultValue - 默认值（解析失败时返回）
+ * @returns {*} 解析后的对象或默认值
+ */
+export function safeParseJSON(jsonStr, defaultValue = null) {
+  if (!jsonStr || typeof jsonStr !== 'string') return defaultValue;
+  try {
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.warn('[JSON] Failed to parse:', error.message);
+    return defaultValue;
+  }
+}

@@ -4,8 +4,9 @@
  */
 
 import eventBus from '../utils/event-bus.js';
-import { escapeHtml } from '../utils/helpers.js';
+import { escapeHtml, truncateUrl } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
+import dialogManager from './dialog.js';
 
 /**
  * AI 分析管理器
@@ -170,67 +171,59 @@ class AIAnalysisManager {
     const sessionTime = new Date(session.startTime).toLocaleString('zh-CN');
     const { completedBatches, totalBatches, bookmarkCount, lastError } = session;
 
-    const dialog = document.createElement('div');
-    dialog.className = 'confirm-dialog-overlay';
-    dialog.innerHTML = `
-      <div class="confirm-dialog" style="max-width: 480px;">
-        <div class="dialog-header">
-          <h2>📊 继续分析</h2>
-          <button class="dialog-close" data-resume-close>&times;</button>
+    // 构建会话信息 HTML
+    const sessionInfoHtml = `
+      <p style="margin-bottom: 16px; color: var(--c-text-muted); line-height: 1.6;">
+        检测到上次未完成的分析任务：
+      </p>
+      <div style="background: var(--c-bg-alt); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: var(--c-text-muted);">开始时间：</span>
+          <span style="color: var(--c-text); font-weight: 500;">${sessionTime}</span>
         </div>
-        <div class="dialog-content">
-          <p style="margin-bottom: 16px; color: var(--c-text-muted); line-height: 1.6;">
-            检测到上次未完成的分析任务：
-          </p>
-          <div style="background: var(--c-bg-alt); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="color: var(--c-text-muted);">开始时间：</span>
-              <span style="color: var(--c-text); font-weight: 500;">${sessionTime}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="color: var(--c-text-muted);">书签数量：</span>
-              <span style="color: var(--c-text); font-weight: 500;">${bookmarkCount}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="color: var(--c-text-muted);">进度：</span>
-              <span style="color: var(--c-text); font-weight: 500;">${completedBatches}/${totalBatches} 批次</span>
-            </div>
-            ${lastError ? `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-border);">
-                <span style="color: var(--c-danger);">⚠️ ${escapeHtml(lastError)}</span>
-              </div>
-            ` : ''}
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: var(--c-text-muted);">书签数量：</span>
+          <span style="color: var(--c-text); font-weight: 500;">${bookmarkCount}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: var(--c-text-muted);">进度：</span>
+          <span style="color: var(--c-text); font-weight: 500;">${completedBatches}/${totalBatches} 批次</span>
+        </div>
+        ${lastError ? `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-border);">
+            <span style="color: var(--c-danger);">⚠️ ${escapeHtml(lastError)}</span>
           </div>
-          <p style="font-size: 13px; color: var(--c-text-muted);">是否继续上次的分析？</p>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn btn-cancel" data-resume-cancel>重新开始</button>
-          <button class="btn btn-primary" data-resume-confirm>继续分析</button>
-        </div>
+        ` : ''}
       </div>
+      <p style="font-size: 13px; color: var(--c-text-muted);">是否继续上次的分析？</p>
     `;
 
-    document.body.appendChild(dialog);
-
-    // 绑定事件
-    dialog.querySelector('[data-resume-close]').addEventListener('click', () => {
-      dialog.remove();
+    // 使用 dialogManager 创建对话框
+    const dialog = dialogManager.custom({
+      title: '📊 继续分析',
+      content: sessionInfoHtml,
+      buttons: [
+        {
+          text: '重新开始',
+          class: 'btn-cancel',
+          onClick: async () => {
+            await chrome.runtime.sendMessage({
+              type: 'CLEAR_ANALYSIS_SESSION'
+            }).catch(() => {});
+            this.start(); // 重新开始
+          }
+        },
+        {
+          text: '继续分析',
+          class: 'btn-primary',
+          onClick: () => {
+            this._resumeAnalysis();
+          }
+        }
+      ]
     });
 
-    dialog.querySelector('[data-resume-cancel]').addEventListener('click', async () => {
-      await chrome.runtime.sendMessage({
-        type: 'CLEAR_ANALYSIS_SESSION'
-      }).catch(() => {});
-      dialog.remove();
-      this.start(); // 重新开始
-    });
-
-    dialog.querySelector('[data-resume-confirm]').addEventListener('click', () => {
-      dialog.remove();
-      this._resumeAnalysis();
-    });
-
-    setTimeout(() => dialog.classList.add('show'), 10);
+    dialog.show();
   }
 
   /**
@@ -332,78 +325,73 @@ class AIAnalysisManager {
     const newCatCount = categories.filter(c => c.isNew).length;
     const uniqueTagNames = [...new Set(categories.flatMap(c => c.tags || []))];
 
-    const dialog = document.createElement('div');
-    dialog.className = 'confirm-dialog-overlay';
-    dialog.innerHTML = `
-      <div class="confirm-dialog analysis-dialog">
-        <div class="dialog-header analysis-dialog-header">
-          <h2>🤖 AI 分析完成</h2>
-          <button class="dialog-close" data-analysis-close>&times;</button>
+    // 构建结果内容 HTML
+    const resultHtml = `
+      <div class="analysis-summary">
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value">${summary.totalBookmarks}</div>
+          <div class="analysis-summary-label">个收藏</div>
         </div>
-        <div class="dialog-content analysis-dialog-content">
-          <div class="analysis-summary">
-            <div class="analysis-summary-item">
-              <div class="analysis-summary-value">${summary.totalBookmarks}</div>
-              <div class="analysis-summary-label">个收藏</div>
-            </div>
-            <div class="analysis-summary-item">
-              <div class="analysis-summary-value primary">${categories.length}</div>
-              <div class="analysis-summary-label">
-                个分类${newCatCount > 0 ? ` <span class="analysis-summary-highlight">(${newCatCount} 新增)</span>` : ''}
-              </div>
-            </div>
-            <div class="analysis-summary-item">
-              <div class="analysis-summary-value success">${uniqueTagNames.length}</div>
-              <div class="analysis-summary-label">个标签建议</div>
-            </div>
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value primary">${categories.length}</div>
+          <div class="analysis-summary-label">
+            个分类${newCatCount > 0 ? ` <span class="analysis-summary-highlight">(${newCatCount} 新增)</span>` : ''}
           </div>
-
-          <details class="analysis-categories-section" open>
-            <summary class="analysis-categories-header">
-              📁 分类整理方案
-            </summary>
-            <div class="analysis-categories-list">
-              ${this._renderCategories(categories)}
-            </div>
-          </details>
-
-          ${tags && tags.length > 0 ? `
-            <details class="analysis-tags-section">
-              <summary class="analysis-tags-header">
-                🏷️ 标签建议
-              </summary>
-              <div class="analysis-tags-list">
-                ${tags.map(tag => `
-                  <span class="analysis-tag-item">${escapeHtml(tag)}</span>
-                `).join('')}
-              </div>
-            </details>
-          ` : ''}
         </div>
-        <div class="dialog-footer">
-          <button class="btn btn-cancel" data-analysis-cancel>取消</button>
-          <button class="btn btn-primary" data-analysis-apply>应用整理</button>
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value success">${uniqueTagNames.length}</div>
+          <div class="analysis-summary-label">个标签建议</div>
         </div>
       </div>
+
+      <details class="analysis-categories-section" open>
+        <summary class="analysis-categories-header">
+          📁 分类整理方案
+        </summary>
+        <div class="analysis-categories-list">
+          ${this._renderCategories(categories)}
+        </div>
+      </details>
+
+      ${tags && tags.length > 0 ? `
+        <details class="analysis-tags-section">
+          <summary class="analysis-tags-header">
+            🏷️ 标签建议
+          </summary>
+          <div class="analysis-tags-list">
+            ${tags.map(tag => `
+              <span class="analysis-tag-item">${escapeHtml(tag)}</span>
+            `).join('')}
+          </div>
+        </details>
+      ` : ''}
     `;
 
-    document.body.appendChild(dialog);
-
-    // 绑定事件
-    dialog.querySelector('[data-analysis-close]').addEventListener('click', () => {
-      dialog.remove();
+    // 使用 dialogManager 创建对话框
+    const dialog = dialogManager.custom({
+      title: '🤖 AI 分析完成',
+      content: resultHtml,
+      contentClass: 'analysis-dialog-content',
+      dialogClass: 'analysis-dialog',
+      buttons: [
+        {
+          text: '取消',
+          class: 'btn-cancel',
+          onClick: () => {
+            // 点击取消，只关闭对话框
+          }
+        },
+        {
+          text: '应用整理',
+          class: 'btn-primary',
+          onClick: async () => {
+            await this._applyAnalysis(analysisResult);
+          }
+        }
+      ]
     });
 
-    dialog.querySelector('[data-analysis-cancel]').addEventListener('click', () => {
-      dialog.remove();
-    });
-
-    dialog.querySelector('[data-analysis-apply]').addEventListener('click', async () => {
-      await this._applyAnalysis(analysisResult);
-      dialog.remove();
-    });
-
-    setTimeout(() => dialog.classList.add('show'), 10);
+    dialog.show();
   }
 
   /**

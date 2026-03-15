@@ -5,6 +5,7 @@
 
 import eventBus from '../utils/event-bus.js';
 import stateManager from './state.js';
+import { safeSetStorage } from '../utils/helpers.js';
 
 /**
  * 拖拽管理器
@@ -104,8 +105,8 @@ class DragDropManager {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
-      // 保存侧边栏宽度
-      localStorage.setItem('sidebarWidth', String(stateManager.get('sidebarWidth')));
+      // 保存侧边栏宽度（使用安全的存储函数）
+      safeSetStorage('sidebarWidth', String(stateManager.get('sidebarWidth')));
 
       eventBus.emit(eventBus.Events.SIDEBAR_RESIZE_ENDED, {
         width: stateManager.get('sidebarWidth')
@@ -331,6 +332,37 @@ class DragDropManager {
   }
 
   /**
+   * 验证拖拽数据结构
+   * @param {Object} dragData - 拖拽数据
+   * @returns {boolean} 是否有效
+   * @private
+   */
+  _validateDragData(dragData) {
+    // 验证基本结构
+    if (!dragData || typeof dragData !== 'object') {
+      return false;
+    }
+
+    // 验证必需字段
+    if (!dragData.type || !dragData.id) {
+      return false;
+    }
+
+    // 验证类型字段
+    const validTypes = ['bookmark', 'folder'];
+    if (!validTypes.includes(dragData.type)) {
+      return false;
+    }
+
+    // 验证ID格式（字符串，长度合理）
+    if (typeof dragData.id !== 'string' || dragData.id.length > 100) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * 文件夹放置
    * @private
    */
@@ -342,7 +374,21 @@ class DragDropManager {
       const dragDataStr = e.dataTransfer.getData('text/plain');
       if (!dragDataStr) return;
 
-      const dragData = JSON.parse(dragDataStr);
+      let dragData;
+      try {
+        dragData = JSON.parse(dragDataStr);
+      } catch (parseError) {
+        console.error('[DragDropManager] Invalid drag data format:', parseError);
+        Toast.error('无效的拖拽数据');
+        return;
+      }
+
+      // 验证拖拽数据结构（防止注入攻击）
+      if (!this._validateDragData(dragData)) {
+        console.error('[DragDropManager] Drag data validation failed:', dragData);
+        Toast.error('拖拽数据格式无效');
+        return;
+      }
 
       // 不允许拖拽到自己或自己的子文件夹中
       if (dragData.id === targetFolder.id) {

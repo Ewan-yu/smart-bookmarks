@@ -3,6 +3,7 @@
 
 import { TreeRenderer, SearchResultsRenderer, ContextMenuRenderer } from '../ui/renderers.js';
 import { Toast, ProgressBar, LoadingSpinner, EmptyState, ConfirmDialog } from '../ui/components.js';
+import { safeGetStorage, safeSetStorage } from './utils/helpers.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -3559,7 +3560,7 @@ function escapeHtml(text) {
 // ─────────────────────────── 侧栏宽度 ───────────────────────────
 
 function loadSidebarWidth() {
-  const saved = localStorage.getItem('sidebarWidth');
+  const saved = safeGetStorage('sidebarWidth');
   if (saved) {
     const w = parseInt(saved, 10);
     if (w >= 180 && w <= 480) {
@@ -3620,7 +3621,7 @@ function initResizer() {
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    localStorage.setItem('sidebarWidth', String(state.sidebarWidth));
+    safeSetStorage('sidebarWidth', String(state.sidebarWidth));
   });
 }
 
