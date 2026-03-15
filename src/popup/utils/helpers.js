@@ -435,3 +435,44 @@ export const CSSVars = {
 export function getCssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
+
+/**
+ * 构建分类面包屑路径
+ * @param {Object} category - 分类对象
+ * @param {Array} categories - 所有分类数组
+ * @returns {Array} 路径数组（从根到当前分类）
+ */
+export function buildCategoryPath(category, categories) {
+  if (!category) return [];
+
+  const path = [category.name];
+  let currentCat = category;
+  const visited = new Set();
+
+  // 向上遍历父分类
+  while (currentCat.parentId && !visited.has(currentCat.id)) {
+    visited.add(currentCat.id);
+
+    const parentCat = categories.find(c => c.id === currentCat.parentId);
+    if (!parentCat) break;
+
+    path.unshift(parentCat.name);
+    currentCat = parentCat;
+
+    // 防止无限循环（最多10层）
+    if (path.length > 10) break;
+  }
+
+  return path;
+}
+
+/**
+ * 格式化路径为字符串
+ * @param {Array} path - 路径数组
+ * @param {string} separator - 分隔符（默认 ' › '）
+ * @returns {string} 格式化的路径字符串
+ */
+export function formatPath(path, separator = ' › ') {
+  if (!Array.isArray(path)) return '';
+  return path.join(separator);
+}

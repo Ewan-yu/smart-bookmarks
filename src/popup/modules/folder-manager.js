@@ -4,7 +4,7 @@
  */
 
 import eventBus from '../utils/event-bus.js';
-import { escapeHtml, buildCategoryPath } from '../utils/helpers.js';
+import { escapeHtml } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
 
 /**

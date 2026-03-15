@@ -3,7 +3,7 @@
  * 集中管理应用状态，提供状态读取、更新和订阅功能
  */
 
-import eventBus from './event-bus.js';
+import eventBus from '../utils/event-bus.js';
 
 /**
  * 状态管理器
