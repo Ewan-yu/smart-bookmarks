@@ -10,6 +10,16 @@ import { escapeHtml } from '../utils/helpers.js';
  * 基础对话框类
  */
 class BaseDialog {
+  // 焦点选择器常量
+  static FOCUSABLE_SELECTORS = [
+    'button:not([disabled])',
+    '[href]',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])'
+  ].join(', ');
+
   constructor(options = {}) {
     this.id = options.id || `dialog-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     this.title = options.title || '';
@@ -197,17 +207,8 @@ class BaseDialog {
    * @private
    */
   _focusFirstElement() {
-    const focusableSelectors = [
-      'button:not([disabled])',
-      '[href]',
-      'input:not([disabled])',
-      'select:not([disabled])',
-      'textarea:not([disabled])',
-      '[tabindex]:not([tabindex="-1"])'
-    ].join(', ');
-
     const dialog = this.overlay.querySelector('.confirm-dialog');
-    const focusableElements = dialog.querySelectorAll(focusableSelectors);
+    const focusableElements = dialog.querySelectorAll(BaseDialog.FOCUSABLE_SELECTORS);
 
     if (focusableElements.length > 0) {
       focusableElements[0].focus();
@@ -233,16 +234,7 @@ class BaseDialog {
    */
   _handleTabKey(e) {
     const dialog = this.overlay.querySelector('.confirm-dialog');
-    const focusableSelectors = [
-      'button:not([disabled])',
-      '[href]',
-      'input:not([disabled])',
-      'select:not([disabled])',
-      'textarea:not([disabled])',
-      '[tabindex]:not([tabindex="-1"])'
-    ].join(', ');
-
-    const focusableElements = Array.from(dialog.querySelectorAll(focusableSelectors));
+    const focusableElements = Array.from(dialog.querySelectorAll(BaseDialog.FOCUSABLE_SELECTORS));
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
@@ -273,12 +265,14 @@ class BaseDialog {
 
   /**
    * 更新内容
-   * @param {string} content - 新内容
+   * @param {string} content - 新内容（已转义的HTML）
    */
   updateContent(content) {
     this.content = content;
     const contentEl = this.overlay?.querySelector('.dialog-content');
     if (contentEl) {
+      // 安全：content应该已经被调用者转义，这里直接设置
+      // 如果需要设置纯文本，使用textContent
       contentEl.innerHTML = content;
     }
   }

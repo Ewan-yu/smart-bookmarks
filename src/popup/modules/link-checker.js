@@ -27,7 +27,25 @@ class LinkCheckerManager {
    * 初始化链接检测
    */
   init() {
+    this._cacheDOMElements();
     this._bindEvents();
+  }
+
+  /**
+   * 缓存DOM元素引用
+   * @private
+   */
+  _cacheDOMElements() {
+    // 缓存进度UI元素，避免重复查询
+    this._progressElements = {
+      section: document.getElementById('checkProgressSection'),
+      fill: document.getElementById('checkProgressFill'),
+      count: document.getElementById('checkProgressCount'),
+      sub: document.getElementById('checkProgressSub'),
+      cancelBtn: document.getElementById('cancelCheckBtn'),
+      taskPanel: document.getElementById('taskPanel'),
+      taskPanelToggle: document.getElementById('taskPanelToggle')
+    };
   }
 
   /**
@@ -133,11 +151,10 @@ class LinkCheckerManager {
    * @private
    */
   _showProgressUI() {
-    const progressSection = document.getElementById('checkProgressSection');
-    const cancelBtn = document.getElementById('cancelCheckBtn');
+    const { section, cancelBtn, taskPanel, taskPanelToggle } = this._progressElements;
 
-    if (progressSection) {
-      progressSection.style.display = 'block';
+    if (section) {
+      section.style.display = 'block';
     }
 
     if (cancelBtn) {
@@ -146,10 +163,8 @@ class LinkCheckerManager {
     }
 
     // 展开任务面板
-    const taskPanel = document.getElementById('taskPanel');
     if (taskPanel && taskPanel.classList.contains('collapsed')) {
-      const toggleBtn = document.getElementById('taskPanelToggle');
-      if (toggleBtn) toggleBtn.click();
+      if (taskPanelToggle) taskPanelToggle.click();
     }
   }
 
@@ -158,25 +173,24 @@ class LinkCheckerManager {
    * @private
    */
   _updateProgressUI() {
-    const progressFill = document.getElementById('checkProgressFill');
-    const progressCount = document.getElementById('checkProgressCount');
-    const progressSub = document.getElementById('checkProgressSub');
+    const { fill, count, sub } = this._progressElements;
 
-    if (progressFill) {
+    if (fill) {
       const percent = this.checkProgress.total > 0
         ? Math.round((this.checkProgress.current / this.checkProgress.total) * 100)
         : 0;
-      progressFill.style.width = `${percent}%`;
+      fill.style.width = `${percent}%`;
     }
 
-    if (progressCount) {
-      progressCount.textContent = `${this.checkProgress.current}/${this.checkProgress.total}`;
+    if (count) {
+      count.textContent = `${this.checkProgress.current}/${this.checkProgress.total}`;
     }
 
-    if (progressSub) {
+    if (sub) {
       const remaining = this.checkProgress.total - this.checkProgress.current;
-      const eta = remaining > 0 ? `约 ${Math.ceil(remaining / 2)} 秒` : '';
-      progressSub.textContent = eta;
+      const CHECK_RATE = 2; // 每秒检测的链接数
+      const eta = remaining > 0 ? `约 ${Math.ceil(remaining / CHECK_RATE)} 秒` : '';
+      sub.textContent = eta;
     }
   }
 
@@ -185,11 +199,10 @@ class LinkCheckerManager {
    * @private
    */
   _hideProgressUI() {
-    const progressSection = document.getElementById('checkProgressSection');
-    const cancelBtn = document.getElementById('cancelCheckBtn');
+    const { section, cancelBtn } = this._progressElements;
 
-    if (progressSection) {
-      progressSection.style.display = 'none';
+    if (section) {
+      section.style.display = 'none';
     }
 
     if (cancelBtn) {
