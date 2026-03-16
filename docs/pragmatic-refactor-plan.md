@@ -713,6 +713,37 @@ showDialog({
 
 ---
 
+## 📝 更新日志
+
+### 2026-03-16 - 右键菜单模块修复 ✅
+
+**问题**: 集成 `context-menu.js` 模块后右键菜单不显示
+
+**修复内容**:
+1. **移除旧的 ContextMenuRenderer**: 从 `popup.js` 中移除了旧的 `ContextMenuRenderer` 导入和实例化，统一使用 `contextMenuManager` 模块
+2. **修复 DOM 加载时序**: `init()` 函数添加了 DOM 加载状态检查，确保在 DOM 完全加载后才初始化
+3. **修复 show() 方法**: 调整了 `_calculatePosition()` 和 `display: block` 的调用顺序，避免菜单被重新隐藏
+
+**代码变更**:
+- `src/popup/popup.js`:
+  - 移除 `ContextMenuRenderer` 导入
+  - 移除 `contextMenu` 变量声明
+  - 移除创建 `ContextMenuRenderer` 实例的代码
+  - 删除 `getContextMenuItems()` 函数
+  - 移除全局 `contextmenu` 事件监听器（避免冲突）
+  - 添加 DOM 加载状态检查
+
+- `src/popup/modules/context-menu.js`:
+  - 添加调试日志
+  - 调整 `show()` 方法中计算位置和显示菜单的顺序
+
+**收益**:
+- ✅ 右键菜单正常显示
+- ✅ 代码更清晰，统一使用模块化方案
+- ✅ 消除了双系统共存导致的冲突
+
+---
+
 **规划人**: Claude Code
 **规划日期**: 2026-03-16
-**文档版本**: 1.0
+**文档版本**: 1.1

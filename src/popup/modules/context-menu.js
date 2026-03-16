@@ -250,7 +250,10 @@ class ContextMenuManager {
    * @param {Object} options - 选项
    */
   show(item, x, y, options = {}) {
-    if (!this.menuElement) return;
+    if (!this.menuElement) {
+      console.error('[ContextMenu] menuElement is null!');
+      return;
+    }
 
     this.currentItem = item;
     this.currentOptions = options;
@@ -267,11 +270,11 @@ class ContextMenuManager {
     // 根据项目类型显示/隐藏菜单项
     this._updateMenuVisibility(item, options);
 
+    // 计算位置，防止超出视口（必须在显示菜单之前）
+    const position = this._calculatePosition(x, y);
+
     // 显示菜单
     this.menuElement.style.display = 'block';
-
-    // 计算位置，防止超出视口
-    const position = this._calculatePosition(x, y);
     this.menuElement.style.left = `${position.left}px`;
     this.menuElement.style.top = `${position.top}px`;
 

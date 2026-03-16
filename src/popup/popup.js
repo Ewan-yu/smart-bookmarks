@@ -1,7 +1,7 @@
 // Smart Bookmarks - Popup Script
 // 主入口文件 - 完整版，集成 UI 组件和渲染器
 
-import { TreeRenderer, SearchResultsRenderer, ContextMenuRenderer } from '../ui/renderers.js';
+import { TreeRenderer, SearchResultsRenderer } from '../ui/renderers.js';
 import { Toast, ProgressBar, LoadingSpinner, EmptyState, ConfirmDialog } from '../ui/components.js';
 import {
   safeGetStorage,
@@ -92,7 +92,6 @@ const state = {
 // 渲染器实例（将在 DOM 加载后初始化）
 let treeRenderer = null;
 let searchRenderer = null;
-let contextMenu = null;
 
 // 初始化
 function init() {
@@ -249,29 +248,7 @@ function initRenderers() {
     onItemRightClick: handleBookmarkRightClick
   });
 
-  // 右键菜单渲染器
-  contextMenu = new ContextMenuRenderer({
-    items: getContextMenuItems(),
-    onAction: handleContextMenuAction
-  });
-}
-
-/**
- * 获取右键菜单项配置
- */
-function getContextMenuItems() {
-  return [
-    { icon: '🔗', label: '打开链接', action: 'open', shortcut: 'Enter' },
-    { separator: true },
-    { icon: '✏️', label: '编辑', action: 'edit' },
-    { icon: '📋', label: '复制链接', action: 'copy', shortcut: 'Ctrl+C' },
-    { icon: '📁', label: '移动到...', action: 'move' },
-    { separator: true },
-    { icon: '🏷️', label: '添加标签', action: 'addTag' },
-    { icon: '✅', label: '检测链接', action: 'check' },
-    { separator: true },
-    { icon: '🗑️', label: '删除', action: 'delete', shortcut: 'Del' }
-  ];
+  // 右键菜单由 contextMenuManager 模块处理
 }
 
 /**
@@ -1529,14 +1506,9 @@ function bindEvents() {
   }
 
   // 点击其他地方关闭上下文菜单
+  // 注意：contextMenuManager 模块已经处理了点击外部关闭菜单的逻辑
   document.addEventListener('click', (e) => {
     if (!elements.contextMenuEl.contains(e.target)) {
-      hideContextMenu();
-    }
-  });
-  document.addEventListener('contextmenu', (e) => {
-    // 若不是书签行触发，关闭菜单
-    if (!e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row')) {
       hideContextMenu();
     }
   });
@@ -4517,5 +4489,9 @@ function showRenameFolderDialog(folder) {
   setTimeout(() => dialog.classList.add('show'), 10);
 }
 
-// 启动应用
-init();
+// 启动应用（确保 DOM 已加载）
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

@@ -7,6 +7,22 @@
 
 ---
 
+## [2.0.1] - 2026-03-16
+
+### 修复
+- 修复右键菜单不显示的问题
+  - 移除旧的 ContextMenuRenderer，统一使用 contextMenuManager 模块
+  - 修复 init() 函数的 DOM 加载时序问题
+  - 修复 show() 方法中 _calculatePosition() 导致 display 被重置的问题
+- 移除 popup.js 中冗余的全局 contextmenu 事件监听器
+
+### 重构
+- popup.js 模块化改进
+  - 移除 getContextMenuItems() 函数（由模块内部管理）
+  - 简化右键菜单相关代码
+
+---
+
 ## [2.0.0] - 待定
 
 ### 新增功能
