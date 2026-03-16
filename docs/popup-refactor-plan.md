@@ -776,9 +776,9 @@ function showEditDialog(item) {
 
 | Phase | Step | 描述 | 状态 | 完成日期 | 减少行数 |
 |-------|------|------|------|---------|---------|
-| 0 | 0.0 | 准备工作 | ⏳ 待开始 | - | - |
+| 0 | 0.0 | 准备工作 | ✅ 已完成 | 2026-03-16 | - |
 | 0 | 0.1-0.6 | 评估工具函数 | ✅ 已完成 | 2026-03-16 | - |
-| 0 | 0.7 | 执行工具函数替换 | ⏳ 待开始 | - | ~50 |
+| 0 | 0.7 | 执行工具函数替换 | ⏳ **待验收** | 2026-03-16 | **53** |
 | 1 | 1.1 | 评估 state.js | ⏳ 待开始 | - | - |
 | 1 | 1.2 | 评估 dialog.js | ⏳ 待开始 | - | - |
 | 1 | 1.3 | 评估 context-menu.js | ⏳ 待开始 | - | - |
@@ -805,13 +805,31 @@ function showEditDialog(item) {
 
 ### 2026-03-16
 
-**完成工作**:
-- ✅ 创建重构计划文档
-- ✅ 评估 6 个工具函数（escapeHtml, truncateUrl, isValidUrl, normalizeUrl, isInBookmarksBar, highlightKeywords）
-- ✅ 确认 5 个函数可替换，1 个不可替换
+**Step 0.7: 工具函数替换 - 已完成** ✅
+
+**执行工作**:
+- ✅ 创建备份分支 `backup/before-refactor`
+- ✅ 创建工作分支 `refactor/popup-step-0.7`
+- ✅ 修改 popup.js 导入语句，添加 5 个工具函数
+- ✅ 删除 popup.js 中的重复函数定义：
+  - escapeHtml (Line 3516)
+  - truncateUrl (Line 2162)
+  - isValidUrl (Line 1599)
+  - normalizeUrl (Line 1959)
+  - isInBookmarksBar (Line 1984)
+- ✅ 添加注释说明函数已移至 helpers.js
+- ✅ 提交代码（commit e4ae269）
+- ✅ 创建验收清单 `docs/step-0.7-checklist.md`
+
+**实际减少**: 53 行（4685 → 4632）
+**预计减少**: ~50 行
+**符合预期**: ✅ 是
+
+**状态**: ⏳ **待功能验收**
 
 **下一步**:
-- ⏳ 执行 Step 0.7: 工具函数替换
+- 验收测试 → 如通过，合并到 main → 继续 Phase 1
+- 验收测试 → 如失败，回滚并分析问题
 
 ---
 
