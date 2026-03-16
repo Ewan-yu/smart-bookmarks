@@ -23,7 +23,11 @@ class ContextMenuManager {
    * 初始化右键菜单
    */
   init() {
+    console.log('[ContextMenu.init] 开始初始化');
+
     this.menuElement = document.getElementById('contextMenuEl');
+    console.log('[ContextMenu.init] menuElement:', this.menuElement);
+
     if (!this.menuElement) {
       console.warn('[ContextMenu] Menu element not found');
       return;
@@ -42,7 +46,7 @@ class ContextMenuManager {
       }
     };
 
-    this._handleKeyboard = (e) => this._handleKeyboard(e);
+    this._handleKeyboardHandler = (e) => this._handleKeyboard(e);
 
     this._handleDocumentClick = (e) => {
       if (this.isVisible && !this.menuElement.contains(e.target)) {
@@ -202,6 +206,8 @@ class ContextMenuManager {
    * @private
    */
   _renderMenu() {
+    console.log('[ContextMenu._renderMenu] 渲染菜单，menuItems 数量:', this.menuItems.length);
+
     if (!this.menuElement) return;
 
     let html = '';
@@ -229,6 +235,7 @@ class ContextMenuManager {
     }
 
     this.menuElement.innerHTML = html;
+    console.log('[ContextMenu._renderMenu] 菜单渲染完成');
   }
 
   /**
@@ -236,17 +243,21 @@ class ContextMenuManager {
    * @private
    */
   _bindEvents() {
+    console.log('[ContextMenu._bindEvents] 绑定事件监听器');
+
     // 点击菜单项
     this.menuElement.addEventListener('click', this._handleClick);
 
     // 键盘导航
-    this.menuElement.addEventListener('keydown', this._handleKeyboard);
+    this.menuElement.addEventListener('keydown', this._handleKeyboardHandler);
 
     // 点击外部关闭
     document.addEventListener('click', this._handleDocumentClick);
 
     // 右键其他地方关闭
     document.addEventListener('contextmenu', this._handleDocumentContextMenu);
+
+    console.log('[ContextMenu._bindEvents] 事件绑定完成');
   }
 
   /**
@@ -529,7 +540,7 @@ class ContextMenuManager {
     // 移除事件监听器
     if (this.menuElement) {
       this.menuElement.removeEventListener('click', this._handleClick);
-      this.menuElement.removeEventListener('keydown', this._handleKeyboard);
+      this.menuElement.removeEventListener('keydown', this._handleKeyboardHandler);
     }
 
     document.removeEventListener('click', this._handleDocumentClick);
@@ -537,7 +548,7 @@ class ContextMenuManager {
 
     // 清理处理器引用
     this._handleClick = null;
-    this._handleKeyboard = null;
+    this._handleKeyboardHandler = null;
     this._handleDocumentClick = null;
     this._handleDocumentContextMenu = null;
 
