@@ -23,11 +23,7 @@ class ContextMenuManager {
    * 初始化右键菜单
    */
   init() {
-    console.log('[ContextMenu.init] 开始初始化');
-
     this.menuElement = document.getElementById('contextMenuEl');
-    console.log('[ContextMenu.init] menuElement:', this.menuElement);
-
     if (!this.menuElement) {
       console.warn('[ContextMenu] Menu element not found');
       return;
@@ -35,12 +31,9 @@ class ContextMenuManager {
 
     // 保存事件处理器引用，以便后续可以移除
     this._handleClick = (e) => {
-      console.log('[ContextMenu._handleClick] 点击事件触发');
       const btn = e.target.closest('.ctx-item');
-      console.log('[ContextMenu._handleClick] btn:', btn);
       if (btn) {
         const action = btn.dataset.action;
-        console.log('[ContextMenu._handleClick] action:', action);
         this._handleAction(action);
         this.hide();
       }
@@ -54,19 +47,8 @@ class ContextMenuManager {
       }
     };
 
-    // ❌ 禁用 document contextmenu 监听，它会与右键点击事件冲突
-    // 导致菜单刚显示就被立即关闭
-    // this._handleDocumentContextMenu = (e) => {
-    //   if (this.isVisible && !e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row') && !e.target.closest('.tree-item')) {
-    //     this.hide();
-    //   }
-    // };
-
     this._bindEvents();
-    // ❌ 禁用 _renderMenu()，保留 HTML 中的原始菜单项
-    // this._renderMenu();
-
-    console.log('[ContextMenu.init] 初始化完成，保留 HTML 原始菜单');
+    // 不调用 _renderMenu()，保留 HTML 中的原始菜单项
   }
 
   /**
@@ -248,8 +230,6 @@ class ContextMenuManager {
    * @private
    */
   _bindEvents() {
-    console.log('[ContextMenu._bindEvents] 绑定事件监听器');
-
     // 点击菜单项
     this.menuElement.addEventListener('click', this._handleClick);
 
@@ -259,10 +239,7 @@ class ContextMenuManager {
     // 点击外部关闭
     document.addEventListener('click', this._handleDocumentClick);
 
-    // ❌ 不绑定 document contextmenu 事件（会导致菜单刚显示就被关闭）
-    // document.addEventListener('contextmenu', this._handleDocumentContextMenu);
-
-    console.log('[ContextMenu._bindEvents] 事件绑定完成');
+    // 不绑定 document contextmenu 事件（会导致菜单刚显示就被关闭）
   }
 
   /**
@@ -273,12 +250,7 @@ class ContextMenuManager {
    * @param {Object} options - 选项
    */
   show(item, x, y, options = {}) {
-    console.log('[ContextMenu.show] 被调用', { item, x, y, options });
-
-    if (!this.menuElement) {
-      console.warn('[ContextMenu.show] menuElement 不存在');
-      return;
-    }
+    if (!this.menuElement) return;
 
     this.currentItem = item;
     this.currentOptions = options;
@@ -297,14 +269,11 @@ class ContextMenuManager {
 
     // 显示菜单
     this.menuElement.style.display = 'block';
-    console.log('[ContextMenu.show] 菜单已设置为 display: block');
 
     // 计算位置，防止超出视口
     const position = this._calculatePosition(x, y);
     this.menuElement.style.left = `${position.left}px`;
     this.menuElement.style.top = `${position.top}px`;
-
-    console.log('[ContextMenu.show] 菜单已显示，位置:', position);
 
     // 聚焦第一个可见菜单项
     setTimeout(() => {
@@ -351,8 +320,6 @@ class ContextMenuManager {
    * @private
    */
   _updateMenuVisibility(item, options) {
-    console.log('[ContextMenu._updateMenuVisibility] 更新菜单可见性', { item, options });
-
     const isFolder = item.type === 'folder';
     const isSidebar = options.source === 'sidebar';
 
@@ -403,8 +370,6 @@ class ContextMenuManager {
 
     // 隐藏连续的分隔符
     this._hideConsecutiveSeparators();
-
-    console.log('[ContextMenu._updateMenuVisibility] 更新完成');
   }
 
   /**
@@ -529,15 +494,9 @@ class ContextMenuManager {
    * @private
    */
   _handleAction(action) {
-    console.log('[ContextMenu._handleAction] action:', action, 'item:', this.currentItem);
-
-    if (!this.currentItem) {
-      console.warn('[ContextMenu._handleAction] currentItem 为空');
-      return;
-    }
+    if (!this.currentItem) return;
 
     // 触发事件，让外部处理具体操作
-    console.log('[ContextMenu._handleAction] 发送 CONTEXT_MENU_ACTION 事件');
     eventBus.emit(Events.CONTEXT_MENU_ACTION, {
       action,
       item: this.currentItem,
