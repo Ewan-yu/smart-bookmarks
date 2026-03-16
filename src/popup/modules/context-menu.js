@@ -54,11 +54,13 @@ class ContextMenuManager {
       }
     };
 
-    this._handleDocumentContextMenu = (e) => {
-      if (this.isVisible && !e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row') && !e.target.closest('.tree-item')) {
-        this.hide();
-      }
-    };
+    // ❌ 禁用 document contextmenu 监听，它会与右键点击事件冲突
+    // 导致菜单刚显示就被立即关闭
+    // this._handleDocumentContextMenu = (e) => {
+    //   if (this.isVisible && !e.target.closest('.bm-row') && !e.target.closest('.bm-folder-row') && !e.target.closest('.tree-item')) {
+    //     this.hide();
+    //   }
+    // };
 
     this._bindEvents();
     // ❌ 禁用 _renderMenu()，保留 HTML 中的原始菜单项
@@ -257,8 +259,8 @@ class ContextMenuManager {
     // 点击外部关闭
     document.addEventListener('click', this._handleDocumentClick);
 
-    // 右键其他地方关闭
-    document.addEventListener('contextmenu', this._handleDocumentContextMenu);
+    // ❌ 不绑定 document contextmenu 事件（会导致菜单刚显示就被关闭）
+    // document.addEventListener('contextmenu', this._handleDocumentContextMenu);
 
     console.log('[ContextMenu._bindEvents] 事件绑定完成');
   }
@@ -293,9 +295,6 @@ class ContextMenuManager {
     // 根据项目类型显示/隐藏菜单项
     this._updateMenuVisibility(item, options);
 
-    // 根据项目类型显示/隐藏菜单项
-    this._updateMenuVisibility(item, options);
-
     // 显示菜单
     this.menuElement.style.display = 'block';
     console.log('[ContextMenu.show] 菜单已设置为 display: block');
@@ -305,18 +304,7 @@ class ContextMenuManager {
     this.menuElement.style.left = `${position.left}px`;
     this.menuElement.style.top = `${position.top}px`;
 
-    console.log('[ContextMenu.show] 菜单位置已设置:', position);
-    console.log('[ContextMenu.show] style.display:', this.menuElement.style.display);
-    console.log('[ContextMenu.show] style.left:', this.menuElement.style.left);
-    console.log('[ContextMenu.show] style.top:', this.menuElement.style.top);
-
-    // 延迟检查，看看是否有其他代码修改了样式
-    setTimeout(() => {
-      console.log('[ContextMenu.show] 100ms 后 style.display:', this.menuElement.style.display);
-      console.log('[ContextMenu.show] 计算后 display:', window.getComputedStyle(this.menuElement).display);
-      console.log('[ContextMenu.show] 计算后 visibility:', window.getComputedStyle(this.menuElement).visibility);
-      console.log('[ContextMenu.show] 计算后 z-index:', window.getComputedStyle(this.menuElement).zIndex);
-    }, 100);
+    console.log('[ContextMenu.show] 菜单已显示，位置:', position);
 
     // 聚焦第一个可见菜单项
     setTimeout(() => {
@@ -584,13 +572,13 @@ class ContextMenuManager {
     }
 
     document.removeEventListener('click', this._handleDocumentClick);
-    document.removeEventListener('contextmenu', this._handleDocumentContextMenu);
+    // document.removeEventListener('contextmenu', this._handleDocumentContextMenu);
 
     // 清理处理器引用
     this._handleClick = null;
     this._handleKeyboardHandler = null;
     this._handleDocumentClick = null;
-    this._handleDocumentContextMenu = null;
+    // this._handleDocumentContextMenu = null;
 
     // 清理状态
     this.currentItem = null;
