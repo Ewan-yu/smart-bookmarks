@@ -253,16 +253,26 @@ stateManager.subscribe(path, callback)
 ```
 
 **对比清单**:
-- [ ] state 对象结构是否一致？
-- [ ] state.js 使用 Proxy，popup.js 使用普通对象
-- [ ] state.js 有 subscribe 功能，popup.js 没有
-- [ ] 是否影响现有代码？
+- [x] state 对象结构是否一致？ → ❌ **严重不匹配**（7 个字段不同）
+- [x] state.js 使用 Proxy，popup.js 使用普通对象 → ✅ 确认
+- [x] state.js 有 subscribe 功能，popup.js 没有 → ✅ 确认
+- [x] 是否影响现有代码？ → ❌ **严重影响**（250+ 处需要修改）
 
 **决策**:
-- [ ] ✅ 兼容，可以集成
-- [ ] ❌ 不兼容，保持现状
+- [x] ✅ 兼容，可以集成
+- [x] ❌ **不兼容，保持现状** ⚠️ **最终决策**
 
-**输出**: 评估报告（记录在本文件的 Step 1.1 节）
+**评估结果**: ❌ **不建议集成 state.js**
+- **风险等级**: ⭐⭐⭐⭐⭐ 极高
+- **工作量**: 8-16 小时
+- **关键问题**:
+  - 字段名称不匹配：`activeTab` vs `currentView`, `searchTerm` vs `searchQuery`
+  - 缺失 7 个关键字段：`expandedFolders`, `selectedItem`, `sidebarWidth` 等
+  - API 访问方式完全不同
+
+**输出**: 评估报告已保存至 `docs/step-1.1-state-evaluation.md`
+
+---
 
 ---
 
@@ -507,16 +517,16 @@ export default aiAnalysis;
 
 **输出**: 决策矩阵
 
-| 模块 | 评估结果 | 可集成性 | 风险等级 | 优先级 |
-|------|---------|---------|---------|--------|
-| state.js | 待评估 | 待确定 | 高 | P0 |
-| dialog.js | 待评估 | 待确定 | 中 | P1 |
-| context-menu.js | 待评估 | 待确定 | 中 | P1 |
-| drag-drop.js | 待评估 | 待确定 | 中 | P2 |
-| keyboard.js | 待评估 | 待确定 | 低 | P2 |
-| folder-manager.js | 待评估 | 待确定 | 中 | P2 |
-| link-checker.js | 待评估 | 待确定 | 中 | P3 |
-| ai-analysis.js | 待评估 | 待确定 | 高 | P3 |
+| 模块 | 评估结果 | 可集成性 | 风险等级 | 优先级 | 决策 |
+|------|---------|---------|---------|--------|------|
+| state.js | ❌ 字段严重不匹配 | ❌ 不可集成 | ⭐⭐⭐⭐⭐ 极高 | P0 | ❌ **不集成** |
+| dialog.js | 待评估 | 待确定 | 中 | P1 | 待评估 |
+| context-menu.js | 待评估 | 待确定 | 中 | P1 | 待评估 |
+| drag-drop.js | 待评估 | 待确定 | 中 | P2 | 待评估 |
+| keyboard.js | 待评估 | 待确定 | 低 | P2 | 待评估 |
+| folder-manager.js | 待评估 | 待确定 | 中 | P2 | 待评估 |
+| link-checker.js | 待评估 | 待确定 | 中 | P3 | 待评估 |
+| ai-analysis.js | 待评估 | 待确定 | 高 | P3 | 待评估 |
 
 ---
 
@@ -778,8 +788,8 @@ function showEditDialog(item) {
 |-------|------|------|------|---------|---------|
 | 0 | 0.0 | 准备工作 | ✅ 已完成 | 2026-03-16 | - |
 | 0 | 0.1-0.6 | 评估工具函数 | ✅ 已完成 | 2026-03-16 | - |
-| 0 | 0.7 | 执行工具函数替换 | ⏳ **待验收** | 2026-03-16 | **53** |
-| 1 | 1.1 | 评估 state.js | ⏳ 待开始 | - | - |
+| 0 | 0.7 | 执行工具函数替换 | ✅ 已完成 | 2026-03-16 | **53** |
+| 1 | 1.1 | 评估 state.js | ✅ 已完成（**不集成**） | 2026-03-16 | - |
 | 1 | 1.2 | 评估 dialog.js | ⏳ 待开始 | - | - |
 | 1 | 1.3 | 评估 context-menu.js | ⏳ 待开始 | - | - |
 | 1 | 1.4 | 评估 drag-drop.js | ⏳ 待开始 | - | - |
@@ -825,11 +835,61 @@ function showEditDialog(item) {
 **预计减少**: ~50 行
 **符合预期**: ✅ 是
 
-**状态**: ⏳ **待功能验收**
+**状态**: ✅ **已完成并合并到 main**
+
+**验收结果**: ✅ 通过（用户测试确认）
 
 **下一步**:
-- 验收测试 → 如通过，合并到 main → 继续 Phase 1
-- 验收测试 → 如失败，回滚并分析问题
+- ✅ 已合并到 main 分支
+- ⏳ 继续 Phase 1: Step 1.1
+
+---
+
+### 2026-03-16 (续)
+
+**Step 1.1: 评估 state.js 模块 - 已完成** ✅
+
+**执行工作**:
+- ✅ 阅读 `src/popup/modules/state.js`（397 行）
+- ✅ 对比 popup.js 中的 state 对象（第 61-87 行，19 个字段）
+- ✅ 分析字段名称差异（7 个关键字段不匹配）
+- ✅ 分析缺失字段（7 个字段在 state.js 中不存在）
+- ✅ 评估 API 差异（Proxy vs 普通对象）
+- ✅ 评估兼容性和影响范围（250+ 处需要修改）
+- ✅ 创建评估报告 `docs/step-1.1-state-evaluation.md`
+
+**评估结果**: ❌ **不建议集成**
+
+**关键问题**:
+1. 字段名称严重不匹配：
+   - `activeTab` vs `currentView`
+   - `searchTerm` vs `searchQuery`
+   - `currentFolderId` vs `selectedFolderId`
+
+2. 缺失关键字段（7 个）：
+   - `expandedFolders`
+   - `selectedItem`
+   - `sidebarWidth`
+   - `clipboardItem`
+   - `expandedSidebarFolders`
+   - `checkInitiatedLocally`
+   - `checkStartTime`
+
+3. 影响范围过大：
+   - popup.js: ~200+ 处状态访问
+   - 所有模块: ~50+ 处状态访问
+   - 总计: 250+ 处需要修改
+
+4. 风险等级：⭐⭐⭐⭐⭐ **极高**
+
+**决策**: ❌ **不集成 state.js**
+
+**理由**:
+- 风险远大于收益
+- 当前代码稳定可用
+- 应优先集成其他低风险模块
+
+**下一步**: ⏳ Step 1.2: 评估 dialog.js 模块
 
 ---
 
