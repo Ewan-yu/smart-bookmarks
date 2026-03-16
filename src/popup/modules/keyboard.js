@@ -3,7 +3,7 @@
  * 处理全局快捷键和列表键盘导航
  */
 
-import eventBus from '../utils/event-bus.js';
+import eventBus, { Events } from '../utils/event-bus.js';
 
 /**
  * 键盘导航管理器
@@ -19,12 +19,17 @@ class KeyboardNavigationManager {
   }
 
   /**
-   * 初始化键盘导航
+   * 初始化键盘导航（仅全局快捷键）
+   *
+   * 注意：列表导航和对话框导航由 popup.js 的原生实现处理
    */
   init() {
     this._bindGlobalEvents();
-    this._bindListNavigation();
-    this._bindDialogNavigation();
+    // 暂不集成 _bindListNavigation() 和 _bindDialogNavigation()
+    // 由 popup.js 的原生代码处理：
+    // - handleBookmarkListKeyboard()
+    // - handleContextMenuKeyboard()
+    // - handleEditDialogKeyboard()
   }
 
   /**
@@ -53,21 +58,21 @@ class KeyboardNavigationManager {
 
     this.registerHandler('global', 'Escape', () => {
       // 关闭所有模态元素
-      eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+      eventBus.emit(Events.KEYBOARD_ACTION, {
         action: 'closeAll'
       });
     });
 
     this.registerHandler('global', 'F2', () => {
       // 编辑当前选中项
-      eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+      eventBus.emit(Events.KEYBOARD_ACTION, {
         action: 'edit'
       });
     });
 
     this.registerHandler('global', 'Delete', () => {
       // 删除当前选中项
-      eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+      eventBus.emit(Events.KEYBOARD_ACTION, {
         action: 'delete'
       });
     });
@@ -144,7 +149,7 @@ class KeyboardNavigationManager {
     // Delete 删除
     if (key === 'Delete' || key === 'Backspace') {
       if (this._isNavigableItem(target)) {
-        eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+        eventBus.emit(Events.KEYBOARD_ACTION, {
           action: 'delete',
           item: this._getItemFromElement(target)
         });
@@ -186,7 +191,7 @@ class KeyboardNavigationManager {
     this._scrollIntoView(items[nextIndex]);
 
     // 触发导航事件
-    eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+    eventBus.emit(Events.KEYBOARD_ACTION, {
       action: 'navigate',
       direction,
       index: nextIndex,
@@ -257,7 +262,7 @@ class KeyboardNavigationManager {
     const item = this._getItemFromElement(target);
     const rect = target.getBoundingClientRect();
 
-    eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+    eventBus.emit(Events.KEYBOARD_ACTION, {
       action: 'openContextMenu',
       item,
       position: {
@@ -302,7 +307,7 @@ class KeyboardNavigationManager {
         // 检查是否在对话框中
         const dialog = e.target.closest('.confirm-dialog-overlay, #editDialog');
         if (dialog) {
-          eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+          eventBus.emit(Events.KEYBOARD_ACTION, {
             action: 'closeDialog',
             dialog
           });
@@ -427,7 +432,7 @@ class KeyboardNavigationManager {
    * @private
    */
   _showShortcutHelp() {
-    eventBus.emit(eventBus.Events.KEYBOARD_ACTION, {
+    eventBus.emit(Events.KEYBOARD_ACTION, {
       action: 'showHelp'
     });
   }

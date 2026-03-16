@@ -13,6 +13,8 @@ import {
   normalizeUrl,      // 已移至 helpers.js（完全相同）
   isInBookmarksBar   // 已移至 helpers.js（完全相同）
 } from './utils/helpers.js';
+import eventBus, { Events } from './utils/event-bus.js';
+import keyboardManager from './modules/keyboard.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -102,9 +104,55 @@ function init() {
   initDragAndDrop();
   bindEvents();
   listenToMessages();
-  initKeyboardNavigation();
+
+  // 初始化键盘导航
+  initKeyboardNavigation();  // 原有的列表导航
+  keyboardManager.init();      // 新：全局快捷键
+  setupGlobalShortcuts();       // 新：全局快捷键事件监听
+
   loadBookmarks();
   restoreCheckingState();
+}
+
+/**
+ * 设置全局快捷键事件监听
+ * 处理来自 keyboardManager 的全局快捷键
+ */
+function setupGlobalShortcuts() {
+  eventBus.on(Events.KEYBOARD_ACTION, ({ action, item }) => {
+    switch (action) {
+      case 'closeAll':
+        // 关闭所有模态元素
+        closeEditDialog();
+        hideContextMenu();
+        break;
+
+      case 'edit':
+        // 编辑当前选中项
+        if (state.selectedItem) {
+          showEditDialog(state.selectedItem);
+        }
+        break;
+
+      case 'delete':
+        // 删除当前选中项
+        if (state.selectedItem) {
+          if (state.selectedItem.type === 'folder') {
+            deleteFolder(state.selectedItem);
+          } else {
+            deleteBookmark(state.selectedItem);
+          }
+        }
+        break;
+
+      case 'focusSearch':
+        // 聚焦搜索框（由 keyboardManager 直接处理）
+        break;
+
+      default:
+        console.warn('Unknown keyboard action:', action);
+    }
+  });
 }
 
 /**
