@@ -125,6 +125,10 @@ function setupGlobalShortcuts() {
         // 关闭所有模态元素
         closeEditDialog();
         hideContextMenu();
+        // 关闭所有手动创建的对话框（合并、去重、调试等）
+        document.querySelectorAll('.confirm-dialog-overlay').forEach(dialog => {
+          dialog.remove();
+        });
         break;
 
       case 'edit':
