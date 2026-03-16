@@ -3,7 +3,16 @@
 
 import { TreeRenderer, SearchResultsRenderer, ContextMenuRenderer } from '../ui/renderers.js';
 import { Toast, ProgressBar, LoadingSpinner, EmptyState, ConfirmDialog } from '../ui/components.js';
-import { safeGetStorage, safeSetStorage, asyncConfirm } from './utils/helpers.js';
+import {
+  safeGetStorage,
+  safeSetStorage,
+  asyncConfirm,
+  escapeHtml,        // 已移至 helpers.js（更安全，支持类型检查）
+  truncateUrl,       // 已移至 helpers.js（支持类型检查）
+  isValidUrl,        // 已移至 helpers.js（完全相同）
+  normalizeUrl,      // 已移至 helpers.js（完全相同）
+  isInBookmarksBar   // 已移至 helpers.js（完全相同）
+} from './utils/helpers.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -1584,17 +1593,7 @@ function showFieldError(fieldEl, message) {
   fieldEl.parentElement.appendChild(errorEl);
 }
 
-/**
- * 验证 URL 格式
- */
-function isValidUrl(url) {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
+// isValidUrl() 已移至 utils/helpers.js（功能完全相同）
 
 /**
  * 处理编辑对话框键盘导航
@@ -1954,47 +1953,8 @@ function findDuplicateCategories() {
   return duplicates;
 }
 
-/**
- * 标准化URL（用于去重比较）
- */
-function normalizeUrl(url) {
-  try {
-    let normalized = url.trim().toLowerCase();
-
-    // 移除常见的跟踪参数
-    const urlObj = new URL(normalized);
-    const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid'];
-    paramsToRemove.forEach(param => urlObj.searchParams.delete(param));
-
-    normalized = urlObj.href;
-
-    // 移除末尾的 /
-    if (normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1);
-    }
-
-    return normalized;
-  } catch (e) {
-    return url.trim().toLowerCase();
-  }
-}
-
-/**
- * 检查书签/目录是否在书签栏中
- */
-function isInBookmarksBar(item) {
-  if (!item) return false;
-
-  // 检查是否有路径信息
-  if (item.path && item.path.length > 0) {
-    // 如果路径的第一个元素是"书签栏"，则认为在书签栏中
-    return item.path[0] === '书签栏' || item.path[0] === 'Bookmarks Bar';
-  }
-
-  // 检查parentId（如果是根节点直接在书签栏下）
-  // 这里简化处理，实际情况可能需要更复杂的逻辑
-  return false;
-}
+// normalizeUrl() 已移至 utils/helpers.js（功能完全相同）
+// isInBookmarksBar() 已移至 utils/helpers.js（功能完全相同）
 
 /**
  * 显示去重对话框
@@ -2196,13 +2156,7 @@ async function executeDeduplicate(selectedItems, closeDialog) {
   }
 }
 
-/**
- * 截断URL用于显示
- */
-function truncateUrl(url, maxLength) {
-  if (url.length <= maxLength) return url;
-  return url.substring(0, maxLength) + '...';
-}
+// truncateUrl() 已移至 utils/helpers.js（功能一致，支持类型检查）
 
 /**
  * 处理合并建议
@@ -3556,14 +3510,7 @@ function updateCheckProgress() {
   if (progressCount) progressCount.textContent = `${completed}/${total}`;
 }
 
-/**
- * HTML 转义
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() 已移至 utils/helpers.js（更安全，支持类型检查）
 
 // ─────────────────────────── 侧栏宽度 ───────────────────────────
 
