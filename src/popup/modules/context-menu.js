@@ -293,6 +293,11 @@ class ContextMenuManager {
     // 显示菜单
     this.menuElement.style.display = 'block';
     console.log('[ContextMenu.show] 菜单已设置为 display: block');
+    console.log('[ContextMenu.show] 菜单元素:', this.menuElement);
+    console.log('[ContextMenu.show] 菜单 HTML 内容:', this.menuElement.innerHTML);
+    console.log('[ContextMenu.show] 菜单子元素数量:', this.menuElement.children.length);
+    console.log('[ContextMenu.show] 菜单计算样式:', window.getComputedStyle(this.menuElement).cssText);
+    console.log('[ContextMenu.show] 可见菜单项:', this.menuElement.querySelectorAll('.ctx-item:not([style*="display: none"])').length);
 
     // 计算位置，防止超出视口
     const position = this._calculatePosition(x, y);
