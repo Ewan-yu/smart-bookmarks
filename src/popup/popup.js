@@ -200,12 +200,18 @@ function setupGlobalShortcuts() {
  */
 function setupContextMenuHandler() {
   eventBus.on(Events.CONTEXT_MENU_ACTION, ({ action, item }) => {
-    if (!item) return;
+    console.log('[setupContextMenuHandler] 收到菜单操作:', action, item);
+
+    if (!item) {
+      console.warn('[setupContextMenuHandler] item 为空，跳过');
+      return;
+    }
 
     // 更新选中项
     state.selectedItem = item;
 
     // 处理菜单操作
+    console.log('[setupContextMenuHandler] 调用 handleContextMenuAction:', action);
     handleContextMenuAction(action);
   });
 }

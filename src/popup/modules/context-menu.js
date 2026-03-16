@@ -31,9 +31,12 @@ class ContextMenuManager {
 
     // 保存事件处理器引用，以便后续可以移除
     this._handleClick = (e) => {
+      console.log('[ContextMenu._handleClick] 点击事件触发');
       const btn = e.target.closest('.ctx-item');
+      console.log('[ContextMenu._handleClick] btn:', btn);
       if (btn) {
         const action = btn.dataset.action;
+        console.log('[ContextMenu._handleClick] action:', action);
         this._handleAction(action);
         this.hide();
       }
@@ -487,9 +490,15 @@ class ContextMenuManager {
    * @private
    */
   _handleAction(action) {
-    if (!this.currentItem) return;
+    console.log('[ContextMenu._handleAction] action:', action, 'item:', this.currentItem);
+
+    if (!this.currentItem) {
+      console.warn('[ContextMenu._handleAction] currentItem 为空');
+      return;
+    }
 
     // 触发事件，让外部处理具体操作
+    console.log('[ContextMenu._handleAction] 发送 CONTEXT_MENU_ACTION 事件');
     eventBus.emit(Events.CONTEXT_MENU_ACTION, {
       action,
       item: this.currentItem,
