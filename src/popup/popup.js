@@ -3568,6 +3568,7 @@ function initResizer() {
 // ─────────────────────────── 右键菜单 ───────────────────────────
 
 function showContextMenu(item, x, y, options = {}) {
+  console.log('[showContextMenu] 被调用', { item, x, y, options });
   // 委托给 contextMenuManager
   contextMenuManager.show(item, x, y, options);
 }

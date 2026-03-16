@@ -268,7 +268,12 @@ class ContextMenuManager {
    * @param {Object} options - 选项
    */
   show(item, x, y, options = {}) {
-    if (!this.menuElement) return;
+    console.log('[ContextMenu.show] 被调用', { item, x, y, options });
+
+    if (!this.menuElement) {
+      console.warn('[ContextMenu.show] menuElement 不存在');
+      return;
+    }
 
     this.currentItem = item;
     this.currentOptions = options;
@@ -287,11 +292,13 @@ class ContextMenuManager {
 
     // 显示菜单
     this.menuElement.style.display = 'block';
+    console.log('[ContextMenu.show] 菜单已设置为 display: block');
 
     // 计算位置，防止超出视口
     const position = this._calculatePosition(x, y);
     this.menuElement.style.left = `${position.left}px`;
     this.menuElement.style.top = `${position.top}px`;
+    console.log('[ContextMenu.show] 菜单位置:', position);
 
     // 聚焦第一个可见菜单项
     setTimeout(() => {
@@ -338,12 +345,13 @@ class ContextMenuManager {
    * @private
    */
   _updateMenuVisibility(item, options) {
+    console.log('[ContextMenu._updateMenuVisibility] 更新菜单可见性', { item, options });
+
     const isFolder = item.type === 'folder';
     const isSidebar = options.source === 'sidebar';
 
     // 性能优化：合并DOM查询，一次性获取所有需要操作的元素
-    // 原先两次 querySelectorAll 会导致两次DOM遍历，现在只遍历一次
-    const allItems = this.menuElement.querySelectorAll('.ctx-item, .ctx-separator, [data-for]');
+    const allItems = this.menuElement.querySelectorAll('.ctx-item, .ctx-separator, [data-for], [data-for-sidebar-only], [data-for-content-only]');
 
     // 使用Set记录已处理的元素，避免重复操作
     const processed = new Set();
@@ -356,6 +364,18 @@ class ContextMenuManager {
       // 重置所有菜单项和分隔符
       if (el.classList.contains('ctx-item') || el.classList.contains('ctx-separator')) {
         el.style.display = '';
+      }
+
+      // 处理 data-for-sidebar-only
+      if (el.hasAttribute('data-for-sidebar-only')) {
+        el.style.display = isSidebar ? '' : 'none';
+        continue;
+      }
+
+      // 处理 data-for-content-only
+      if (el.hasAttribute('data-for-content-only')) {
+        el.style.display = isSidebar ? 'none' : '';
+        continue;
       }
 
       // 根据类型显示/隐藏菜单项
@@ -377,6 +397,8 @@ class ContextMenuManager {
 
     // 隐藏连续的分隔符
     this._hideConsecutiveSeparators();
+
+    console.log('[ContextMenu._updateMenuVisibility] 更新完成');
   }
 
   /**
