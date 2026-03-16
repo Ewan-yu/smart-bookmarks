@@ -227,6 +227,7 @@ export const Events = {
   DIALOG_CLOSED: 'dialog:closed',
   CONTEXT_MENU_SHOWN: 'contextmenu:shown',
   CONTEXT_MENU_HIDDEN: 'contextmenu:hidden',
+  CONTEXT_MENU_ACTION: 'contextmenu:action',
   KEYBOARD_ACTION: 'keyboard:action',
 
   // 数据同步事件

@@ -15,6 +15,7 @@ import {
 } from './utils/helpers.js';
 import eventBus, { Events } from './utils/event-bus.js';
 import keyboardManager from './modules/keyboard.js';
+import contextMenuManager from './modules/context-menu.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -100,7 +101,6 @@ function init() {
   initTaskPanel();
   initResizer();
   initEditDialog();
-  initContextMenu();
   initDragAndDrop();
   bindEvents();
   listenToMessages();
@@ -108,6 +108,10 @@ function init() {
   // 初始化键盘导航
   keyboardManager.init();
   setupGlobalShortcuts();
+
+  // 初始化右键菜单模块
+  contextMenuManager.init();
+  setupContextMenuHandler();
 
   loadBookmarks();
   restoreCheckingState();
@@ -187,6 +191,22 @@ function setupGlobalShortcuts() {
       default:
         console.warn('Unknown keyboard action:', action);
     }
+  });
+}
+
+/**
+ * 设置右键菜单事件监听
+ * 处理来自 contextMenuManager 的菜单操作
+ */
+function setupContextMenuHandler() {
+  eventBus.on(Events.CONTEXT_MENU_ACTION, ({ action, item }) => {
+    if (!item) return;
+
+    // 更新选中项
+    state.selectedItem = item;
+
+    // 处理菜单操作
+    handleContextMenuAction(action);
   });
 }
 
@@ -3541,104 +3561,14 @@ function initResizer() {
 
 // ─────────────────────────── 右键菜单 ───────────────────────────
 
-function initContextMenu() {
-  const menu = elements.contextMenuEl;
-  if (!menu) return;
-
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (btn) {
-      const action = btn.dataset.action;
-      hideContextMenu();
-      handleContextMenuAction(action);
-    }
-  });
-}
-
 function showContextMenu(item, x, y, options = {}) {
-  const menu = elements.contextMenuEl;
-  if (!menu) return;
-
-  // 调试：输出 item 信息
-  console.log('[showContextMenu] item:', item);
-  console.log('[showContextMenu] item.type:', item.type);
-  console.log('[showContextMenu] isFolder?', item.type === 'folder');
-  console.log('[showContextMenu] options:', options);
-
-  // 保存触发菜单的元素，以便关闭时恢复焦点
-  const activeElement = document.activeElement;
-  if (activeElement && activeElement.dataset && activeElement.dataset.bookmarkId) {
-    menu.dataset.triggerElement = `[data-bookmark-id="${activeElement.dataset.bookmarkId}"]`;
-  } else {
-    // 如果当前焦点元素没有 bookmarkId，清除之前的 triggerElement
-    delete menu.dataset.triggerElement;
-  }
-
-  // 重置所有菜单项为显示状态
-  menu.querySelectorAll('.ctx-item, .ctx-separator').forEach(el => {
-    el.style.display = '';
-  });
-
-  const isFolder = item.type === 'folder';
-  const isSidebar = options.source === 'sidebar';
-
-  // 左侧边栏专用菜单项
-  menu.querySelectorAll('[data-for-sidebar-only]').forEach(el => {
-    el.style.display = isSidebar ? '' : 'none';
-  });
-
-  // 右侧区域专用菜单项
-  menu.querySelectorAll('[data-for-content-only]').forEach(el => {
-    el.style.display = isSidebar ? 'none' : '';
-  });
-
-  // 文件夹专用菜单项（两侧通用）
-  menu.querySelectorAll('[data-for-folder]').forEach(el => {
-    el.style.display = isFolder ? '' : 'none';
-  });
-
-  // 书签专用菜单项
-  menu.querySelectorAll('[data-for-bookmark]').forEach(el => {
-    el.style.display = isFolder ? 'none' : '';
-  });
-
-  // 显示菜单
-  menu.style.display = 'block';
-
-  // 确保不超出视口
-  const vpW = window.innerWidth;
-  const vpH = window.innerHeight;
-  const mW = menu.offsetWidth || 180;
-  const mH = menu.offsetHeight || 240;
-  const left = (x + mW > vpW) ? Math.max(0, vpW - mW - 4) : x;
-  const top = (y + mH > vpH) ? Math.max(0, vpH - mH - 4) : y;
-  menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
-
-  // 将焦点设置到第一个可见的菜单项
-  setTimeout(() => {
-    const firstItem = menu.querySelector('.ctx-item:not([style*="display: none"])');
-    if (firstItem) {
-      firstItem.focus();
-    }
-  }, 50);
+  // 委托给 contextMenuManager
+  contextMenuManager.show(item, x, y, options);
 }
 
 function hideContextMenu() {
-  if (elements.contextMenuEl) {
-    const menu = elements.contextMenuEl;
-    // 恢复焦点到触发菜单的元素
-    const triggerSelector = menu.dataset.triggerElement;
-    if (triggerSelector) {
-      try {
-        const triggerEl = document.querySelector(triggerSelector);
-        triggerEl?.focus();
-      } catch (e) {
-        console.debug('[hideContextMenu] Failed to restore focus:', e.message);
-      }
-    }
-    menu.style.display = 'none';
-  }
+  // 委托给 contextMenuManager
+  contextMenuManager.hide();
 }
 
 // ─────────────────────────── 编辑对话框 ─────────────────────────

@@ -3,7 +3,7 @@
  * 管理书签和文件夹的上下文菜单
  */
 
-import eventBus from '../utils/event-bus.js';
+import eventBus, { Events } from '../utils/event-bus.js';
 import { escapeHtml } from '../utils/helpers.js';
 
 /**
@@ -490,7 +490,7 @@ class ContextMenuManager {
     if (!this.currentItem) return;
 
     // 触发事件，让外部处理具体操作
-    eventBus.emit(eventBus.Events.CONTEXT_MENU_ACTION, {
+    eventBus.emit(Events.CONTEXT_MENU_ACTION, {
       action,
       item: this.currentItem,
       options: this.currentOptions
