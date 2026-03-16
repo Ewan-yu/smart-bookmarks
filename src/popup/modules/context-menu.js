@@ -61,7 +61,10 @@ class ContextMenuManager {
     };
 
     this._bindEvents();
-    this._renderMenu();
+    // ❌ 禁用 _renderMenu()，保留 HTML 中的原始菜单项
+    // this._renderMenu();
+
+    console.log('[ContextMenu.init] 初始化完成，保留 HTML 原始菜单');
   }
 
   /**
@@ -290,20 +293,30 @@ class ContextMenuManager {
     // 根据项目类型显示/隐藏菜单项
     this._updateMenuVisibility(item, options);
 
+    // 根据项目类型显示/隐藏菜单项
+    this._updateMenuVisibility(item, options);
+
     // 显示菜单
     this.menuElement.style.display = 'block';
     console.log('[ContextMenu.show] 菜单已设置为 display: block');
-    console.log('[ContextMenu.show] 菜单元素:', this.menuElement);
-    console.log('[ContextMenu.show] 菜单 HTML 内容:', this.menuElement.innerHTML);
-    console.log('[ContextMenu.show] 菜单子元素数量:', this.menuElement.children.length);
-    console.log('[ContextMenu.show] 菜单计算样式:', window.getComputedStyle(this.menuElement).cssText);
-    console.log('[ContextMenu.show] 可见菜单项:', this.menuElement.querySelectorAll('.ctx-item:not([style*="display: none"])').length);
 
     // 计算位置，防止超出视口
     const position = this._calculatePosition(x, y);
     this.menuElement.style.left = `${position.left}px`;
     this.menuElement.style.top = `${position.top}px`;
-    console.log('[ContextMenu.show] 菜单位置:', position);
+
+    console.log('[ContextMenu.show] 菜单位置已设置:', position);
+    console.log('[ContextMenu.show] style.display:', this.menuElement.style.display);
+    console.log('[ContextMenu.show] style.left:', this.menuElement.style.left);
+    console.log('[ContextMenu.show] style.top:', this.menuElement.style.top);
+
+    // 延迟检查，看看是否有其他代码修改了样式
+    setTimeout(() => {
+      console.log('[ContextMenu.show] 100ms 后 style.display:', this.menuElement.style.display);
+      console.log('[ContextMenu.show] 计算后 display:', window.getComputedStyle(this.menuElement).display);
+      console.log('[ContextMenu.show] 计算后 visibility:', window.getComputedStyle(this.menuElement).visibility);
+      console.log('[ContextMenu.show] 计算后 z-index:', window.getComputedStyle(this.menuElement).zIndex);
+    }, 100);
 
     // 聚焦第一个可见菜单项
     setTimeout(() => {
