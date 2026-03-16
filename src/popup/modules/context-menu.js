@@ -288,7 +288,7 @@ class ContextMenuManager {
     }, 50);
 
     // 触发事件
-    eventBus.emit(eventBus.Events.CONTEXT_MENU_SHOWN, {
+    eventBus.emit(Events.CONTEXT_MENU_SHOWN, {
       item,
       x: position.left,
       y: position.top,
@@ -316,7 +316,7 @@ class ContextMenuManager {
     this.previousFocus = null;
 
     // 触发事件
-    eventBus.emit(eventBus.Events.CONTEXT_MENU_HIDDEN);
+    eventBus.emit(Events.CONTEXT_MENU_HIDDEN);
   }
 
   /**
