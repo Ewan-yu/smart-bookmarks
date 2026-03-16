@@ -25,7 +25,10 @@
       "Bash(node -c \"F:\\\\tmp\\\\smart-bookmarks\\\\src\\\\background\\\\background.js\" 2>&1 | head -10)",
       "Bash(git restore:*)",
       "Bash(node --check src/api/openai.js 2>&1 || echo \"Syntax check completed with status: $?\")",
-      "Bash(node --check src/background/background.js 2>&1 && echo \"✓ Syntax OK\")"
+      "Bash(node --check src/background/background.js 2>&1 && echo \"✓ Syntax OK\")",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

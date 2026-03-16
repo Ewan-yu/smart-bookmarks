@@ -19,17 +19,12 @@ class KeyboardNavigationManager {
   }
 
   /**
-   * 初始化键盘导航（仅全局快捷键）
-   *
-   * 注意：列表导航和对话框导航由 popup.js 的原生实现处理
+   * 初始化键盘导航（全局快捷键 + 列表导航 + 对话框导航）
    */
   init() {
     this._bindGlobalEvents();
-    // 暂不集成 _bindListNavigation() 和 _bindDialogNavigation()
-    // 由 popup.js 的原生代码处理：
-    // - handleBookmarkListKeyboard()
-    // - handleContextMenuKeyboard()
-    // - handleEditDialogKeyboard()
+    this._bindListNavigation();
+    this._bindDialogNavigation();
   }
 
   /**

@@ -106,9 +106,8 @@ function init() {
   listenToMessages();
 
   // 初始化键盘导航
-  initKeyboardNavigation();  // 原有的列表导航
-  keyboardManager.init();      // 新：全局快捷键
-  setupGlobalShortcuts();       // 新：全局快捷键事件监听
+  keyboardManager.init();
+  setupGlobalShortcuts();
 
   loadBookmarks();
   restoreCheckingState();
@@ -119,16 +118,27 @@ function init() {
  * 处理来自 keyboardManager 的全局快捷键
  */
 function setupGlobalShortcuts() {
-  eventBus.on(Events.KEYBOARD_ACTION, ({ action, item }) => {
+  eventBus.on(Events.KEYBOARD_ACTION, ({ action, item, position, dialog }) => {
     switch (action) {
       case 'closeAll':
         // 关闭所有模态元素
         closeEditDialog();
         hideContextMenu();
         // 关闭所有手动创建的对话框（合并、去重、调试等）
-        document.querySelectorAll('.confirm-dialog-overlay').forEach(dialog => {
-          dialog.remove();
+        document.querySelectorAll('.confirm-dialog-overlay').forEach(d => {
+          d.remove();
         });
+        break;
+
+      case 'closeDialog':
+        // 关闭指定对话框
+        if (dialog) {
+          if (dialog.id === 'editDialog') {
+            closeEditDialog();
+          } else {
+            dialog.remove();
+          }
+        }
         break;
 
       case 'edit':
@@ -140,12 +150,33 @@ function setupGlobalShortcuts() {
 
       case 'delete':
         // 删除当前选中项
-        if (state.selectedItem) {
-          if (state.selectedItem.type === 'folder') {
-            deleteFolder(state.selectedItem);
+        if (item) {
+          state.selectedItem = item;
+          if (item.type === 'folder') {
+            deleteFolder(item);
           } else {
-            deleteBookmark(state.selectedItem);
+            deleteBookmark(item);
           }
+        }
+        break;
+
+      case 'openContextMenu':
+        // 打开右键菜单
+        if (item && position) {
+          state.selectedItem = item;
+          showContextMenu(item, position.x, position.y);
+        }
+        break;
+
+      case 'showHelp':
+        // 显示快捷键帮助
+        showShortcutHelp();
+        break;
+
+      case 'navigate':
+        // 导航事件（keyboard.js 已处理焦点，这里更新选中状态）
+        if (item) {
+          state.selectedItem = item;
         }
         break;
 
@@ -155,6 +186,34 @@ function setupGlobalShortcuts() {
 
       default:
         console.warn('Unknown keyboard action:', action);
+    }
+  });
+}
+
+/**
+ * 显示快捷键帮助
+ */
+function showShortcutHelp() {
+  const helpContent = keyboardManager.createHelpContent();
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-dialog" style="max-width: 500px;">
+      ${helpContent}
+      <div style="margin-top: 16px; text-align: right;">
+        <button class="btn btn-primary" id="closeHelpBtn">关闭</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('closeHelpBtn').onclick = () => {
+    overlay.remove();
+  };
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
     }
   });
 }
@@ -1461,125 +1520,6 @@ function bindEvents() {
       hideContextMenu();
     }
   });
-  document.addEventListener('keydown', (e) => {
-    // Escape 键关闭所有模态元素
-    if (e.key === 'Escape') {
-      hideContextMenu();
-      closeEditDialog();
-    }
-  });
-
-  // 添加键盘导航支持
-  initKeyboardNavigation();
-}
-
-/**
- * 初始化键盘导航
- */
-function initKeyboardNavigation() {
-  // 为书签列表添加键盘导航
-  const bookmarkList = elements.bookmarkList;
-  if (bookmarkList) {
-    bookmarkList.addEventListener('keydown', handleBookmarkListKeyboard);
-  }
-
-  // 为上下文菜单添加键盘导航
-  const contextMenu = elements.contextMenuEl;
-  if (contextMenu) {
-    contextMenu.addEventListener('keydown', handleContextMenuKeyboard);
-  }
-
-  // 为编辑对话框添加焦点管理
-  const editDialog = elements.editDialog;
-  if (editDialog) {
-    editDialog.addEventListener('keydown', handleEditDialogKeyboard);
-  }
-}
-
-/**
- * 处理书签列表键盘导航
- */
-function handleBookmarkListKeyboard(e) {
-  // 仅处理方向键、Enter、Space、Delete
-  if (
-!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Delete', 'Backspace', 'F10'].includes(e.key)
-) {
-    return;
-  }
-
-  // Shift+F10 打开上下文菜单
-  if (e.key === 'F10' && e.shiftKey) {
-    e.preventDefault();
-    const focusedItem = document.activeElement;
-    if (focusedItem && (focusedItem.classList.contains('tree-node') || focusedItem.classList.contains('bm-row') || focusedItem.classList.contains('bm-folder-row'))) {
-      const itemId = focusedItem.dataset?.id;
-      const item = state.bookmarks.find(b => b.id === itemId);
-      if (item) {
-        state.selectedItem = item;
-        const rect = focusedItem.getBoundingClientRect();
-        showContextMenu(item, rect.left, rect.bottom + 2);
-      }
-    }
-    return;
-  }
-
-  // Delete/Backspace 删除书签
-  if ((e.key === 'Delete' || e.key === 'Backspace') &&
-      e.target.matches('.tree-node, .bm-row, .bm-folder-row')) {
-    e.preventDefault();
-    const itemId = e.target.dataset.id;
-    const item = state.bookmarks.find(b => b.id === itemId);
-    if (item) {
-      deleteBookmark(item);
-    }
-    return;
-  }
-
-  // 方向键导航
-  const focusableItems = Array.from(elements.bookmarkList.querySelectorAll(
-    '.tree-node, .bm-row, .bm-folder-row, .sidebar-nav-item'
-  )).filter(el => el.tabIndex >= 0);
-
-  const currentIndex = focusableItems.indexOf(document.activeElement);
-
-  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-    e.preventDefault();
-    const next = focusableItems[currentIndex + 1] || focusableItems[0];
-    next?.focus();
-  } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-    e.preventDefault();
-    const prev = focusableItems[currentIndex - 1] || focusableItems[focusableItems.length - 1];
-    prev?.focus();
-  } else if ((e.key === 'Enter' || e.key === ' ') &&
-             e.target.matches('.tree-node, .bm-row, .bm-folder-row')) {
-    e.preventDefault();
-    e.target.click();
-  }
-}
-
-/**
- * 处理上下文菜单键盘导航
- */
-function handleContextMenuKeyboard(e) {
-  const menuItems = elements.contextMenuEl.querySelectorAll('.ctx-item:not([disabled])');
-  const currentIndex = Array.from(menuItems).indexOf(document.activeElement);
-
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    const next = menuItems[currentIndex + 1] || menuItems[0];
-    next?.focus();
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    const prev = menuItems[currentIndex - 1] || menuItems[menuItems.length - 1];
-    prev?.focus();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    hideContextMenu();
-  } else if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault();
-    e.stopPropagation();
-    document.activeElement?.click();
-  }
 }
 
 /**
@@ -1646,39 +1586,6 @@ function showFieldError(fieldEl, message) {
 }
 
 // isValidUrl() 已移至 utils/helpers.js（功能完全相同）
-
-/**
- * 处理编辑对话框键盘导航
- */
-function handleEditDialogKeyboard(e) {
-  const dialog = elements.editDialog;
-  const focusableElements = dialog.querySelectorAll(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
-
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    closeEditDialog();
-    return;
-  }
-
-  if (e.key !== 'Tab') return;
-
-  const firstFocusable = focusableElements[0];
-  const lastFocusable = focusableElements[focusableElements.length - 1];
-
-  if (e.shiftKey) {
-    if (document.activeElement === firstFocusable) {
-      e.preventDefault();
-      lastFocusable?.focus();
-    }
-  } else {
-    if (document.activeElement === lastFocusable) {
-      e.preventDefault();
-      firstFocusable?.focus();
-    }
-  }
-}
 
 /**
  * 处理收藏点击事件
