@@ -14,6 +14,7 @@ import {
   isInBookmarksBar   // 已移至 helpers.js（完全相同）
 } from './utils/helpers.js';
 import FormValidator from './utils/form-validator.js';
+import { createInputDialog, createSelectDialog } from './utils/dialog-builder.js';
 import eventBus, { Events } from './utils/event-bus.js';
 import keyboardManager from './modules/keyboard.js';
 import contextMenuManager from './modules/context-menu.js';
@@ -3512,69 +3513,23 @@ function showMergeFolderDialog(sourceFolder) {
     return;
   }
 
-  const dialog = document.createElement('div');
-  dialog.className = 'confirm-dialog-overlay merge-dialog-overlay';
-  dialog.innerHTML = `
-    <div class="confirm-dialog merge-dialog">
-      <div class="dialog-header">
-        <h2>合并文件夹</h2>
-        <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
-      </div>
-      <div class="dialog-content">
-        <p style="margin-bottom: 16px;">
-          将 <strong>${escapeHtml(sourceFolder.title)}</strong> 合并到：
-        </p>
-        <div class="folder-list" style="max-height: 300px; overflow-y: auto;">
-          ${siblings.map(folder => {
-            // 计算子项数量
-            const childCount = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id).length;
-            return `
-              <label class="folder-option" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--c-border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
-                <input type="radio" name="targetFolder" value="${folder.id}" style="flex-shrink: 0;" />
-                <span style="font-size: 18px;">📁</span>
-                <span style="flex: 1; font-weight: 500;">${escapeHtml(folder.title)}</span>
-                <span style="color: var(--c-text-2); font-size: 13px;">(${childCount} 项)</span>
-              </label>
-            `;
-          }).join('')}
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm">合并</button>
-      </div>
-    </div>
-  `;
+  // 构建选项列表
+  const items = siblings.map(folder => {
+    const childCount = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id).length;
+    return {
+      value: folder.id,
+      label: `📁 ${folder.title}`,
+      description: `${childCount} 项内容`
+    };
+  });
 
-  document.body.appendChild(dialog);
-
-  const closeBtn = dialog.querySelector('#dialogClose');
-  const cancelBtn = dialog.querySelector('#dialogCancel');
-  const confirmBtn = dialog.querySelector('#dialogConfirm');
-
-  const closeDialog = () => {
-    dialog.classList.add('hide');
-    setTimeout(() => {
-      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
-    }, 300);
-  };
-
-  closeBtn.addEventListener('click', closeDialog);
-  cancelBtn.addEventListener('click', closeDialog);
-
-  confirmBtn.addEventListener('click', async () => {
-    const selected = dialog.querySelector('input[name="targetFolder"]:checked');
-    if (!selected) {
-      Toast.warning('请选择目标文件夹');
-      return;
-    }
-
-    const targetId = selected.value;
-    const targetFolder = siblings.find(f => f.id === targetId);
-
-    try {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = '合并中...';
+  createSelectDialog({
+    title: '合并文件夹',
+    message: `将 <strong>${escapeHtml(sourceFolder.title)}</strong> 合并到：`,
+    items: items,
+    confirmText: '合并',
+    onConfirm: async (targetId) => {
+      const targetFolder = siblings.find(f => f.id === targetId);
 
       const response = await chrome.runtime.sendMessage({
         type: 'MERGE_FOLDERS',
@@ -3586,28 +3541,8 @@ function showMergeFolderDialog(sourceFolder) {
 
       Toast.success(`已将 ${sourceFolder.title} 合并到 ${targetFolder.title}`);
       await loadBookmarks();
-      closeDialog();
-    } catch (error) {
-      console.error('Merge folders failed:', error);
-      Toast.error(`合并失败: ${error.message}`);
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = '合并';
     }
   });
-
-  // 添加选项悬停效果
-  dialog.querySelectorAll('.folder-option').forEach(option => {
-    option.addEventListener('mouseenter', () => {
-      option.style.borderColor = 'var(--c-primary)';
-      option.style.backgroundColor = 'var(--c-bg-2)';
-    });
-    option.addEventListener('mouseleave', () => {
-      option.style.borderColor = 'var(--c-border)';
-      option.style.backgroundColor = '';
-    });
-  });
-
-  setTimeout(() => dialog.classList.add('show'), 10);
 }
 
 /**
@@ -3925,56 +3860,21 @@ function generateMergeSuggestionsFromResult(analysisResult) {
  * 显示新建子文件夹对话框
  */
 function showAddSubFolderDialog(parentFolder) {
-  const dialog = document.createElement('div');
-  dialog.className = 'confirm-dialog-overlay';
-  dialog.innerHTML = `
-    <div class="confirm-dialog" style="max-width: 400px;">
-      <div class="dialog-header">
-        <h2>➕ 新建子文件夹</h2>
-        <button class="dialog-close" data-add-dialog-close>&times;</button>
-      </div>
-      <div class="dialog-content">
-        <p style="margin-bottom: 12px; color: var(--c-text-2);">
-          在 <strong>${escapeHtml(parentFolder.title)}</strong> 下创建新文件夹：
-        </p>
-        <div class="edit-field">
-          <label class="edit-label" for="newFolderName">文件夹名称</label>
-          <input type="text" id="newFolderName" class="edit-input" placeholder="例如: 前端开发" style="width: 100%;" />
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <button class="btn btn-cancel" data-add-dialog-cancel>取消</button>
-        <button class="btn btn-primary" data-add-dialog-confirm>创建</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(dialog);
-
-  const closeBtn = dialog.querySelector('[data-add-dialog-close]');
-  const cancelBtn = dialog.querySelector('[data-add-dialog-cancel]');
-  const confirmBtn = dialog.querySelector('[data-add-dialog-confirm]');
-  const nameInput = dialog.querySelector('#newFolderName');
-
-  const closeDialog = () => {
-    dialog.classList.add('hide');
-    setTimeout(() => dialog.remove(), 300);
-  };
-
-  closeBtn.addEventListener('click', closeDialog);
-  cancelBtn.addEventListener('click', closeDialog);
-
-  confirmBtn.addEventListener('click', async () => {
-    const name = nameInput.value.trim();
-    if (!name) {
-      Toast.warning('请输入文件夹名称');
-      return;
-    }
-
-    try {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = '创建中...';
-
+  createInputDialog({
+    title: '➕ 新建子文件夹',
+    message: `在 <strong>${escapeHtml(parentFolder.title)}</strong> 下创建新文件夹：`,
+    placeholder: '例如: 前端开发',
+    confirmText: '创建',
+    validator: (value) => {
+      if (!value || value.trim().length === 0) {
+        return { valid: false, error: '请输入文件夹名称' };
+      }
+      if (value.trim().length > 50) {
+        return { valid: false, error: '文件夹名称不能超过 50 个字符' };
+      }
+      return { valid: true };
+    },
+    onConfirm: async (name) => {
       const response = await chrome.runtime.sendMessage({
         type: 'CREATE_CATEGORY',
         name: name,
@@ -3985,81 +3885,33 @@ function showAddSubFolderDialog(parentFolder) {
 
       Toast.success('文件夹已创建');
       await loadBookmarks();
-      closeDialog();
-    } catch (error) {
-      console.error('Create folder failed:', error);
-      Toast.error(`创建失败: ${error.message}`);
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = '创建';
     }
   });
-
-  setTimeout(() => {
-    nameInput.focus();
-    nameInput.select();
-  }, 100);
-
-  setTimeout(() => dialog.classList.add('show'), 10);
 }
 
 /**
  * 显示重命名文件夹对话框
  */
 function showRenameFolderDialog(folder) {
-  const dialog = document.createElement('div');
-  dialog.className = 'confirm-dialog-overlay';
-  dialog.innerHTML = `
-    <div class="confirm-dialog" style="max-width: 400px;">
-      <div class="dialog-header">
-        <h2>✏️ 重命名文件夹</h2>
-        <button class="dialog-close" data-rename-dialog-close>&times;</button>
-      </div>
-      <div class="dialog-content">
-        <div class="edit-field">
-          <label class="edit-label" for="renameFolderName">文件夹名称</label>
-          <input type="text" id="renameFolderName" class="edit-input" placeholder="输入新的名称" style="width: 100%;" />
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <button class="btn btn-cancel" data-rename-dialog-cancel>取消</button>
-        <button class="btn btn-primary" data-rename-dialog-confirm>保存</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(dialog);
-
-  const closeBtn = dialog.querySelector('[data-rename-dialog-close]');
-  const cancelBtn = dialog.querySelector('[data-rename-dialog-cancel]');
-  const confirmBtn = dialog.querySelector('[data-rename-dialog-confirm]');
-  const nameInput = dialog.querySelector('#renameFolderName');
-
-  nameInput.value = folder.title || '';
-
-  const closeDialog = () => {
-    dialog.classList.add('hide');
-    setTimeout(() => dialog.remove(), 300);
-  };
-
-  closeBtn.addEventListener('click', closeDialog);
-  cancelBtn.addEventListener('click', closeDialog);
-
-  confirmBtn.addEventListener('click', async () => {
-    const name = nameInput.value.trim();
-    if (!name) {
-      Toast.warning('请输入文件夹名称');
-      return;
-    }
-
-    if (name === folder.title) {
-      closeDialog();
-      return;
-    }
-
-    try {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = '保存中...';
-
+  createInputDialog({
+    title: '✏️ 重命名文件夹',
+    message: '',
+    placeholder: '输入新的名称',
+    confirmText: '保存',
+    defaultValue: folder.title || '',
+    validator: (value) => {
+      if (!value || value.trim().length === 0) {
+        return { valid: false, error: '请输入文件夹名称' };
+      }
+      if (value === folder.title) {
+        return { valid: false, error: '新名称与原名称相同' };
+      }
+      if (value.trim().length > 50) {
+        return { valid: false, error: '文件夹名称不能超过 50 个字符' };
+      }
+      return { valid: true };
+    },
+    onConfirm: async (name) => {
       const response = await chrome.runtime.sendMessage({
         type: 'UPDATE_CATEGORY',
         id: folder.id,
@@ -4070,21 +3922,8 @@ function showRenameFolderDialog(folder) {
 
       Toast.success('文件夹已重命名');
       await loadBookmarks();
-      closeDialog();
-    } catch (error) {
-      console.error('Rename folder failed:', error);
-      Toast.error(`重命名失败: ${error.message}`);
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = '保存';
     }
   });
-
-  setTimeout(() => {
-    nameInput.focus();
-    nameInput.select();
-  }, 100);
-
-  setTimeout(() => dialog.classList.add('show'), 10);
 }
 
 // 启动应用（确保 DOM 已加载）
