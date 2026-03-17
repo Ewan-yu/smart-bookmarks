@@ -23,10 +23,10 @@ class BookmarkManager {
   async load() {
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'GET_ALL_DATA'
+        type: 'GET_BOOKMARKS'
       });
 
-      if (response && response.success) {
+      if (response && response.bookmarks) {
         this.bookmarks = response.bookmarks || [];
         this.categories = response.categories || [];
         this.tags = response.tags || [];
@@ -46,7 +46,7 @@ class BookmarkManager {
         };
       }
 
-      return { success: false, error: '加载数据失败' };
+      return { success: false, error: response?.error || '加载数据失败' };
     } catch (error) {
       console.error('[BookmarkManager] Load error:', error);
       return { success: false, error: error.message };
