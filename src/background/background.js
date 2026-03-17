@@ -2421,7 +2421,6 @@ async function handleImportBookmarks(request, sendResponse) {
               if (existingBrowserBookmark) {
                 // 浏览器中已有该 URL，使用其 ID
                 browserBookmarkId = existingBrowserBookmark.id;
-                console.log(`[IMPORT] Browser bookmark already exists with ID: ${browserBookmarkId}, URL: ${normalizedUrl}`);
               } else {
                 // 浏览器中没有该 URL，创建新书签
                 const parentCategory = bookmark.parentCategoryId ?
@@ -2437,7 +2436,6 @@ async function handleImportBookmarks(request, sendResponse) {
                 });
 
                 browserBookmarkId = newBrowserBookmark.id;
-                console.log(`[IMPORT] Created browser bookmark with ID: ${browserBookmarkId}, URL: ${normalizedUrl}`);
               }
             } catch (browserError) {
               console.debug(`[IMPORT] Browser bookmark operation skipped: ${browserError.message}`);
@@ -2451,20 +2449,28 @@ async function handleImportBookmarks(request, sendResponse) {
           if (skipDuplicates) {
             const existing = await getBookmark(finalId);
             if (existing) {
-              console.log(`[IMPORT] Skipping duplicate ID: ${finalId}`);
+              console.log(`[IMPORT-SKIP] ID duplicate: ${finalId} - ${bookmark.title}`);
               skipped++;
               continue;
             }
 
             // 通过 URL 检查重复（使用规范化的 URL 进行比较）
-            const normalizedUrl = normalizeUrl(bookmark.url);
-            const allBookmarks = await getAllBookmarks();
-            const duplicateByUrl = allBookmarks.find(bm => normalizeUrl(bm.url) === normalizedUrl);
-            if (duplicateByUrl) {
-              console.log(`[IMPORT] Skipping duplicate URL: ${normalizedUrl} (existing ID: ${duplicateByUrl.id}, title: ${duplicateByUrl.title})`);
-              console.log(`[IMPORT] Current bookmark: ID=${finalId}, title=${bookmark.title}, url=${bookmark.url}`);
-              skipped++;
-              continue;
+            // 但如果是新创建的浏览器书签，则跳过 URL 检测（避免删除后重新导入的问题）
+            const isNewBrowserBookmark = browserBookmarkId && browserBookmarkId !== bookmark.id;
+
+            if (!isNewBrowserBookmark) {
+              const normalizedUrl = normalizeUrl(bookmark.url);
+              const allBookmarks = await getAllBookmarks();
+              const duplicateByUrl = allBookmarks.find(bm => normalizeUrl(bm.url) === normalizedUrl);
+              if (duplicateByUrl) {
+                console.log(`[IMPORT-SKIP] URL duplicate: ${normalizedUrl}`);
+                console.log(`[IMPORT-SKIP]   Existing: ${duplicateByUrl.title} (ID: ${duplicateByUrl.id})`);
+                console.log(`[IMPORT-SKIP]   Current:  ${bookmark.title} (ID: ${finalId})`);
+                skipped++;
+                continue;
+              }
+            } else {
+              console.log(`[IMPORT] Skip URL check for new browser bookmark: ${finalId} - ${bookmark.title}`);
             }
           }
 
@@ -2486,11 +2492,10 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmarkToSave);
 
-          console.log(`[IMPORT] ✓ Imported bookmark: ID=${finalId}, title=${bookmark.title}, url=${bookmark.url}`);
+          console.log(`[IMPORT-ADD] ${bookmark.title} (ID: ${finalId})`);
           imported++;
-          console.log(`[IMPORT] Progress: ${imported} imported, ${skipped} skipped, ${failed} failed so far`);
         } catch (error) {
-          console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
+          console.error(`[IMPORT-ERROR] ${bookmark.title}:`, error);
           failed++;
         }
       }
