@@ -85,22 +85,38 @@ smart-bookmarks/
     │   └── collector.js    # 网页信息采集
     ├── popup/              # 主界面（全屏标签页）
     │   ├── popup.html      # 主界面HTML
-    │   ├── popup.js        # 应用入口，模块初始化
-    │   ├── modules/        # 业务模块（11个）
-    │   │   ├── state.js           # 状态管理
-    │   │   ├── bookmarks.js       # 书签管理
-    │   │   ├── navigation.js      # 导航管理
-    │   │   ├── search.js          # 搜索功能
-    │   │   ├── ai-analysis.js     # AI 分析
-    │   │   ├── link-checker.js    # 链接检测
+    │   ├── popup.js        # 应用入口，模块初始化（3485行，已模块化）
+    │   ├── modules/        # 业务模块（21个）
+    │   │   ├── # 状态管理
+    │   │   ├── state.js           # 集中式状态管理
+    │   │   ├── # 核心业务（已集成）
+    │   │   ├── bookmarks.js       # 书签 CRUD 操作
+    │   │   ├── navigation.js      # 旧导航模块（已废弃）
+    │   │   ├── search.js          # 旧搜索模块
+    │   │   ├── search-manager.js  # 搜索管理器（新）
+    │   │   ├── ai-analysis.js     # AI 分析引擎
+    │   │   ├── link-checker.js    # 链接检测引擎
+    │   │   ├── import-export.js   # 导入导出功能
+    │   │   ├── # 交互模块（已集成）
+    │   │   ├── keyboard.js        # 全局快捷键 + 键盘导航
+    │   │   ├── context-menu.js    # 右键菜单管理
     │   │   ├── drag-drop.js       # 拖拽排序
-    │   │   ├── context-menu.js    # 右键菜单
-    │   │   ├── keyboard.js        # 键盘快捷键
-    │   │   ├── folder-manager.js  # 文件夹管理
-    │   │   └── dialog.js          # 对话框管理
+    │   │   ├── dialog.js          # 对话框基类
+    │   │   ├── # UI 管理模块（第二轮重构新增）
+    │   │   ├── navigation-manager.js    # 导航管理（450行）
+    │   │   ├── task-panel-manager.js    # 任务面板管理（331行）
+    │   │   ├── folder-dialog-manager.js # 文件夹对话框（250行）
+    │   │   ├── # 辅助模块
+    │   │   ├── folder-manager.js  # 文件夹树管理
+    │   │   ├── base-task-manager.js # 任务管理基类
+    │   │   ├── analysis-resume.js # 分析恢复对话框
+    │   │   ├── check-resume.js    # 检测恢复对话框
+    │   │   └── debug-dialog.js    # 调试对话框
     │   ├── utils/          # 工具函数
     │   │   ├── event-bus.js       # 事件总线
     │   │   ├── helpers.js         # 辅助函数
+    │   │   ├── form-validator.js  # 表单验证
+    │   │   ├── dialog-builder.js  # 对话框构建器
     │   │   └── constants.js       # 常量定义
     │   ├── tailwind.input.css # Tailwind 入口
     │   ├── tailwind.css       # Tailwind 编译输出（勿直接修改）
@@ -135,19 +151,30 @@ smart-bookmarks/
 
 ### 模块列表
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| 状态管理 | `state.js` | 集中管理应用状态，提供响应式更新 |
-| 书签管理 | `bookmarks.js` | 书签CRUD操作、加载和统计 |
-| 导航管理 | `navigation.js` | 侧边栏导航、文件夹选择、面包屑 |
-| 搜索功能 | `search.js` | 搜索输入、结果展示、搜索历史 |
-| AI 分析 | `ai-analysis.js` | AI分类分析、进度跟踪、结果应用 |
-| 链接检测 | `link-checker.js` | 失效链接检测、断点续检 |
-| 拖拽排序 | `drag-drop.js` | 书签拖拽移动、排序 |
-| 右键菜单 | `context-menu.js` | 右键菜单显示和操作 |
-| 键盘快捷键 | `keyboard.js` | 全局键盘事件处理 |
-| 文件夹管理 | `folder-manager.js` | 文件夹CRUD、树结构维护 |
-| 对话框管理 | `dialog.js` | 各种对话框的显示和交互 |
+| 模块 | 文件 | 行数 | 状态 | 职责 |
+|------|------|------|------|------|
+| **状态管理** | `state.js` | 396 | 待集成 | 集中管理应用状态，提供响应式更新 |
+| **核心业务** | | | | |
+| 书签管理 | `bookmarks.js` | 363 | ✅ 已集成 | 书签CRUD操作、加载和统计 |
+| 搜索管理器 | `search-manager.js` | 210 | ✅ 已集成 | 搜索输入、结果展示、历史记录 |
+| AI 分析 | `ai-analysis.js` | 501 | 独立 | AI分类分析、进度跟踪、结果应用 |
+| 链接检测 | `link-checker.js` | 387 | 独立 | 失效链接检测、断点续检 |
+| 导入导出 | `import-export.js` | 300 | 独立 | 浏览器书签同步、数据导入导出 |
+| **交互模块** | | | | |
+| 键盘快捷键 | `keyboard.js` | 528 | ✅ 已集成 | 全局快捷键 + 键盘导航 |
+| 右键菜单 | `context-menu.js` | 556 | ✅ 已集成 | 右键菜单显示和操作 |
+| 拖拽排序 | `drag-drop.js` | 684 | 独立 | 书签拖拽移动、排序 |
+| 对话框管理 | `dialog.js` | 795 | 独立 | 对话框基类和通用对话框 |
+| **UI 管理模块**（第二轮重构新增）| | | | |
+| 导航管理器 | `navigation-manager.js` | 450 | ✅ 已集成 | 侧边栏导航、面包屑、文件夹选择 |
+| 任务面板管理 | `task-panel-manager.js` | 331 | ✅ 已集成 | 任务面板、进度显示、ETA计算 |
+| 文件夹对话框 | `folder-dialog-manager.js` | 250 | ✅ 已集成 | 文件夹增删改查对话框 |
+| **辅助模块** | | | | |
+| 文件夹管理 | `folder-manager.js` | 549 | 独立 | 文件夹CRUD、树结构维护 |
+| 任务管理基类 | `base-task-manager.js` | 283 | 独立 | 长任务管理基类 |
+| 分析恢复对话框 | `analysis-resume.js` | 84 | ✅ 已集成 | AI分析恢复对话框 |
+| 检测恢复对话框 | `check-resume.js` | 52 | ✅ 已集成 | 链接检测恢复对话框 |
+| 调试对话框 | `debug-dialog.js` | 282 | ✅ 已集成 | 调试工具对话框 |
 
 ### 通信机制
 
@@ -310,21 +337,76 @@ git push
 - [x] Phase 1: 基础架构搭建
 - [x] Phase 2: 数据同步与存储
 - [x] Phase 3: 失效检测功能
-- [x] Phase 4: 模块化重构
+- [x] Phase 4: 模块化重构（第一轮）
   - [x] Phase 4.1: 工具函数模块提取
   - [x] Phase 4.2: 核心模块重构
   - [x] Phase 4.3: 功能模块提取
   - [x] Phase 4.4: UI 模块提取
-- [ ] Phase 5: 测试和优化
-  - [ ] Phase 5.1: 完整回归测试
-  - [ ] Phase 5.2: 性能测试和优化
-  - [ ] Phase 5.3: Bug 修复和代码审查
-  - [ ] Phase 5.4: 文档更新
-  - [ ] Phase 5.5: 上线准备
-- [ ] Phase 6: 未来功能
+- [x] **Phase 5: 模块化重构（第二轮）** ✨ 新完成
+  - [x] Phase 5.1: 提取 NavigationManager（450行，减少220行）
+  - [x] Phase 5.2: 提取 TaskPanelManager（331行，减少65行）
+  - [x] Phase 5.3: 提取 FolderDialogManager（250行，减少112行）
+  - **成果**: popup.js 从 3882 行减少到 3485 行（-10.2%）
+- [ ] Phase 6: 测试和优化
+  - [ ] Phase 6.1: 完整回归测试
+  - [ ] Phase 6.2: 性能测试和优化
+  - [ ] Phase 6.3: Bug 修复和代码审查
+  - [ ] Phase 6.4: 移除旧函数转发器
+- [ ] Phase 7: 未来功能
   - [ ] AI 语义搜索
   - [ ] 定期自动检测
   - [ ] 分类/标签管理增强
+  - [ ] 云端同步（可选）
+
+## 重构历史
+
+### 第一轮模块化重构（2024年）
+
+**目标**：将 monolithic popup.js（4479 行）拆分为独立模块
+
+**成果**：
+- 从 4479 行减少到 3882 行（-13.3%）
+- 新增 10 个功能模块
+- 建立事件驱动架构
+
+### 第二轮模块化重构（2026年3月）
+
+**目标**：继续精简 popup.js，优化架构设计
+
+**成果**：
+- popup.js：从 3882 行减少到 3485 行（-10.2%）
+- 新增 3 个管理模块（1031 行）
+- 总计减少：397 行代码
+
+**新增模块**：
+1. **NavigationManager**（450 行）
+   - 导航模式切换（全部、最近、失效、标签、文件夹）
+   - 侧边栏文件夹树的渲染和交互
+   - 面包屑导航的构建和渲染
+   - 内容区域的文件夹导航
+
+2. **TaskPanelManager**（331 行）
+   - 任务面板的展开/折叠
+   - AI 分析进度显示
+   - 失效链接检测进度显示
+   - 进度条更新和 ETA 计算
+
+3. **FolderDialogManager**（250 行）
+   - 合并文件夹对话框
+   - 删除文件夹对话框
+   - 添加子文件夹对话框
+   - 重命名文件夹对话框
+
+**架构改进**：
+- 事件驱动架构更完善（新增 6 个事件）
+- 模块职责更清晰
+- 代码可维护性显著提升
+- 向后兼容（保留旧函数作为转发器）
+
+**提交记录**：
+- `d6bc2d3` - Phase 1: NavigationManager
+- `bfd00b7` - Phase 2: TaskPanelManager
+- `db3d687` - Phase 3: FolderDialogManager
 
 ## 贡献指南
 
