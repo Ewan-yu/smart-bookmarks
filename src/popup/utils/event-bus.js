@@ -215,6 +215,11 @@ export const Events = {
   DRAG_ENDED: 'drag:ended',
   BOOKMARK_REORDERED: 'bookmark:reordered',
   ITEM_MOVED_TO_FOLDER: 'item:moved:to:folder',
+  MOVE_TO_FOLDER: 'move:to:folder',
+
+  // 渲染事件
+  CONTENT_AREA_RENDER: 'content:area:render',
+  SIDEBAR_RENDER: 'sidebar:render',
 
   // 侧边栏事件
   SIDEBAR_RESIZE_STARTED: 'sidebar:resize:started',

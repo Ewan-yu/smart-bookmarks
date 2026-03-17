@@ -19,6 +19,7 @@ import eventBus, { Events } from './utils/event-bus.js';
 import keyboardManager from './modules/keyboard.js';
 import contextMenuManager from './modules/context-menu.js';
 import bookmarkManager from './modules/bookmarks.js';
+import { NavigationManager } from './modules/navigation-manager.js';
 import { showAnalysisResumeDialog } from './modules/analysis-resume.js';
 import { showResumeDialog as showCheckResumeDialog } from './modules/check-resume.js';
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
@@ -100,6 +101,7 @@ const state = {
 let treeRenderer = null;
 let searchRenderer = null;
 let searchManager = null;
+let navManager = null;
 
 // 初始化
 function init() {
@@ -119,6 +121,15 @@ function init() {
   // 初始化右键菜单模块
   contextMenuManager.init();
   setupContextMenuHandler();
+
+  // 初始化导航管理器
+  navManager = new NavigationManager(state, elements, {
+    renderBookmarks,
+    showContextMenu,
+    buildTreeData,
+    searchManager
+  });
+  setupNavigationListeners();
 
   // 初始化书签事件监听器
   setupBookmarkListeners();
@@ -261,6 +272,88 @@ function setupBookmarkListeners() {
     updateFooterStats();
     Toast.success(`已删除 ${count} 个书签`);
   });
+}
+
+/**
+ * 设置导航事件监听器
+ * 处理来自 NavigationManager 的导航事件
+ */
+function setupNavigationListeners() {
+  // 监听导航变更事件
+  eventBus.on(Events.NAVIGATION_CHANGED, ({ mode, folderId }) => {
+    console.log('[Navigation] Mode changed:', mode, 'Folder:', folderId);
+    // 可以在这里添加导航变更后的额外处理
+    updateFooterStats();
+  });
+
+  // 监听内容区域渲染事件
+  eventBus.on(Events.CONTENT_AREA_RENDER, ({ folderId, subFolders, bookmarks, container }) => {
+    renderContentAreaItems(folderId, subFolders, bookmarks, container);
+  });
+
+  // 监听移动到文件夹事件
+  eventBus.on(Events.MOVE_TO_FOLDER, async ({ itemId, targetFolderId }) => {
+    await handleMoveToFolder(itemId, targetFolderId);
+  });
+}
+
+/**
+ * 渲染内容区域项目（子文件夹和书签）
+ * @param {string|null} folderId - 当前文件夹 ID
+ * @param {Array} subFolders - 子文件夹数组
+ * @param {Array} bookmarks - 书签数组
+ * @param {HTMLElement} container - 容器元素
+ */
+function renderContentAreaItems(folderId, subFolders, bookmarks, container) {
+  container.innerHTML = '';
+
+  const total = bookmarks.length + subFolders.length;
+
+  // 更新文件夹统计
+  if (elements.folderStats) {
+    elements.folderStats.textContent = total > 0 ? `${total} 项` : '';
+  }
+
+  if (total === 0 && folderId !== null) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><h3>文件夹为空</h3><p>点击左侧其他文件夹浏览内容</p></div>`;
+    return;
+  }
+  if (total === 0) {
+    showEmptyState();
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'bm-list';
+
+  // 渲染子文件夹
+  if (subFolders.length > 0) {
+    const secHeader = document.createElement('div');
+    secHeader.className = 'bm-section-header';
+    secHeader.textContent = '文件夹';
+    list.appendChild(secHeader);
+
+    subFolders.forEach(folder => {
+      const row = createFolderRow(folder);
+      list.appendChild(row);
+    });
+  }
+
+  // 渲染书签
+  if (bookmarks.length > 0) {
+    if (subFolders.length > 0) {
+      const secHeader = document.createElement('div');
+      secHeader.className = 'bm-section-header';
+      secHeader.textContent = '收藏';
+      list.appendChild(secHeader);
+    }
+    bookmarks.forEach(bm => {
+      const row = createBookmarkRow(bm);
+      list.appendChild(row);
+    });
+  }
+
+  container.appendChild(list);
 }
 
 /**
@@ -526,7 +619,10 @@ function renderBookmarks() {
     return;
   }
   updateFooterStats();
-  renderSidebar();
+
+  if (navManager) {
+    navManager.renderSidebar();
+  }
 
   if (state.searchTerm.trim()) {
     renderSearchResults();
@@ -535,7 +631,7 @@ function renderBookmarks() {
 
   switch (state.currentNavMode) {
     case 'all':
-      navigateToFolder(null);
+      if (navManager) navManager.navigateToFolder(null);
       break;
     case 'recent':
       renderRecentView();
@@ -547,323 +643,11 @@ function renderBookmarks() {
       renderTagsView();
       break;
     case 'folder':
-      navigateToFolder(state.currentFolderId);
+      if (navManager) navManager.navigateToFolder(state.currentFolderId);
       break;
     default:
-      navigateToFolder(null);
+      if (navManager) navManager.navigateToFolder(null);
   }
-}
-
-/**
- * 设置左侧导航模式
- */
-function setNavMode(mode) {
-  state.currentNavMode = mode;
-  state.searchTerm = '';
-  if (searchManager) searchManager.clear();
-
-  // 更新激活样式
-  document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
-  const navMap = { all: 'navAll', recent: 'navRecent', broken: 'navBroken', tags: 'navTags' };
-  if (navMap[mode]) document.getElementById(navMap[mode])?.classList.add('active');
-
-  // 清除侧栏文件夹激活状态（非 folder 模式）
-  if (mode !== 'folder') {
-    document.querySelectorAll('.sf-item-row.active').forEach(el => el.classList.remove('active'));
-  }
-
-  renderBookmarks();
-}
-
-/**
- * 渲染左侧文件夹树
- */
-function renderSidebar() {
-  if (!elements.sidebarTreeContent) return;
-  const treeData = buildTreeData(state.bookmarks);
-  const folders = treeData.filter(n => n.type === 'folder');
-  elements.sidebarTreeContent.innerHTML = '';
-  const ul = renderSidebarLevel(folders, 0);
-  elements.sidebarTreeContent.appendChild(ul);
-}
-
-function renderSidebarLevel(nodes, depth) {
-  const ul = document.createElement('ul');
-  ul.className = 'sf-node';
-  nodes.forEach(node => {
-    if (node.type !== 'folder') return;
-    const li = document.createElement('li');
-    li.className = 'sf-item';
-    li.dataset.id = node.id;
-    li.dataset.type = 'folder';
-    const childFolders = (node.children || []).filter(c => c.type === 'folder');
-    const isExpanded = state.expandedSidebarFolders.has(node.id);
-    const indent = depth * 12;
-
-    const row = document.createElement('div');
-    row.className = 'sf-item-row' + (state.currentFolderId === node.id && state.currentNavMode === 'folder' ? ' active' : '');
-    row.style.paddingLeft = `${8 + indent}px`;
-
-    if (childFolders.length > 0) {
-      const toggle = document.createElement('span');
-      toggle.className = 'sf-toggle' + (isExpanded ? ' open' : '');
-      toggle.innerHTML = isExpanded ? '▼' : '▶';
-      toggle.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (isExpanded) state.expandedSidebarFolders.delete(node.id);
-        else state.expandedSidebarFolders.add(node.id);
-        renderSidebar();
-      });
-      row.appendChild(toggle);
-    } else {
-      const sp = document.createElement('span');
-      sp.className = 'sf-toggle-spacer';
-      row.appendChild(sp);
-    }
-
-    const icon = document.createElement('span');
-    icon.className = 'sf-icon';
-    icon.textContent = '📁';
-    row.appendChild(icon);
-
-    const label = document.createElement('span');
-    label.className = 'sf-label';
-    label.textContent = node.title || '未命名';
-    row.appendChild(label);
-
-    const bmCount = countBookmarksInFolder(node);
-    if (bmCount > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'sf-badge';
-      badge.textContent = bmCount;
-      row.appendChild(badge);
-    }
-
-    row.addEventListener('click', () => {
-      state.currentNavMode = 'folder';
-      navigateToFolder(node.id);
-    });
-
-    // 右键菜单
-    row.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      state.selectedItem = node;
-      showContextMenu(node, e.clientX, e.clientY, { source: 'sidebar' });
-    });
-
-    li.appendChild(row);
-
-    // 在 row 上添加拖拽事件监听（更精确的控制）
-    row.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // 阻止冒泡到父元素
-      e.dataTransfer.dropEffect = 'move';
-      row.classList.add('drag-over');
-      li.classList.add('drag-over');
-    });
-
-    row.addEventListener('dragleave', (e) => {
-      e.stopPropagation(); // 阻止冒泡到父元素
-
-      // 使用 relatedTarget 更准确地判断是否真正离开元素
-      if (!e.relatedTarget || !row.contains(e.relatedTarget)) {
-        row.classList.remove('drag-over');
-        li.classList.remove('drag-over');
-      }
-    });
-
-    row.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // 阻止冒泡到父元素
-      row.classList.remove('drag-over');
-      li.classList.remove('drag-over');
-
-      const dragData = e.dataTransfer.getData('text/plain');
-      if (!dragData) return;
-
-      try {
-        const { type, id, data } = JSON.parse(dragData);
-        await handleMoveToFolder(id, node.id);
-      } catch (err) {
-        console.error('Drop error:', err);
-      }
-    });
-
-    if (childFolders.length > 0 && isExpanded) {
-      const children = renderSidebarLevel(childFolders, depth + 1);
-      children.className += ' sf-children';
-      li.appendChild(children);
-    }
-
-    ul.appendChild(li);
-  });
-  return ul;
-}
-
-function countBookmarksInFolder(node) {
-  let count = 0;
-  (node.children || []).forEach(c => {
-    if (c.type === 'bookmark') count++;
-    else if (c.type === 'folder') count += countBookmarksInFolder(c);
-  });
-  return count;
-}
-
-/**
- * 导航到指定文件夹（null = 根）
- */
-function navigateToFolder(folderId) {
-  state.currentFolderId = folderId;
-  if (folderId !== null) state.currentNavMode = 'folder';
-
-  // 更新侧栏激活
-  document.querySelectorAll('.sf-item-row').forEach(el => el.classList.remove('active'));
-  if (folderId) {
-    const allRows = elements.sidebarTreeContent?.querySelectorAll('.sf-item-row');
-    allRows?.forEach(row => {
-      const li = row.closest('.sf-item');
-      if (li) {
-        // 用 data 无法直接获取 id，通过 label 匹配比较难，改为重新渲染侧栏
-      }
-    });
-    // 重新渲染侧栏使激活状态正确
-    renderSidebar();
-  }
-
-  // 构建面包屑
-  buildBreadcrumb(folderId);
-
-  // 渲染右侧内容
-  renderContentArea(folderId);
-}
-
-/**
- * 构建面包屑路径
- */
-function buildBreadcrumb(folderId) {
-  state.breadcrumb = [];
-  if (folderId === null) {
-    state.breadcrumb = [{ id: null, title: '收藏夹' }];
-  } else {
-    // 向上查找路径
-    const catMap = new Map();
-    state.categories.forEach(c => catMap.set(c.id, c));
-    const path = [];
-    let cur = catMap.get(folderId);
-    while (cur) {
-      path.unshift({ id: cur.id, title: cur.name });
-      cur = cur.parentId ? catMap.get(cur.parentId) : null;
-    }
-    state.breadcrumb = [{ id: null, title: '收藏夹' }, ...path];
-  }
-  renderBreadcrumb();
-}
-
-function renderBreadcrumb() {
-  if (!elements.breadcrumb) return;
-  elements.breadcrumb.innerHTML = '';
-  state.breadcrumb.forEach((item, idx) => {
-    const el = document.createElement('span');
-    el.className = 'bc-item' + (idx === state.breadcrumb.length - 1 ? ' current' : '');
-    el.textContent = item.title;
-    el.title = item.title;
-    if (idx < state.breadcrumb.length - 1) {
-      el.addEventListener('click', () => navigateToFolder(item.id));
-    }
-    elements.breadcrumb.appendChild(el);
-    if (idx < state.breadcrumb.length - 1) {
-      const sep = document.createElement('span');
-      sep.className = 'bc-sep';
-      sep.textContent = '›';
-      elements.breadcrumb.appendChild(sep);
-    }
-  });
-}
-
-/**
- * 渲染右侧内容区域（子文件夹 + 书签）
- */
-function renderContentArea(folderId) {
-  const container = elements.bookmarkList;
-  container.innerHTML = '';
-
-  const treeData = buildTreeData(state.bookmarks);
-  let currentNode = null;
-  let children = [];
-
-  if (folderId === null) {
-    children = treeData;
-  } else {
-    currentNode = findNodeById(treeData, folderId);
-    children = currentNode ? (currentNode.children || []) : [];
-  }
-
-  let subFolders = children.filter(n => n.type === 'folder');
-  let bookmarks = children.filter(n => n.type === 'bookmark');
-
-  // 按 sortOrder 排序
-  subFolders.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  bookmarks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-  const total = bookmarks.length + subFolders.length;
-
-  // 更新文件夹统计
-  if (elements.folderStats) {
-    elements.folderStats.textContent = total > 0 ? `${total} 项` : '';
-  }
-
-  if (total === 0 && folderId !== null) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><h3>文件夹为空</h3><p>点击左侧其他文件夹浏览内容</p></div>`;
-    return;
-  }
-  if (total === 0) {
-    showEmptyState();
-    return;
-  }
-
-  const list = document.createElement('div');
-  list.className = 'bm-list';
-
-  // 渲染子文件夹
-  if (subFolders.length > 0) {
-    const secHeader = document.createElement('div');
-    secHeader.className = 'bm-section-header';
-    secHeader.textContent = '文件夹';
-    list.appendChild(secHeader);
-
-    subFolders.forEach(folder => {
-      const row = createFolderRow(folder);
-      list.appendChild(row);
-    });
-  }
-
-  // 渲染书签
-  if (bookmarks.length > 0) {
-    if (subFolders.length > 0) {
-      const secHeader = document.createElement('div');
-      secHeader.className = 'bm-section-header';
-      secHeader.textContent = '收藏';
-      list.appendChild(secHeader);
-    }
-    bookmarks.forEach(bm => {
-      const row = createBookmarkRow(bm);
-      list.appendChild(row);
-    });
-  }
-
-  container.appendChild(list);
-}
-
-function findNodeById(nodes, id) {
-  for (const n of nodes) {
-    if (n.id === id) return n;
-    if (n.children) {
-      const found = findNodeById(n.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
 }
 
 /**
@@ -876,7 +660,7 @@ function createFolderRow(folder) {
   row.dataset.type = 'folder';
   row.draggable = true; // 启用拖拽
 
-  const bmCount = countBookmarksInFolder(folder);
+  const bmCount = navManager.countBookmarksInFolder(folder);
   const subFolderCount = (folder.children || []).filter(c => c.type === 'folder').length;
   let metaText = '';
   if (bmCount > 0) metaText += `${bmCount} 个收藏`;
@@ -891,7 +675,7 @@ function createFolderRow(folder) {
 
   row.addEventListener('click', (e) => {
     if (e.target.closest('.bm-menu-btn')) return;
-    navigateToFolder(folder.id);
+    navManager.navigateToFolder(folder.id);
   });
 
   row.querySelector('.bm-menu-btn')?.addEventListener('click', (e) => {
@@ -1112,7 +896,6 @@ function createBookmarkRow(bm) {
  * 渲染最近添加视图
  */
 function renderRecentView() {
-  buildBreadcrumb(null);
   if (elements.breadcrumb) {
     elements.breadcrumb.innerHTML = '<span class="bc-item current">🕐 最近添加</span>';
   }
@@ -1139,7 +922,6 @@ function renderRecentView() {
  * 渲染失效链接视图
  */
 function renderBrokenView() {
-  buildBreadcrumb(null);
   if (elements.breadcrumb) {
     elements.breadcrumb.innerHTML = '<span class="bc-item current">⚠️ 失效链接</span>';
   }
@@ -1185,7 +967,6 @@ function renderBrokenView() {
  * 渲染标签视图
  */
 function renderTagsView() {
-  buildBreadcrumb(null);
   if (elements.breadcrumb) {
     elements.breadcrumb.innerHTML = '<span class="bc-item current">🏷️ 标签视图</span>';
   }
@@ -1218,7 +999,7 @@ function renderTagsView() {
       // 显示该标签下的所有书签
       if (elements.breadcrumb) {
         elements.breadcrumb.innerHTML = `<span class="bc-item" style="cursor:pointer;" id="bcTagBack">🏷️ 标签视图</span><span class="bc-sep">›</span><span class="bc-item current">${escapeHtml(tag)}</span>`;
-        document.getElementById('bcTagBack')?.addEventListener('click', () => setNavMode('tags'));
+        document.getElementById('bcTagBack')?.addEventListener('click', () => navManager.setNavMode('tags'));
       }
       container.innerHTML = '';
       const list = document.createElement('div');
@@ -1445,10 +1226,10 @@ function bindEvents() {
   });
 
   // 左侧固定导航项
-  document.getElementById('navAll').addEventListener('click', () => setNavMode('all'));
-  document.getElementById('navRecent').addEventListener('click', () => setNavMode('recent'));
-  document.getElementById('navBroken').addEventListener('click', () => setNavMode('broken'));
-  document.getElementById('navTags').addEventListener('click', () => setNavMode('tags'));
+  document.getElementById('navAll').addEventListener('click', () => navManager.setNavMode('all'));
+  document.getElementById('navRecent').addEventListener('click', () => navManager.setNavMode('recent'));
+  document.getElementById('navBroken').addEventListener('click', () => navManager.setNavMode('broken'));
+  document.getElementById('navTags').addEventListener('click', () => navManager.setNavMode('tags'));
 
   // 任务面板折叠/展开（点击标题栏）
   document.getElementById('taskPanelHeader').addEventListener('click', toggleTaskPanel);
@@ -1608,7 +1389,7 @@ function handleContextMenuAction(action) {
       break;
 
     case 'openFolder':
-      if (item.type === 'folder') navigateToFolder(item.id);
+      if (item.type === 'folder') navManager.navigateToFolder(item.id);
       break;
 
     case 'mergeFolder':
