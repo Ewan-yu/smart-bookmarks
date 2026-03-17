@@ -2339,7 +2339,7 @@ async function handleImportBookmarks(request, sendResponse) {
     if (data.bookmarks && Array.isArray(data.bookmarks)) {
       for (const bookmark of data.bookmarks) {
         try {
-          // 检查重复
+          // 检查 IndexedDB 中的重复
           if (skipDuplicates) {
             const existing = await getBookmark(bookmark.id);
             if (existing) {
@@ -2365,8 +2365,36 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmark);
 
-          // 注意：不再自动同步到浏览器收藏夹
-          // 原因：导入的数据通常就是从浏览器导出的，再同步回去会导致重复
+          // 同步到浏览器收藏夹（智能模式）
+          // 检查浏览器中是否已存在该 URL 的书签，避免重复创建
+          if (bookmark.url && /^\d+$/.test(bookmark.id)) {
+            try {
+              // 搜索浏览器中是否已有该 URL
+              const existingBrowserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+              const hasExistingUrl = existingBrowserBookmarks && existingBrowserBookmarks.length > 0;
+
+              if (!hasExistingUrl) {
+                // 浏览器中没有该 URL，创建新书签
+                const parentCategory = bookmark.parentCategoryId ?
+                  await get(STORES.CATEGORIES, bookmark.parentCategoryId) : null;
+
+                let browserParentId = parentCategory?.id?.startsWith('cat_') ?
+                  parentCategory.id.replace('cat_', '') : '1'; // 默认书签栏
+
+                await chrome.bookmarks.create({
+                  parentId: browserParentId,
+                  title: bookmark.title,
+                  url: bookmark.url
+                });
+
+                console.log(`[IMPORT] Created browser bookmark: ${bookmark.title}`);
+              } else {
+                console.log(`[IMPORT] Skipped browser bookmark creation (URL already exists): ${bookmark.url}`);
+              }
+            } catch (browserError) {
+              console.debug(`[IMPORT] Browser bookmark operation skipped: ${browserError.message}`);
+            }
+          }
 
           imported++;
         } catch (error) {
