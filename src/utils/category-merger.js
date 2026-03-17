@@ -421,6 +421,36 @@ class CategoryMerger {
   }
 
   /**
+   * 原生收藏夹根目录名称列表
+   * 这些目录不能参与合并
+   */
+  static NATIVE_ROOT_FOLDERS = [
+    '书签栏', 'Bookmarks Bar',
+    '其他书签', 'Other Bookmarks',
+    '移动书签', 'Mobile Bookmarks'
+  ];
+
+  /**
+   * 检查是否是原生根目录
+   * @param {string} name - 分类名称
+   * @returns {boolean} 是否是原生根目录
+   */
+  isNativeRootFolder(name) {
+    return CategoryMerger.NATIVE_ROOT_FOLDERS.includes(name);
+  }
+
+  /**
+   * 检查分类是否在书签栏下
+   * @param {Array} path - 分类路径
+   * @returns {boolean} 是否在书签栏下
+   */
+  isInBookmarksBar(path) {
+    if (!path || path.length === 0) return false;
+    const root = path[0];
+    return root === '书签栏' || root === 'Bookmarks Bar';
+  }
+
+  /**
    * 生成合并建议（用于 UI 展示）
    * @param {Array} categories - 分类列表
    * @param {Function} getPathCallback - 可选的回调函数，用于获取分类路径
@@ -442,18 +472,62 @@ class CategoryMerger {
         );
 
         if (similarity >= this.similarityThreshold) {
+          // 获取路径信息
+          let pathI = null;
+          let pathJ = null;
+          if (getPathCallback) {
+            pathI = getPathCallback(categories[i]);
+            pathJ = getPathCallback(categories[j]);
+          }
+
+          // 检查是否是原生根目录
+          const isINativeRoot = pathI && pathI.length === 1 && this.isNativeRootFolder(pathI[0]);
+          const isJNativeRoot = pathJ && pathJ.length === 1 && this.isNativeRootFolder(pathJ[0]);
+
+          // 如果任一个是原生根目录，跳过该合并建议
+          if (isINativeRoot || isJNativeRoot) {
+            continue;
+          }
+
+          // 确定合并方向：优先将其他书签下的文件夹合并到书签栏下的文件夹
+          let source, target, sourcePath, targetPath;
+          const isIInBookmarksBar = pathI && this.isInBookmarksBar(pathI);
+          const isJInBookmarksBar = pathJ && this.isInBookmarksBar(pathJ);
+
+          if (isIInBookmarksBar && !isJInBookmarksBar) {
+            // i 在书签栏，j 不在 → j 合并到 i
+            source = categories[j];
+            target = categories[i];
+            sourcePath = pathJ;
+            targetPath = pathI;
+          } else if (!isIInBookmarksBar && isJInBookmarksBar) {
+            // j 在书签栏，i 不在 → i 合并到 j
+            source = categories[i];
+            target = categories[j];
+            sourcePath = pathI;
+            targetPath = pathJ;
+          } else {
+            // 都在或都不在书签栏 → 保持默认顺序（i → j）
+            source = categories[i];
+            target = categories[j];
+            sourcePath = pathI;
+            targetPath = pathJ;
+          }
+
           // 找到一个合并建议
           const suggestion = {
-            source: categories[i].name,
-            target: categories[j].name,
+            source: source.name,
+            target: target.name,
+            sourceId: source.id,
+            targetId: target.id,
             confidence: similarity,
-            reason: this.getMergeReason(categories[i].name, categories[j].name, similarity)
+            reason: this.getMergeReason(source.name, target.name, similarity)
           };
 
           // 如果提供了路径回调，添加路径信息
           if (getPathCallback) {
-            suggestion.sourcePath = getPathCallback(categories[i]);
-            suggestion.targetPath = getPathCallback(categories[j]);
+            suggestion.sourcePath = sourcePath;
+            suggestion.targetPath = targetPath;
           }
 
           suggestions.push(suggestion);

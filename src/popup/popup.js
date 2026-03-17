@@ -2787,27 +2787,57 @@ async function handleSync() {
  */
 async function handleExport() {
   try {
+    const { exportBookmarks } = await import('./modules/import-export.js');
+    const { createSelectDialog } = await import('./utils/dialog-builder.js');
+
     const data = {
       bookmarks: state.bookmarks,
       categories: state.categories,
-      tags: state.tags,
-      exportDate: new Date().toISOString()
+      tags: state.tags
     };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    // 显示格式选择对话框
+    createSelectDialog({
+      title: '选择导出格式',
+      message: '请选择要导出的文件格式：',
+      items: [
+        {
+          value: 'json',
+          label: 'JSON 格式',
+          description: '包含所有书签、分类和标签数据，适合备份和恢复'
+        },
+        {
+          value: 'html',
+          label: 'HTML 格式',
+          description: '标准浏览器书签格式，可导入到其他浏览器'
+        },
+        {
+          value: 'csv',
+          label: 'CSV 格式',
+          description: '表格格式，适合在 Excel 中打开和分析'
+        },
+        {
+          value: 'markdown',
+          label: 'Markdown 格式',
+          description: '文档格式，适合分享和归档'
+        }
+      ],
+      confirmText: '导出',
+      onConfirm: async (format) => {
+        try {
+          Toast.info(`正在导出为 ${format.toUpperCase()} 格式...`);
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `smart-bookmarks-${timestamp}.json`;
+          await exportBookmarks(data, format);
 
-    await chrome.downloads.download({
-      url: url,
-      filename: filename,
-      saveAs: true
+          Toast.success('导出成功');
+        } catch (error) {
+          console.error('[Export] Error:', error);
+          Toast.error('导出失败：' + error.message);
+        }
+      }
     });
-
-    Toast.success('导出成功');
   } catch (error) {
+    console.error('[Export] Error:', error);
     Toast.error('导出失败：' + error.message);
   }
 }
@@ -2817,37 +2847,28 @@ async function handleExport() {
  */
 async function handleImport() {
   try {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.json';
+    const { selectImportFile, importBookmarks } = await import('./modules/import-export.js');
 
-    fileInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    selectImportFile(async (file) => {
+      try {
+        Toast.info('正在导入...');
 
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const data = JSON.parse(event.target.result);
+        const result = await importBookmarks(file, {
+          skipDuplicates: true,
+          mergeStrategy: 'merge'
+        });
 
-          if (!data.bookmarks) {
-            throw new Error('无效的导入文件格式');
-          }
+        Toast.success(`导入成功：${result.imported} 个收藏${result.skipped > 0 ? `（跳过 ${result.skipped} 个重复）` : ''}`);
 
-          // TODO: 导入数据到数据库
-
-          Toast.success(`导入成功：${data.bookmarks.length} 个收藏`);
-          await loadBookmarks();
-        } catch (error) {
-          Toast.error('导入失败：' + error.message);
-        }
-      };
-
-      reader.readAsText(file);
-    };
-
-    fileInput.click();
+        // 重新加载数据
+        await loadBookmarks();
+      } catch (error) {
+        console.error('[Import] Error:', error);
+        Toast.error('导入失败：' + error.message);
+      }
+    });
   } catch (error) {
+    console.error('[Import] Error:', error);
     Toast.error('导入失败：' + error.message);
   }
 }
@@ -3689,20 +3710,30 @@ function showMergeSuggestionsDialog(mergeSuggestions, categories) {
 
       // 执行合并操作
       for (const suggestion of selected) {
-        // 查找源和目标分类的 ID
-        const sourceCat = categories.find(c => c.name === suggestion.source);
-        const targetCat = categories.find(c => c.name === suggestion.target);
+        // 优先使用 sourceId 和 targetId（如果可用），否则通过名称查找
+        let sourceId = suggestion.sourceId;
+        let targetId = suggestion.targetId;
 
-        if (sourceCat && targetCat) {
+        if (!sourceId || !targetId) {
+          const sourceCat = categories.find(c => c.name === suggestion.source);
+          const targetCat = categories.find(c => c.name === suggestion.target);
+
+          if (sourceCat) sourceId = sourceCat.id;
+          if (targetCat) targetId = targetCat.id;
+        }
+
+        if (sourceId && targetId) {
           const response = await chrome.runtime.sendMessage({
             type: 'MERGE_FOLDERS',
-            sourceId: sourceCat.id,
-            targetId: targetCat.id
+            sourceId: sourceId,
+            targetId: targetId
           });
 
           if (response.error) {
             console.error(`合并 ${suggestion.source} → ${suggestion.target} 失败:`, response.error);
           }
+        } else {
+          console.error(`无法找到合并建议的源或目标分类: ${suggestion.source} → ${suggestion.target}`);
         }
       }
 

@@ -613,6 +613,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleUpdateCategory(request, sendResponse);
       return true;
 
+    case 'IMPORT_BOOKMARKS':
+      handleImportBookmarks(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ error: 'Unknown message type' });
   }
@@ -2276,6 +2280,143 @@ async function handleUpdateCategory(request, sendResponse) {
     });
   } catch (error) {
     console.error('[UPDATE_CATEGORY] Failed to update category:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+
+/**
+ * 导入书签数据
+ * @param {Object} request - 请求对象
+ * @param {Object} request.data - 要导入的数据 { bookmarks, categories, tags }
+ * @param {Object} request.options - 导入选项
+ * @param {Function} sendResponse - 响应回调
+ */
+async function handleImportBookmarks(request, sendResponse) {
+  try {
+    const { data, options = {} } = request;
+    const { skipDuplicates = true, mergeStrategy = 'merge' } = options;
+
+    console.log(`[IMPORT] Starting import: ${data.bookmarks?.length || 0} bookmarks`);
+
+    await initDatabase();
+
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    // 导入分类（如果存在）
+    if (data.categories && Array.isArray(data.categories)) {
+      for (const category of data.categories) {
+        try {
+          const existing = await get(STORES.CATEGORIES, category.id);
+          if (existing) {
+            if (mergeStrategy === 'replace') {
+              category.updatedAt = Date.now();
+              await addCategory(category);
+            } else {
+              // merge 或 skip 策略，跳过已存在的分类
+            }
+          } else {
+            category.createdAt = Date.now();
+            category.updatedAt = Date.now();
+            await addCategory(category);
+          }
+        } catch (error) {
+          console.error(`[IMPORT] Failed to import category ${category.id}:`, error);
+        }
+      }
+    }
+
+    // 导入书签
+    if (data.bookmarks && Array.isArray(data.bookmarks)) {
+      for (const bookmark of data.bookmarks) {
+        try {
+          // 检查重复
+          if (skipDuplicates) {
+            const existing = await getBookmark(bookmark.id);
+            if (existing) {
+              skipped++;
+              continue;
+            }
+
+            // 通过 URL 检查重复
+            const allBookmarks = await getAllBookmarks();
+            const duplicateByUrl = allBookmarks.find(bm => bm.url === bookmark.url);
+            if (duplicateByUrl) {
+              skipped++;
+              continue;
+            }
+          }
+
+          // 设置时间戳
+          if (!bookmark.createdAt) {
+            bookmark.createdAt = Date.now();
+          }
+          bookmark.updatedAt = Date.now();
+
+          // 保存到 IndexedDB
+          await addBookmark(bookmark);
+
+          // 可选：同步到浏览器收藏夹
+          if (/^\d+$/.test(bookmark.id)) {
+            try {
+              const parentCategory = bookmark.parentCategoryId ?
+                await get(STORES.CATEGORIES, bookmark.parentCategoryId) : null;
+
+              let browserParentId = parentCategory?.id?.startsWith('cat_') ?
+                parentCategory.id.replace('cat_', '') : '1'; // 默认书签栏
+
+              await chrome.bookmarks.create({
+                parentId: browserParentId,
+                title: bookmark.title,
+                url: bookmark.url
+              });
+
+              console.log(`[IMPORT] Created browser bookmark: ${bookmark.title}`);
+            } catch (browserError) {
+              console.debug(`[IMPORT] Browser bookmark creation skipped: ${browserError.message}`);
+            }
+          }
+
+          imported++;
+        } catch (error) {
+          console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
+          failed++;
+        }
+      }
+    }
+
+    // 导入标签（如果存在）
+    if (data.tags && Array.isArray(data.tags)) {
+      for (const tag of data.tags) {
+        try {
+          const existing = await get(STORES.TAGS, tag.id);
+          if (!existing) {
+            await addTag(tag);
+          }
+        } catch (error) {
+          console.error(`[IMPORT] Failed to import tag ${tag.id}:`, error);
+        }
+      }
+    }
+
+    console.log(`[IMPORT] Completed: ${imported} imported, ${skipped} skipped, ${failed} failed`);
+
+    // 通知 popup 书签已变更
+    notifyBookmarkChanged('imported', null);
+
+    sendResponse({
+      success: true,
+      imported,
+      skipped,
+      failed
+    });
+  } catch (error) {
+    console.error('[IMPORT] Failed:', error);
     sendResponse({
       success: false,
       error: error.message

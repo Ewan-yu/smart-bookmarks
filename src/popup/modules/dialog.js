@@ -3,7 +3,7 @@
  * 统一管理所有对话框的创建、显示和交互
  */
 
-import eventBus from '../utils/event-bus.js';
+import eventBus, { Events } from '../utils/event-bus.js';
 import { escapeHtml } from '../utils/helpers.js';
 
 /**
@@ -145,7 +145,7 @@ class BaseDialog {
     }
 
     // 触发事件
-    eventBus.emit(eventBus.Events.DIALOG_OPENED, {
+    eventBus.emit(Events.DIALOG_OPENED, {
       id: this.id,
       type: this.constructor.name
     });
@@ -181,7 +181,7 @@ class BaseDialog {
     this.isOpen = false;
 
     // 触发事件
-    eventBus.emit(eventBus.Events.DIALOG_CLOSED, {
+    eventBus.emit(Events.DIALOG_CLOSED, {
       id: this.id,
       type: this.constructor.name
     });

@@ -119,9 +119,7 @@ function exportBookmarksByFolder(bookmarks, categories, includeDates) {
   }
 
   // 导出未分类的书签
-  const uncategorized = bookmarks.filter(b =>
-    !b.categories || b.categories.length === 0
-  );
+  const uncategorized = bookmarks.filter(b => !b.categoryId);
 
   if (uncategorized.length > 0) {
     html += `    <DT><H3>未分类</H3>\n`;
@@ -147,10 +145,8 @@ function exportCategory(category, bookmarks, includeDates, level) {
   const indent = '    '.repeat(level);
   let html = '';
 
-  // 查找属于该分类的书签
-  const categoryBookmarks = bookmarks.filter(b =>
-    b.categories && b.categories.includes(category.path)
-  );
+  // 查找属于该分类的书签（使用 categoryId 字段）
+  const categoryBookmarks = bookmarks.filter(b => b.categoryId === category.id);
 
   if (categoryBookmarks.length === 0 && (!category.children || category.children.length === 0)) {
     return html;
@@ -229,13 +225,22 @@ export function exportToCsv(data, options = {}) {
 
     // 添加数据行
     for (const bookmark of bookmarks) {
+      // 获取分类名称
+      let categoryName = '未分类';
+      if (bookmark.categoryId && data.categories) {
+        const category = data.categories.find(c => c.id === bookmark.categoryId);
+        if (category) {
+          categoryName = category.name;
+        }
+      }
+
       const row = [
         escapeCsvField(bookmark.title || ''),
         escapeCsvField(bookmark.url || ''),
-        escapeCsvField((bookmark.categories || []).join('; ')),
+        escapeCsvField(categoryName),
         escapeCsvField((bookmark.tags || []).join('; ')),
         escapeCsvField(bookmark.description || ''),
-        escapeCsvField(new Date(bookmark.dateAdded).toLocaleString('zh-CN'))
+        escapeCsvField(new Date(bookmark.dateAdded || bookmark.createdAt).toLocaleString('zh-CN'))
       ];
       rows.push(row.join(delimiter));
     }
@@ -275,9 +280,7 @@ export function exportToMarkdown(data, options = {}) {
       }
 
       // 未分类的书签
-      const uncategorized = bookmarks.filter(b =>
-        !b.categories || b.categories.length === 0
-      );
+      const uncategorized = bookmarks.filter(b => !b.categoryId);
 
       if (uncategorized.length > 0) {
         markdown += `## 未分类\n\n`;
@@ -309,9 +312,8 @@ function exportCategoryToMarkdown(category, bookmarks, level) {
   const prefix = '#'.repeat(level);
   let markdown = '';
 
-  const categoryBookmarks = bookmarks.filter(b =>
-    b.categories && b.categories.includes(category.path)
-  );
+  // 查找属于该分类的书签（使用 categoryId 字段）
+  const categoryBookmarks = bookmarks.filter(b => b.categoryId === category.id);
 
   if (categoryBookmarks.length === 0 && (!category.children || category.children.length === 0)) {
     return markdown;
@@ -361,9 +363,9 @@ function buildCategoryTree(categories) {
   const categoryMap = new Map();
   const rootCategories = [];
 
-  // 创建映射
+  // 创建映射（使用 ID 作为键）
   for (const category of categories) {
-    categoryMap.set(category.path, {
+    categoryMap.set(category.id, {
       ...category,
       children: []
     });
@@ -526,3 +528,7 @@ export function importFromBackup(backupString) {
     throw new Error(`导入备份失败: ${error.message}`);
   }
 }
+
+// 导出辅助函数
+export { escapeHtml };
+
