@@ -22,6 +22,44 @@ import { analyzeBookmarks, analyzeBookmarksDebug } from '../api/openai.js';
 
 console.log('Smart Bookmarks background service worker loaded');
 
+/**
+ * 规范化 URL，用于比较和去重
+ * 统一 URL 格式，避免因为格式差异导致的重复
+ * @param {string} url - 原始 URL
+ * @returns {string} 规范化后的 URL
+ */
+function normalizeUrl(url) {
+  if (!url) return '';
+
+  try {
+    let normalized = url.trim();
+
+    // 移除尾部斜杠（但不保留根路径的斜杠）
+    if (normalized.length > 1 && normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+
+    // 转换为小写（域名和协议部分不区分大小写）
+    // 但保留路径的大小写（某些服务器区分大小写）
+    try {
+      const urlObj = new URL(normalized);
+      normalized = urlObj.origin + urlObj.pathname;
+      // 移除 pathname 的尾部斜杠（已经在上面处理）
+      if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.slice(0, -1);
+      }
+    } catch (e) {
+      // URL 解析失败，返回原始 URL
+      console.warn(`Failed to normalize URL: ${url}`, e);
+    }
+
+    return normalized;
+  } catch (e) {
+    console.error(`Error normalizing URL: ${url}`, e);
+    return url;
+  }
+}
+
 // 监听扩展图标点击事件
 chrome.action.onClicked.addListener(async (tab) => {
   // 打开主界面（全屏页面）
@@ -365,12 +403,19 @@ async function importBrowserBookmarks() {
     // 获取已存在的书签
     const existingBookmarks = await getAllBookmarks();
     const existingIds = new Set(existingBookmarks.map(b => b.id));
-    const existingUrls = new Set(existingBookmarks.map(b => b.url).filter(u => u)); // 收集所有 URL
+
+    // 使用规范化的 URL 进行比较（避免格式差异导致的重复）
+    const existingUrls = new Set(
+      existingBookmarks
+        .map(b => normalizeUrl(b.url))
+        .filter(u => u)
+    );
 
     // 过滤出需要导入的书签（同时检查 ID 和 URL）
     const newBookmarks = browserBookmarks.filter(bm => {
+      const normalizedUrl = normalizeUrl(bm.url);
       // ID 不存在且 URL 也不存在
-      return !existingIds.has(bm.id) && !existingUrls.has(bm.url);
+      return !existingIds.has(bm.id) && !existingUrls.has(normalizedUrl);
     });
 
     if (newBookmarks.length === 0) {
@@ -395,6 +440,7 @@ async function importBrowserBookmarks() {
       };
 
       await addBookmark(bookmark);
+      console.log(`[IMPORT] Imported bookmark: ${bm.title} (${bm.url})`);
     }
 
     // 提取并保存现有分类
@@ -1383,12 +1429,21 @@ async function handleDeleteBookmark(request, sendResponse) {
       if (/^\d+$/.test(bookmarkId)) {
         await chrome.bookmarks.remove(bookmarkId);
         console.log(`[DELETE] Deleted from browser bookmarks: ${bookmarkId}`);
-      } else {
-        // 如果 ID 不是纯数字，尝试通过 URL 查找并删除浏览器书签
-        const browserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
-        for (const bm of browserBookmarks) {
+      } else if (bookmark.url) {
+        // 如果 ID 不是纯数字，尝试通过 URL 查找并删除浏览器书签（使用规范化 URL）
+        const normalizedUrl = normalizeUrl(bookmark.url);
+        const allBrowserBookmarks = await chrome.bookmarks.getTree();
+        const allBrowserBookmarksList = flattenBookmarkTree(allBrowserBookmarks);
+
+        // 查找所有 URL 匹配的浏览器书签并删除
+        const matchingBookmarks = allBrowserBookmarksList.filter(bm => normalizeUrl(bm.url) === normalizedUrl);
+        for (const bm of matchingBookmarks) {
           await chrome.bookmarks.remove(bm.id);
-          console.log(`[DELETE] Deleted from browser bookmarks by URL: ${bm.id}`);
+          console.log(`[DELETE] Deleted from browser bookmarks by URL: ${bm.id} (${normalizedUrl})`);
+        }
+
+        if (matchingBookmarks.length === 0) {
+          console.log(`[DELETE] No matching browser bookmarks found for URL: ${normalizedUrl}`);
         }
       }
     } catch (browserError) {
@@ -1444,8 +1499,12 @@ async function handleDeleteBookmarksBatch(request, sendResponse) {
           if (/^\d+$/.test(bookmarkId)) {
             await chrome.bookmarks.remove(bookmarkId);
           } else if (bookmark.url) {
-            const browserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
-            for (const bm of browserBookmarks) {
+            // 使用规范化 URL 查找并删除浏览器书签
+            const normalizedUrl = normalizeUrl(bookmark.url);
+            const allBrowserBookmarks = await chrome.bookmarks.getTree();
+            const allBrowserBookmarksList = flattenBookmarkTree(allBrowserBookmarks);
+            const matchingBookmarks = allBrowserBookmarksList.filter(bm => normalizeUrl(bm.url) === normalizedUrl);
+            for (const bm of matchingBookmarks) {
               await chrome.bookmarks.remove(bm.id);
             }
           }
@@ -2345,13 +2404,20 @@ async function handleImportBookmarks(request, sendResponse) {
 
           if (bookmark.url && /^\d+$/.test(bookmark.id)) {
             try {
-              // 搜索浏览器中是否已有该 URL
-              const existingBrowserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+              // 搜索浏览器中是否已有该 URL（使用规范化 URL 进行比较）
+              const normalizedUrl = normalizeUrl(bookmark.url);
+              const allBrowserBookmarks = await chrome.bookmarks.getTree();
+              const allBrowserBookmarksList = flattenBookmarkTree(allBrowserBookmarks);
 
-              if (existingBrowserBookmarks && existingBrowserBookmarks.length > 0) {
-                // 浏览器中已有该 URL，使用第一个匹配的 ID
-                browserBookmarkId = existingBrowserBookmarks[0].id;
-                console.log(`[IMPORT] Browser bookmark already exists with ID: ${browserBookmarkId}, using existing ID`);
+              // 查找 URL 匹配的浏览器书签
+              const existingBrowserBookmark = allBrowserBookmarksList.find(bm => {
+                return normalizeUrl(bm.url) === normalizedUrl;
+              });
+
+              if (existingBrowserBookmark) {
+                // 浏览器中已有该 URL，使用其 ID
+                browserBookmarkId = existingBrowserBookmark.id;
+                console.log(`[IMPORT] Browser bookmark already exists with ID: ${browserBookmarkId}, URL: ${normalizedUrl}`);
               } else {
                 // 浏览器中没有该 URL，创建新书签
                 const parentCategory = bookmark.parentCategoryId ?
@@ -2367,7 +2433,7 @@ async function handleImportBookmarks(request, sendResponse) {
                 });
 
                 browserBookmarkId = newBrowserBookmark.id;
-                console.log(`[IMPORT] Created browser bookmark with ID: ${browserBookmarkId}`);
+                console.log(`[IMPORT] Created browser bookmark with ID: ${browserBookmarkId}, URL: ${normalizedUrl}`);
               }
             } catch (browserError) {
               console.debug(`[IMPORT] Browser bookmark operation skipped: ${browserError.message}`);
@@ -2381,15 +2447,17 @@ async function handleImportBookmarks(request, sendResponse) {
           if (skipDuplicates) {
             const existing = await getBookmark(finalId);
             if (existing) {
+              console.log(`[IMPORT] Skipping duplicate ID: ${finalId}`);
               skipped++;
               continue;
             }
 
-            // 通过 URL 检查重复（检查所有书签，包括使用其他 ID 的）
+            // 通过 URL 检查重复（使用规范化的 URL 进行比较）
+            const normalizedUrl = normalizeUrl(bookmark.url);
             const allBookmarks = await getAllBookmarks();
-            const duplicateByUrl = allBookmarks.find(bm => bm.url === bookmark.url);
+            const duplicateByUrl = allBookmarks.find(bm => normalizeUrl(bm.url) === normalizedUrl);
             if (duplicateByUrl) {
-              console.log(`[IMPORT] Skipping duplicate URL: ${bookmark.url} (existing ID: ${duplicateByUrl.id})`);
+              console.log(`[IMPORT] Skipping duplicate URL: ${normalizedUrl} (existing ID: ${duplicateByUrl.id})`);
               skipped++;
               continue;
             }
