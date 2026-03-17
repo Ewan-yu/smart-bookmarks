@@ -2505,6 +2505,23 @@ async function handleImportBookmarks(request, sendResponse) {
     }
 
     console.log(`[IMPORT] Completed: ${imported} imported, ${skipped} skipped, ${failed} failed`);
+    console.log(`[IMPORT] Variable types:`, {
+      imported: typeof imported,
+      skipped: typeof skipped,
+      failed: typeof failed,
+      importedValue: imported,
+      skippedValue: skipped,
+      failedValue: failed
+    });
+
+    const responseToSend = {
+      success: true,
+      imported,
+      skipped,
+      failed
+    };
+    console.log(`[IMPORT] Sending response:`, responseToSend);
+    console.log(`[IMPORT] Response structure:`, JSON.stringify(responseToSend));
 
     // 通知 popup 书签已变更
     notifyBookmarkChanged('imported', null);
@@ -2515,6 +2532,7 @@ async function handleImportBookmarks(request, sendResponse) {
       skipped,
       failed
     });
+    console.log(`[IMPORT] Response sent`);
   } catch (error) {
     console.error('[IMPORT] Failed:', error);
     sendResponse({
