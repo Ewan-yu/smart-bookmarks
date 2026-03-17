@@ -121,20 +121,17 @@ DRAG_STARTED, DRAG_ENDED, BOOKMARK_REORDERED
 - **组件**：Class-based，构造接受 `container` DOM 元素，暴露 `create()`/`update()`/`show()`/`hide()`
 - **重试机制**：网络请求用 `fetchWithRetry(fn, MAX_RETRIES=3)` 指数退避（基数 1000 ms）
 
-## 关键技术约定
-
-### 代码风格
-- **ES Module**：所有文件使用 `import/export`，`manifest.json` 声明 `"type": "module"`
-- **异步**：全面使用 `async/await`；IndexedDB 回调统一用 `new Promise` 封装
-- **状态管理**：`popup.js` 顶层单一 `const state = {}` 对象，不使用框架
-- **组件**：Class-based，构造接受 `container` DOM 元素，暴露 `create()`/`update()`/`show()`/`hide()`
-- **重试机制**：网络请求用 `fetchWithRetry(fn, MAX_RETRIES=3)` 指数退避（基数 1000 ms）
-
 ### 数据库
 - 数据库名：`SmartBookmarksDB`，当前版本 **v2**
 - Store 名称使用 `STORES` 常量（见 `src/db/indexeddb.js`）
 - Schema 变更必须通过 `src/db/migration.js` 的 `MIGRATIONS` 表添加新版本迁移函数
 - stores: `bookmarks` / `categories` / `tags` / `metadata` / `sync_log`
+
+### 状态管理
+- 集中式状态对象：`popup.js` 顶层单一 `const state = {}`
+- 可选模块化状态管理：`modules/state.js` 提供响应式更新
+- 状态更新通过事件通知 UI 刷新（如 `Events.STATE_CHANGED`）
+- 避免直接修改嵌套属性，使用展开运算符创建新对象
 
 ### AI API 集成
 - 见 `src/api/openai.js`：OpenAI 兼容接口，分批处理（默认 `batchSize=10`）
@@ -193,6 +190,40 @@ DRAG_STARTED, DRAG_ENDED, BOOKMARK_REORDERED
    // ✅ 正确：创建独立的处理器
    this._handleKeyboardHandler = (e) => this._handleKeyboard(e);
    ```
+
+## 调试与测试
+
+### 模块测试
+```bash
+# 在扩展主界面的控制台中运行：
+import './src/popup/test-modules.js';
+```
+
+### 调试技巧
+1. **查看所有事件**
+   ```javascript
+   import eventBus from './src/popup/utils/event-bus.js';
+   eventBus.eventNames(); // 查看所有已注册事件
+   ```
+
+2. **监听事件数量**
+   ```javascript
+   eventBus.listenerCount('bookmarks:loaded');
+   ```
+
+3. **状态快照**
+   ```javascript
+   import state from './src/popup/modules/state.js';
+   state.snapshot(); // 返回当前状态的深拷贝
+   ```
+
+### 关键待办（P0 - 阻塞发布）
+- **SYNC_BOOKMARKS 实现**：`background.js` 中 `handleSyncBookmarks()` 函数体为空
+- **deleteBookmark 删除 API**：`popup.js` 中删除书签功能实际无效
+- **handleImport 导入落盘**：`popup.js` 中导入功能无效
+- **浏览器加载测试**：在 Chrome/Edge 上完整走一遍核心流程确认无 JS 报错
+
+详细信息见 `docs/TODO.md`
 
 ## UI 结构
 
