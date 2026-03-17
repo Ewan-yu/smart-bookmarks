@@ -186,6 +186,9 @@ export const Events = {
   CATEGORY_UPDATED: 'category:updated',
   CATEGORY_DELETED: 'category:deleted',
   FOLDER_DELETED: 'folder:deleted',
+  FOLDER_CREATED: 'folder:created',
+  FOLDER_RENAMED: 'folder:renamed',
+  FOLDER_MERGED: 'folder:merged',
 
   // 导航事件
   NAVIGATION_CHANGED: 'navigation:changed',

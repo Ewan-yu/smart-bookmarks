@@ -21,6 +21,7 @@ import contextMenuManager from './modules/context-menu.js';
 import bookmarkManager from './modules/bookmarks.js';
 import { NavigationManager } from './modules/navigation-manager.js';
 import { TaskPanelManager } from './modules/task-panel-manager.js';
+import { FolderDialogManager } from './modules/folder-dialog-manager.js';
 import { showAnalysisResumeDialog } from './modules/analysis-resume.js';
 import { showResumeDialog as showCheckResumeDialog } from './modules/check-resume.js';
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
@@ -104,6 +105,7 @@ let searchRenderer = null;
 let searchManager = null;
 let navManager = null;
 let taskPanelManager = null;
+let folderDialogManager = null;
 
 // 初始化
 function init() {
@@ -135,6 +137,9 @@ function init() {
   // 初始化任务面板管理器
   taskPanelManager = new TaskPanelManager(state, elements);
   taskPanelManager.init();
+
+  // 初始化文件夹对话框管理器
+  folderDialogManager = new FolderDialogManager(state, loadBookmarks);
 
   // 初始化书签事件监听器
   setupBookmarkListeners();
@@ -3153,91 +3158,24 @@ async function regenerateSummary(item) {
 /**
  * 显示合并文件夹对话框
  */
+/**
+ * 显示合并文件夹对话框
+ * @deprecated 请使用 folderDialogManager.showMerge() 代替
+ */
 function showMergeFolderDialog(sourceFolder) {
-  // 获取所有同级文件夹作为目标选项
-  const siblings = state.bookmarks.filter(bm =>
-    bm.type === 'folder' &&
-    bm.parentId === sourceFolder.parentId &&
-    bm.id !== sourceFolder.id
-  );
-
-  if (siblings.length === 0) {
-    Toast.warning('没有同级文件夹可以合并');
-    return;
+  if (folderDialogManager) {
+    folderDialogManager.showMerge(sourceFolder);
   }
-
-  // 构建选项列表
-  const items = siblings.map(folder => {
-    const childCount = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id).length;
-    return {
-      value: folder.id,
-      label: `📁 ${folder.title}`,
-      description: `${childCount} 项内容`
-    };
-  });
-
-  createSelectDialog({
-    title: '合并文件夹',
-    message: `将 <strong>${escapeHtml(sourceFolder.title)}</strong> 合并到：`,
-    items: items,
-    confirmText: '合并',
-    onConfirm: async (targetId) => {
-      const targetFolder = siblings.find(f => f.id === targetId);
-
-      const response = await chrome.runtime.sendMessage({
-        type: 'MERGE_FOLDERS',
-        sourceId: sourceFolder.id,
-        targetId: targetId
-      });
-
-      if (response.error) throw new Error(response.error);
-
-      Toast.success(`已将 ${sourceFolder.title} 合并到 ${targetFolder.title}`);
-      await loadBookmarks();
-    }
-  });
 }
 
 /**
  * 显示删除文件夹确认对话框
+ * @deprecated 请使用 folderDialogManager.showDelete() 代替
  */
 function showDeleteFolderDialog(folder) {
-  // 计算子项数量
-  const childBookmarks = state.bookmarks.filter(bm => bm.parentCategoryId === folder.id);
-  const childFolders = state.bookmarks.filter(bm => bm.type === 'folder' && bm.parentId === folder.id);
-  const totalChildren = childBookmarks.length + childFolders.length;
-
-  const message = totalChildren > 0
-    ? `删除 "${escapeHtml(folder.title)}" 后，其中的 ${totalChildren} 项内容将移动到上级文件夹。确定要删除吗？`
-    : `确定要删除 "${escapeHtml(folder.title)}" 吗？`;
-
-  const dialog = new ConfirmDialog({
-    title: '确认删除文件夹',
-    message: message,
-    confirmText: '删除',
-    cancelText: '取消',
-    onConfirm: async () => {
-      try {
-        const response = await chrome.runtime.sendMessage({
-          type: 'DELETE_FOLDER',
-          folderId: folder.id
-        });
-
-        if (response.error) throw new Error(response.error);
-
-        const movedMsg = response.movedCount > 0
-          ? `（已移动 ${response.movedCount} 项内容）`
-          : '';
-        Toast.success(`文件夹已删除${movedMsg}`);
-        await loadBookmarks();
-      } catch (error) {
-        console.error('Delete folder failed:', error);
-        Toast.error(`删除失败: ${error.message}`);
-      }
-    }
-  });
-
-  dialog.show();
+  if (folderDialogManager) {
+    folderDialogManager.showDelete(folder);
+  }
 }
 
 /**
@@ -3521,72 +3459,22 @@ function generateMergeSuggestionsFromResult(analysisResult) {
 
 /**
  * 显示新建子文件夹对话框
+ * @deprecated 请使用 folderDialogManager.showAddSub() 代替
  */
 function showAddSubFolderDialog(parentFolder) {
-  createInputDialog({
-    title: '➕ 新建子文件夹',
-    message: `在 <strong>${escapeHtml(parentFolder.title)}</strong> 下创建新文件夹：`,
-    placeholder: '例如: 前端开发',
-    confirmText: '创建',
-    validator: (value) => {
-      if (!value || value.trim().length === 0) {
-        return { valid: false, error: '请输入文件夹名称' };
-      }
-      if (value.trim().length > 50) {
-        return { valid: false, error: '文件夹名称不能超过 50 个字符' };
-      }
-      return { valid: true };
-    },
-    onConfirm: async (name) => {
-      const response = await chrome.runtime.sendMessage({
-        type: 'CREATE_CATEGORY',
-        name: name,
-        parentId: parentFolder.id
-      });
-
-      if (response.error) throw new Error(response.error);
-
-      Toast.success('文件夹已创建');
-      await loadBookmarks();
-    }
-  });
+  if (folderDialogManager) {
+    folderDialogManager.showAddSub(parentFolder);
+  }
 }
 
 /**
  * 显示重命名文件夹对话框
+ * @deprecated 请使用 folderDialogManager.showRename() 代替
  */
 function showRenameFolderDialog(folder) {
-  createInputDialog({
-    title: '✏️ 重命名文件夹',
-    message: '',
-    placeholder: '输入新的名称',
-    confirmText: '保存',
-    defaultValue: folder.title || '',
-    validator: (value) => {
-      if (!value || value.trim().length === 0) {
-        return { valid: false, error: '请输入文件夹名称' };
-      }
-      if (value === folder.title) {
-        return { valid: false, error: '新名称与原名称相同' };
-      }
-      if (value.trim().length > 50) {
-        return { valid: false, error: '文件夹名称不能超过 50 个字符' };
-      }
-      return { valid: true };
-    },
-    onConfirm: async (name) => {
-      const response = await chrome.runtime.sendMessage({
-        type: 'UPDATE_CATEGORY',
-        id: folder.id,
-        name: name
-      });
-
-      if (response.error) throw new Error(response.error);
-
-      Toast.success('文件夹已重命名');
-      await loadBookmarks();
-    }
-  });
+  if (folderDialogManager) {
+    folderDialogManager.showRename(folder);
+  }
 }
 
 // 启动应用（确保 DOM 已加载）
