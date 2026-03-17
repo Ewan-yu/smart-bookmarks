@@ -13,9 +13,11 @@ import {
   normalizeUrl,      // 已移至 helpers.js（完全相同）
   isInBookmarksBar   // 已移至 helpers.js（完全相同）
 } from './utils/helpers.js';
+import FormValidator from './utils/form-validator.js';
 import eventBus, { Events } from './utils/event-bus.js';
 import keyboardManager from './modules/keyboard.js';
 import contextMenuManager from './modules/context-menu.js';
+import bookmarkManager from './modules/bookmarks.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -111,6 +113,9 @@ function init() {
   // 初始化右键菜单模块
   contextMenuManager.init();
   setupContextMenuHandler();
+
+  // 初始化书签事件监听器
+  setupBookmarkListeners();
 
   loadBookmarks();
   restoreCheckingState();
@@ -210,6 +215,42 @@ function setupContextMenuHandler() {
 }
 
 /**
+ * 设置书签事件监听器
+ * 处理来自 bookmarkManager 的书签变更事件
+ */
+function setupBookmarkListeners() {
+  // 监听书签加载事件
+  eventBus.on(Events.BOOKMARKS_LOADED, ({ bookmarks, categories, tags }) => {
+    console.log('[setupBookmarkListeners] Bookmarks loaded:', bookmarks.length);
+  });
+
+  // 监听书签添加事件
+  eventBus.on(Events.BOOKMARK_ADDED, (bookmark) => {
+    console.log('[setupBookmarkListeners] Bookmark added:', bookmark);
+    // 书签添加后刷新界面
+    renderBookmarks();
+    updateFooterStats();
+  });
+
+  // 监听书签更新事件
+  eventBus.on(Events.BOOKMARK_UPDATED, ({ id, updates }) => {
+    console.log('[setupBookmarkListeners] Bookmark updated:', id, updates);
+    // 书签更新后刷新界面
+    renderBookmarks();
+    updateFooterStats();
+  });
+
+  // 监听书签删除事件
+  eventBus.on(Events.BOOKMARKS_DELETED, ({ ids, count }) => {
+    console.log('[setupBookmarkListeners] Bookmarks deleted:', ids, count);
+    // 书签删除后刷新界面
+    renderBookmarks();
+    updateFooterStats();
+    Toast.success(`已删除 ${count} 个书签`);
+  });
+}
+
+/**
  * 显示快捷键帮助
  */
 function showShortcutHelp() {
@@ -256,27 +297,26 @@ function initRenderers() {
  */
 async function loadBookmarks() {
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'GET_BOOKMARKS' });
+    const result = await bookmarkManager.load();
 
-    // response.bookmarks 可能是 undefined（未初始化）、[]（已初始化但无数据）、或有数据
-    const hasBookmarks = response && response.bookmarks && response.bookmarks.length > 0;
-
-    if (response && response.error) {
-      showEmptyState('加载失败', response.error + '，请刷新重试');
+    if (!result.success) {
+      showEmptyState('加载失败', result.error + '，请刷新重试');
       return;
     }
 
+    const hasBookmarks = result.bookmarks && result.bookmarks.length > 0;
+
     if (hasBookmarks) {
-      state.bookmarks = response.bookmarks;
-      state.categories = response.categories || [];
-      state.tags = response.tags || [];
+      state.bookmarks = result.bookmarks;
+      state.categories = result.categories || [];
+      state.tags = result.tags || [];
       renderBookmarks();
       updateFooterStats();
-    } else if (response && Array.isArray(response.bookmarks)) {
+    } else if (result.bookmarks && Array.isArray(result.bookmarks)) {
       // bookmarks 是空数组，说明已初始化但没有数据
       showEmptyState('暂无收藏', '您还没有添加任何收藏，点击下方按钮导入浏览器收藏', true, true);
     } else {
-      // bookmarks 是 undefined 或 response 不存在，说明首次使用
+      // bookmarks 是 undefined 或不存在，说明首次使用
       showWelcomeState();
     }
   } catch (error) {
@@ -1531,46 +1571,11 @@ function closeEditDialog() {
       }
     }
     // 清除表单错误
-    clearFormErrors(dialog);
+    FormValidator.clearFormErrors(dialog);
   }
 }
 
-/**
- * 清除表单错误
- */
-function clearFormErrors(dialog) {
-  dialog.querySelectorAll('[aria-invalid="true"]').forEach(el => {
-    el.setAttribute('aria-invalid', 'false');
-    el.classList.remove('input-error');
-  });
-  dialog.querySelectorAll('.field-error').forEach(el => el.remove());
-}
-
-/**
- * 显示字段错误
- */
-function showFieldError(fieldEl, message) {
-  if (!fieldEl) return;
-
-  fieldEl.setAttribute('aria-invalid', 'true');
-  fieldEl.classList.add('input-error');
-
-  // 移除已存在的错误消息
-  const existingError = fieldEl.parentElement.querySelector('.field-error');
-  if (existingError) existingError.remove();
-
-  // 添加新的错误消息
-  const errorEl = document.createElement('div');
-  errorEl.className = 'field-error';
-  errorEl.id = `${fieldEl.id}-error`;
-  errorEl.textContent = message;
-  errorEl.setAttribute('role', 'alert');
-  errorEl.setAttribute('aria-live', 'polite');
-
-  fieldEl.setAttribute('aria-describedby', errorEl.id);
-  fieldEl.parentElement.appendChild(errorEl);
-}
-
+// FormValidator.showFieldError 和 FormValidator.clearFormErrors 已移至 utils/form-validator.js
 // isValidUrl() 已移至 utils/helpers.js（功能完全相同）
 
 /**
@@ -3098,16 +3103,13 @@ function deleteBookmark(item) {
     cancelText: '取消',
     onConfirm: async () => {
       try {
-        const response = await chrome.runtime.sendMessage({
-          type: 'DELETE_BOOKMARK',
-          bookmarkId: item.id
-        });
+        const result = await bookmarkManager.delete(item.id);
 
-        if (response.success) {
+        if (result.success) {
           Toast.success('删除成功');
           await loadBookmarks();
         } else {
-          throw new Error(response.error || '删除失败');
+          throw new Error(result.error || '删除失败');
         }
       } catch (error) {
         Toast.error('删除失败：' + error.message);
@@ -3191,16 +3193,13 @@ function cleanupBrokenLinks(brokenLinks) {
         Toast.info('正在删除失效链接...');
 
         const bookmarkIds = brokenLinks.map(link => link.id);
-        const response = await chrome.runtime.sendMessage({
-          type: 'DELETE_BOOKMARKS_BATCH',
-          bookmarkIds
-        });
+        const result = await bookmarkManager.delete(bookmarkIds);
 
-        if (response.success) {
-          Toast.success(response.message || `成功删除 ${response.deleted} 个失效链接`);
+        if (result.success) {
+          Toast.success(`成功删除 ${result.deletedCount} 个失效链接`);
           await loadBookmarks();
         } else {
-          throw new Error(response.error || '批量删除失败');
+          throw new Error(result.error || '批量删除失败');
         }
       } catch (error) {
         Toast.error('批量删除失败：' + error.message);
@@ -3558,7 +3557,7 @@ function initEditDialog() {
   // 保存按钮
   dialog.querySelector('#editDialogSave')?.addEventListener('click', async () => {
     // 清除之前的错误
-    clearFormErrors(dialog);
+    FormValidator.clearFormErrors(dialog);
 
     const item = state.selectedItem;
     if (!item) return;
@@ -3579,16 +3578,16 @@ function initEditDialog() {
 
     // 验证标题
     if (!title) {
-      showFieldError(titleEl, '请输入名称');
+      FormValidator.showFieldError(titleEl, '请输入名称');
       hasError = true;
     }
 
     // 验证 URL（仅书签需要）
     if (item.type !== 'folder' && !url) {
-      showFieldError(urlEl, '请输入网址');
+      FormValidator.showFieldError(urlEl, '请输入网址');
       hasError = true;
     } else if (url && !isValidUrl(url)) {
-      showFieldError(urlEl, '请输入有效的网址（以 http:// 或 https:// 开头）');
+      FormValidator.showFieldError(urlEl, '请输入有效的网址（以 http:// 或 https:// 开头）');
       hasError = true;
     }
 
@@ -3609,12 +3608,11 @@ function initEditDialog() {
           name: title
         });
       } else {
-        // 书签：更新所有字段
-        await chrome.runtime.sendMessage({
-          type: 'UPDATE_BOOKMARK',
-          id: item.id,
-          data: { title, url, summary, tags }
-        });
+        // 书签：更新所有字段（使用 bookmarkManager）
+        const result = await bookmarkManager.update(item.id, { title, url, summary, tags });
+        if (!result.success) {
+          throw new Error(result.error || '更新失败');
+        }
       }
       Toast.success('保存成功');
       closeEditDialog();

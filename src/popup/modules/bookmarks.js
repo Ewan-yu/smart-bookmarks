@@ -3,7 +3,7 @@
  * 负责书签的加载、CRUD 操作和渲染
  */
 
-import eventBus from '../utils/event-bus.js';
+import eventBus, { Events } from '../utils/event-bus.js';
 import { escapeHtml, truncateUrl } from '../utils/helpers.js';
 
 /**
@@ -32,7 +32,7 @@ class BookmarkManager {
         this.tags = response.tags || [];
 
         // 发送事件通知
-        eventBus.emit(eventBus.Events.BOOKMARKS_LOADED, {
+        eventBus.emit(Events.BOOKMARKS_LOADED, {
           bookmarks: this.bookmarks,
           categories: this.categories,
           tags: this.tags
@@ -142,7 +142,7 @@ class BookmarkManager {
         // 添加到本地列表
         this.bookmarks.push(response.bookmark);
 
-        eventBus.emit(eventBus.Events.BOOKMARK_ADDED, response.bookmark);
+        eventBus.emit(Events.BOOKMARK_ADDED, response.bookmark);
         return { success: true, bookmark: response.bookmark };
       }
 
@@ -174,7 +174,7 @@ class BookmarkManager {
           this.bookmarks[index] = { ...this.bookmarks[index], ...updates };
         }
 
-        eventBus.emit(eventBus.Events.BOOKMARK_UPDATED, { id, updates });
+        eventBus.emit(Events.BOOKMARK_UPDATED, { id, updates });
         return { success: true, bookmark: this.bookmarks[index] };
       }
 
@@ -202,7 +202,7 @@ class BookmarkManager {
         // 从本地列表中移除
         this.bookmarks = this.bookmarks.filter(bm => !idsArray.includes(bm.id));
 
-        eventBus.emit(eventBus.Events.BOOKMARKS_DELETED, {
+        eventBus.emit(Events.BOOKMARKS_DELETED, {
           ids: idsArray,
           count: response.deletedCount || idsArray.length
         });
@@ -240,7 +240,7 @@ class BookmarkManager {
         // 更新本地数据
         bookmark.categoryId = targetFolderId;
 
-        eventBus.emit(eventBus.Events.BOOKMARK_UPDATED, {
+        eventBus.emit(Events.BOOKMARK_UPDATED, {
           id: bookmarkId,
           updates: { categoryId: targetFolderId }
         });
