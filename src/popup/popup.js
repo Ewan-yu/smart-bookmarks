@@ -1144,7 +1144,8 @@ function renderBrokenView() {
     elements.breadcrumb.innerHTML = '<span class="bc-item current">⚠️ 失效链接</span>';
   }
 
-  const broken = state.bookmarks.filter(b => b.status === 'broken' || b.checkStatus === 'uncertain');
+  const broken = state.bookmarks.filter(b => b.status === 'broken');
+  const uncertain = state.bookmarks.filter(b => b.checkStatus === 'uncertain');
   const container = elements.bookmarkList;
   container.innerHTML = '';
   if (broken.length === 0) {
@@ -1157,8 +1158,11 @@ function renderBrokenView() {
   header.className = 'broken-view-header';
   header.style.cssText = 'padding: 12px 16px; background: #fef2f2; border-bottom: 1px solid #fecaca; display: flex; align-items: center; justify-content: space-between;';
   header.innerHTML = `
-    <span style="color: #991b1b; font-size: 13px;">发现 ${broken.length} 个失效链接</span>
-    <button class="btn btn-primary" id="cleanupAllBrokenBtn" style="background: #dc2626; border-color: #dc2626; padding: 6px 12px; font-size: 13px;">🗑️ 一键清理全部</button>
+    <div>
+      <span style="color: #991b1b; font-size: 13px;">发现 ${broken.length} 个失效链接</span>
+      ${uncertain.length > 0 ? `<span style="color: #f59e0b; font-size: 11px; margin-left: 12px;">（另有 ${uncertain.length} 个不确定的书签未被包含）</span>` : ''}
+    </div>
+    <button class="btn btn-primary" id="cleanupAllBrokenBtn" style="background: #dc2626; border-color: #dc2626; padding: 6px 12px; font-size: 13px;">🗑️ 一键清理全部失效</button>
   `;
   container.appendChild(header);
 
