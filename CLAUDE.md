@@ -120,6 +120,8 @@ DRAG_STARTED, DRAG_ENDED, BOOKMARK_REORDERED
 - **状态管理**：`popup.js` 顶层单一 `const state = {}` 对象，不使用框架
 - **组件**：Class-based，构造接受 `container` DOM 元素，暴露 `create()`/`update()`/`show()`/`hide()`
 - **重试机制**：网络请求用 `fetchWithRetry(fn, MAX_RETRIES=3)` 指数退避（基数 1000 ms）
+- **JSDoc 注释**：关键函数添加 `@param`/`@returns` 注释
+- **DOM 操作约定**：popup.js 不直接操作 DOM，通过 `ui/renderers.js` 中的渲染器更新视图
 
 ### 数据库
 - 数据库名：`SmartBookmarksDB`，当前版本 **v2**
