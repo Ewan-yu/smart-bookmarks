@@ -1145,6 +1145,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   font-size: 11px; color: #94a3b8;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.bm-time {
+  font-size: 10px; color: #10b981;
+  white-space: nowrap; font-weight: 500;
+  padding: 1px 6px; background: #d1fae5; border-radius: 8px;
+}
 
 .bm-actions {
   flex-shrink: 0; display: flex; align-items: center;

@@ -776,6 +776,38 @@ function createBookmarkRow(bm) {
   const descText = bm.description || bm.summary || '';
   const descHtml = descText ? `<div class="bm-desc">${escapeHtml(descText)}</div>` : '';
 
+  // 添加时间（用于"最近添加"视图）
+  let timeHtml = '';
+  const sortTime = bm.dateAdded || bm.createdAt || bm.updatedAt;
+  if (sortTime) {
+    const date = new Date(sortTime);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    let timeText;
+    if (diffDays === 0) {
+      // 今天
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (hours < 1) {
+        const minutes = Math.floor(diffMs / (1000 * 60));
+        timeText = minutes < 1 ? '刚刚' : `${minutes}分钟前`;
+      } else {
+        timeText = `${hours}小时前`;
+      }
+    } else if (diffDays === 1) {
+      timeText = '昨天';
+    } else if (diffDays < 7) {
+      timeText = `${diffDays}天前`;
+    } else if (diffDays < 30) {
+      timeText = `${Math.floor(diffDays / 7)}周前`;
+    } else {
+      timeText = date.toLocaleDateString('zh-CN');
+    }
+
+    timeHtml = `<span class="bm-time" title="${date.toLocaleString('zh-CN')}">${timeText}</span>`;
+  }
+
   row.innerHTML = `
     ${faviconHtml}
     <div class="bm-content">
@@ -787,6 +819,7 @@ function createBookmarkRow(bm) {
       <div class="bm-meta-row">
         ${tagsHtml}
         ${domainHtml}
+        ${timeHtml}
       </div>
     </div>
     <div class="bm-actions">
@@ -910,22 +943,34 @@ function renderRecentView() {
     elements.breadcrumb.innerHTML = '<span class="bc-item current">🕐 最近添加</span>';
   }
 
+  // 按 dateAdded 或 createdAt 或 updatedAt 排序
+  // 优先使用 dateAdded（导入时间），其次是 createdAt，最后是 updatedAt
   const recent = [...state.bookmarks]
-    .filter(b => b.dateAdded || b.createdAt)
-    .sort((a, b) => (b.dateAdded || b.createdAt || 0) - (a.dateAdded || a.createdAt || 0))
-    .slice(0, 50);
+    .map(bm => ({
+      ...bm,
+      // 统一使用 sortTime 字段进行排序
+      sortTime: bm.dateAdded || bm.createdAt || bm.updatedAt || 0
+    }))
+    .filter(bm => bm.sortTime > 0)  // 过滤掉没有时间戳的书签
+    .sort((a, b) => b.sortTime - a.sortTime)  // 按时间降序排列
+    .slice(0, 50);  // 只显示最近 50 个
 
   const container = elements.bookmarkList;
   container.innerHTML = '';
+
   if (recent.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🕐</div><h3>暂无最近收藏</h3></div>`;
     return;
   }
+
   const list = document.createElement('div');
   list.className = 'bm-list';
   recent.forEach(bm => list.appendChild(createBookmarkRow(bm)));
   container.appendChild(list);
-  if (elements.folderStats) elements.folderStats.textContent = `${recent.length} 项`;
+
+  if (elements.folderStats) {
+    elements.folderStats.textContent = `${recent.length} 项`;
+  }
 }
 
 /**

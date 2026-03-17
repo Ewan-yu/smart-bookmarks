@@ -2464,10 +2464,13 @@ async function handleImportBookmarks(request, sendResponse) {
           }
 
           // 设置时间戳
-          if (!bookmark.createdAt) {
-            bookmark.createdAt = Date.now();
-          }
-          bookmark.updatedAt = Date.now();
+          // createdAt: 原始创建时间（如果 JSON 中有）
+          // dateAdded: 导入时间（用于"最近添加"排序）
+          // updatedAt: 最后更新时间
+          const now = Date.now();
+          bookmark.createdAt = bookmark.createdAt || now;
+          bookmark.dateAdded = now;  // 使用导入时间作为 dateAdded
+          bookmark.updatedAt = now;
 
           // 使用浏览器书签的 ID（如果存在），否则使用原始 ID
           const bookmarkToSave = {
@@ -2478,7 +2481,7 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmarkToSave);
 
-          console.log(`[IMPORT] Saved to IndexedDB with ID: ${finalId}`);
+          console.log(`[IMPORT] Saved to IndexedDB with ID: ${finalId}, dateAdded: ${new Date(bookmark.dateAdded).toISOString()}`);
           imported++;
         } catch (error) {
           console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
