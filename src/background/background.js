@@ -2367,6 +2367,10 @@ async function handleImportBookmarks(request, sendResponse) {
 
     await initDatabase();
 
+    // 获取当前数据库中的书签数量
+    const existingBookmarks = await getAllBookmarks();
+    console.log(`[IMPORT] Current database has ${existingBookmarks.length} bookmarks`);
+
     let imported = 0;
     let skipped = 0;
     let failed = 0;
@@ -2457,7 +2461,8 @@ async function handleImportBookmarks(request, sendResponse) {
             const allBookmarks = await getAllBookmarks();
             const duplicateByUrl = allBookmarks.find(bm => normalizeUrl(bm.url) === normalizedUrl);
             if (duplicateByUrl) {
-              console.log(`[IMPORT] Skipping duplicate URL: ${normalizedUrl} (existing ID: ${duplicateByUrl.id})`);
+              console.log(`[IMPORT] Skipping duplicate URL: ${normalizedUrl} (existing ID: ${duplicateByUrl.id}, title: ${duplicateByUrl.title})`);
+              console.log(`[IMPORT] Current bookmark: ID=${finalId}, title=${bookmark.title}, url=${bookmark.url}`);
               skipped++;
               continue;
             }
@@ -2481,8 +2486,9 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmarkToSave);
 
-          console.log(`[IMPORT] Saved to IndexedDB with ID: ${finalId}, dateAdded: ${new Date(bookmark.dateAdded).toISOString()}`);
+          console.log(`[IMPORT] ✓ Imported bookmark: ID=${finalId}, title=${bookmark.title}, url=${bookmark.url}`);
           imported++;
+          console.log(`[IMPORT] Progress: ${imported} imported, ${skipped} skipped, ${failed} failed so far`);
         } catch (error) {
           console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
           failed++;
