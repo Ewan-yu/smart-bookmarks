@@ -2339,18 +2339,57 @@ async function handleImportBookmarks(request, sendResponse) {
     if (data.bookmarks && Array.isArray(data.bookmarks)) {
       for (const bookmark of data.bookmarks) {
         try {
-          // 检查 IndexedDB 中的重复
+          // 同步到浏览器收藏夹（智能模式）
+          // 检查浏览器中是否已存在该 URL 的书签
+          let browserBookmarkId = null;
+
+          if (bookmark.url && /^\d+$/.test(bookmark.id)) {
+            try {
+              // 搜索浏览器中是否已有该 URL
+              const existingBrowserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
+
+              if (existingBrowserBookmarks && existingBrowserBookmarks.length > 0) {
+                // 浏览器中已有该 URL，使用第一个匹配的 ID
+                browserBookmarkId = existingBrowserBookmarks[0].id;
+                console.log(`[IMPORT] Browser bookmark already exists with ID: ${browserBookmarkId}, using existing ID`);
+              } else {
+                // 浏览器中没有该 URL，创建新书签
+                const parentCategory = bookmark.parentCategoryId ?
+                  await get(STORES.CATEGORIES, bookmark.parentCategoryId) : null;
+
+                let browserParentId = parentCategory?.id?.startsWith('cat_') ?
+                  parentCategory.id.replace('cat_', '') : '1'; // 默认书签栏
+
+                const newBrowserBookmark = await chrome.bookmarks.create({
+                  parentId: browserParentId,
+                  title: bookmark.title,
+                  url: bookmark.url
+                });
+
+                browserBookmarkId = newBrowserBookmark.id;
+                console.log(`[IMPORT] Created browser bookmark with ID: ${browserBookmarkId}`);
+              }
+            } catch (browserError) {
+              console.debug(`[IMPORT] Browser bookmark operation skipped: ${browserError.message}`);
+            }
+          }
+
+          // 确定最终使用的 ID（优先使用浏览器书签的 ID）
+          const finalId = browserBookmarkId || bookmark.id;
+
+          // 检查 IndexedDB 中的重复（使用最终 ID）
           if (skipDuplicates) {
-            const existing = await getBookmark(bookmark.id);
+            const existing = await getBookmark(finalId);
             if (existing) {
               skipped++;
               continue;
             }
 
-            // 通过 URL 检查重复
+            // 通过 URL 检查重复（检查所有书签，包括使用其他 ID 的）
             const allBookmarks = await getAllBookmarks();
             const duplicateByUrl = allBookmarks.find(bm => bm.url === bookmark.url);
             if (duplicateByUrl) {
+              console.log(`[IMPORT] Skipping duplicate URL: ${bookmark.url} (existing ID: ${duplicateByUrl.id})`);
               skipped++;
               continue;
             }
@@ -2362,40 +2401,16 @@ async function handleImportBookmarks(request, sendResponse) {
           }
           bookmark.updatedAt = Date.now();
 
+          // 使用浏览器书签的 ID（如果存在），否则使用原始 ID
+          const bookmarkToSave = {
+            ...bookmark,
+            id: finalId
+          };
+
           // 保存到 IndexedDB
-          await addBookmark(bookmark);
+          await addBookmark(bookmarkToSave);
 
-          // 同步到浏览器收藏夹（智能模式）
-          // 检查浏览器中是否已存在该 URL 的书签，避免重复创建
-          if (bookmark.url && /^\d+$/.test(bookmark.id)) {
-            try {
-              // 搜索浏览器中是否已有该 URL
-              const existingBrowserBookmarks = await chrome.bookmarks.search({ url: bookmark.url });
-              const hasExistingUrl = existingBrowserBookmarks && existingBrowserBookmarks.length > 0;
-
-              if (!hasExistingUrl) {
-                // 浏览器中没有该 URL，创建新书签
-                const parentCategory = bookmark.parentCategoryId ?
-                  await get(STORES.CATEGORIES, bookmark.parentCategoryId) : null;
-
-                let browserParentId = parentCategory?.id?.startsWith('cat_') ?
-                  parentCategory.id.replace('cat_', '') : '1'; // 默认书签栏
-
-                await chrome.bookmarks.create({
-                  parentId: browserParentId,
-                  title: bookmark.title,
-                  url: bookmark.url
-                });
-
-                console.log(`[IMPORT] Created browser bookmark: ${bookmark.title}`);
-              } else {
-                console.log(`[IMPORT] Skipped browser bookmark creation (URL already exists): ${bookmark.url}`);
-              }
-            } catch (browserError) {
-              console.debug(`[IMPORT] Browser bookmark operation skipped: ${browserError.message}`);
-            }
-          }
-
+          console.log(`[IMPORT] Saved to IndexedDB with ID: ${finalId}`);
           imported++;
         } catch (error) {
           console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
