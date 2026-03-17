@@ -1498,10 +1498,10 @@ async function handleUpdateBookmark(request, sendResponse) {
     // 更新字段
     const updatedBookmark = {
       ...bookmark,
-      title: data.title || bookmark.title,
-      url: data.url !== undefined ? data.url : bookmark.url,
-      summary: data.summary !== undefined ? data.summary : bookmark.summary,
-      tags: data.tags !== undefined ? data.tags : bookmark.tags,
+      title: data.title || bookmark?.title || '',
+      url: data.url !== undefined ? data.url : bookmark?.url || '',
+      summary: data.summary !== undefined ? data.summary : bookmark?.summary || '',
+      tags: data.tags !== undefined ? data.tags : bookmark?.tags || [],
       updatedAt: Date.now()
     };
 
