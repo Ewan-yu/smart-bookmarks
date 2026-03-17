@@ -28,7 +28,8 @@
       "Bash(node --check src/background/background.js 2>&1 && echo \"✓ Syntax OK\")",
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(find src/popup/modules -name \"*.js\" -type f 2>/dev/null | head -20)"
     ]
   }
 }

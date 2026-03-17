@@ -866,12 +866,10 @@ function createFolderRow(folder) {
     e.dataTransfer.setDragImage(row, e.offsetX, e.offsetY);
     row.classList.add('dragging');
     row.style.opacity = '0.5';
-    console.log('[Folder Drag Start]', folder.title);
   });
 
   // 拖拽结束
   row.addEventListener('dragend', (e) => {
-    console.log('[Folder Drag End]', folder.title);
     row.classList.remove('dragging');
     row.style.opacity = '1';
     row.style.transform = '';
@@ -987,14 +985,10 @@ function createBookmarkRow(bm) {
     row.classList.add('dragging');
     row.style.opacity = '0.5';
     row.style.transform = 'scale(0.98)';
-
-    console.log('Drag started:', bm.title);
   });
 
   // 拖拽结束
   row.addEventListener('dragend', (e) => {
-    console.log('Drag ended');
-
     // 移除拖拽样式
     row.classList.remove('dragging');
     row.style.opacity = '';
@@ -1533,7 +1527,7 @@ function closeEditDialog() {
         }
         previousFocus?.focus();
       } catch (e) {
-        console.debug('[closeEditDialog] Failed to restore focus:', e.message);
+        // 焦点恢复失败不是关键错误，忽略
       }
     }
     // 清除表单错误
@@ -3348,7 +3342,6 @@ function listenToMessages() {
       Toast.error(`分析失败: ${message.data.error}`);
     } else if (message.type === 'BOOKMARK_CHANGED') {
       // 浏览器书签变更（用户在浏览器中新增/删除/移动书签），刷新列表
-      console.log('[Popup] 书签变更通知:', message.data);
       loadBookmarks();
     }
   });
@@ -3718,8 +3711,6 @@ function removeInsertPlaceholder() {
  */
 async function handleReorderBookmark(draggedId, targetId, clientY) {
   try {
-    console.log('handleReorderBookmark called:', { draggedId, targetId, clientY });
-
     const draggedItem = state.bookmarks.find(b => b.id === draggedId);
     const targetItem = state.bookmarks.find(b => b.id === targetId);
 
@@ -3741,13 +3732,9 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
     const targetMiddle = targetRect.top + targetRect.height / 2;
     const insertBefore = clientY < targetMiddle;
 
-    console.log('Insert position:', insertBefore ? 'before' : 'after');
-
     // 获取当前文件夹中的所有书签
     const currentFolderId = state.currentFolderId;
     const folderBookmarks = state.bookmarks.filter(b => b.parentCategoryId === currentFolderId);
-
-    console.log('Folder bookmarks:', folderBookmarks.length);
 
     // 计算新的排序索引
     const targetIndex = folderBookmarks.findIndex(b => b.id === targetId);
@@ -3763,8 +3750,6 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
     newBookmarks.splice(draggedIndex, 1);
     const newIndex = insertBefore ? targetIndex : (targetIndex > draggedIndex ? targetIndex - 1 : targetIndex);
     newBookmarks.splice(newIndex, 0, draggedItem);
-
-    console.log('New order:', newBookmarks.map(b => b.title));
 
     // 更新排序索引（使用时间戳作为排序依据）
     const now = Date.now();
@@ -3788,8 +3773,6 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
       targetEl.parentNode.insertBefore(draggedEl, targetEl.nextSibling);
     }
 
-    console.log('DOM updated');
-
     // 异步保存到数据库
     setTimeout(async () => {
       for (let i = 0; i < newBookmarks.length; i++) {
@@ -3799,7 +3782,6 @@ async function handleReorderBookmark(draggedId, targetId, clientY) {
           data: { sortOrder: newBookmarks[i].sortOrder }
         });
       }
-      console.log('Sort order saved to database');
       Toast.success('排序已更新');
     }, 100);
 
