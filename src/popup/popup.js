@@ -1634,6 +1634,43 @@ function findDuplicateCategories() {
 // isInBookmarksBar() 已移至 utils/helpers.js（功能完全相同）
 
 /**
+ * 构建分类的完整路径
+ * @param {Object} category - 分类对象
+ * @returns {string} 路径字符串，如 "收藏夹 > 技术 > 前端"
+ */
+function buildCategoryPath(category) {
+  const path = [category.name];
+  let currentCat = category;
+
+  // 向上遍历父分类
+  while (currentCat.parentId) {
+    const parentCat = state.categories.find(c => c.id === currentCat.parentId);
+    if (!parentCat) break;
+    path.unshift(parentCat.name);
+    currentCat = parentCat;
+
+    // 防止无限循环（最多10层）
+    if (path.length > 10) break;
+  }
+
+  return path.join(' › ');
+}
+
+/**
+ * 获取书签所属分类的路径
+ * @param {Object} bookmark - 书签对象
+ * @returns {string} 路径字符串，如 "收藏夹 > 技术 > 前端"
+ */
+function getBookmarkCategoryPath(bookmark) {
+  if (!bookmark.categoryId) return '未分类';
+
+  const category = state.categories.find(c => c.id === bookmark.categoryId);
+  if (!category) return '未分类';
+
+  return buildCategoryPath(category);
+}
+
+/**
  * 显示去重对话框
  */
 function showDeduplicateDialog(duplicates) {
@@ -1670,13 +1707,17 @@ function showDeduplicateDialog(duplicates) {
                         <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">${escapeHtml(item.keep.title)}</span>
                         ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                       </div>
-                      <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 6px;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
+                      <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 4px;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
+                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;">📍 ${escapeHtml(getBookmarkCategoryPath(item.keep))}</div>
                       <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复：</div>
                       ${item.remove.map(r => `
-                        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--c-muted);">
-                          <span style="color: #ef4444;">✗</span>
-                          <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
-                          ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                        <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="color: #ef4444;">✗</span>
+                            <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
+                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                          </div>
+                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(getBookmarkCategoryPath(r))}</div>
                         </div>
                       `).join('')}
                     </div>
@@ -1701,12 +1742,16 @@ function showDeduplicateDialog(duplicates) {
                         <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">📁 ${escapeHtml(item.keep.name)}</span>
                         ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                       </div>
+                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;">📍 ${escapeHtml(buildCategoryPath(item.keep))}</div>
                       <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复目录：</div>
                       ${item.remove.map(r => `
-                        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--c-muted);">
-                          <span style="color: #ef4444;">✗</span>
-                          <span style="text-decoration: line-through;">📁 ${escapeHtml(r.name)}</span>
-                          ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                        <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="color: #ef4444;">✗</span>
+                            <span style="text-decoration: line-through;">📁 ${escapeHtml(r.name)}</span>
+                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                          </div>
+                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(buildCategoryPath(r))}</div>
                         </div>
                       `).join('')}
                     </div>
