@@ -20,6 +20,7 @@ import keyboardManager from './modules/keyboard.js';
 import contextMenuManager from './modules/context-menu.js';
 import bookmarkManager from './modules/bookmarks.js';
 import { NavigationManager } from './modules/navigation-manager.js';
+import { TaskPanelManager } from './modules/task-panel-manager.js';
 import { showAnalysisResumeDialog } from './modules/analysis-resume.js';
 import { showResumeDialog as showCheckResumeDialog } from './modules/check-resume.js';
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
@@ -102,12 +103,12 @@ let treeRenderer = null;
 let searchRenderer = null;
 let searchManager = null;
 let navManager = null;
+let taskPanelManager = null;
 
 // 初始化
 function init() {
   initRenderers();
   loadSidebarWidth();
-  initTaskPanel();
   initResizer();
   initEditDialog();
   initDragAndDrop();
@@ -130,6 +131,10 @@ function init() {
     searchManager
   });
   setupNavigationListeners();
+
+  // 初始化任务面板管理器
+  taskPanelManager = new TaskPanelManager(state, elements);
+  taskPanelManager.init();
 
   // 初始化书签事件监听器
   setupBookmarkListeners();
@@ -2189,73 +2194,22 @@ async function handleDebugAnalyze() {
 
 /**
  * 显示进度（适配新任务面板）
+ * @deprecated 请使用 taskPanelManager.showProgress() 代替
  */
 function showProgress(message, current, total) {
-  const percentage = total > 0 ? (current / total) * 100 : 0;
-
-  // 新任务面板 - 检测进度区
-  if (elements.checkProgressSection) {
-    elements.checkProgressSection.style.display = '';
-    const msgEl = elements.checkProgressSection.querySelector('.task-progress-label');
-    if (msgEl) msgEl.textContent = message || '检测中...';
-    if (elements.checkProgressCount) elements.checkProgressCount.textContent = `${current}/${total}`;
-    if (elements.checkProgressFill) elements.checkProgressFill.style.width = `${percentage}%`;
-  }
-
-  // 展开任务面板
-  if (elements.taskPanel && !state.taskPanelExpanded) {
-    state.taskPanelExpanded = true;
-    elements.taskPanel.classList.add('expanded'); elements.taskPanel.classList.remove('collapsed');
-  }
-
-  // 兼容旧 progressSection（隐藏层，仍保留引用）
-  const progressSection = document.getElementById('progressSection');
-  const progressMessage = document.getElementById('progressMessage');
-  const progressCount = document.getElementById('progressCount');
-  const progressFill = document.getElementById('progressFill');
-  if (progressSection) {
-    if (progressMessage) progressMessage.textContent = message;
-    if (progressCount) progressCount.textContent = `${current}/${total}`;
-    if (progressFill) progressFill.style.width = `${percentage}%`;
+  if (taskPanelManager) {
+    taskPanelManager.showProgress(message, current, total, 'check');
   }
 }
 
 /**
  * 隐藏进度（适配新任务面板）
+ * @deprecated 请使用 taskPanelManager.hideProgress() 代替
  */
 function hideProgress() {
-  // 新任务面板 - 隐藏检测进度区
-  if (elements.checkProgressSection) {
-    elements.checkProgressSection.style.display = 'none';
+  if (taskPanelManager) {
+    taskPanelManager.hideProgress('all');
   }
-  if (elements.checkProgressFill) {
-    elements.checkProgressFill.style.width = '0%';
-  }
-  if (elements.checkProgressCount) elements.checkProgressCount.textContent = '';
-  if (elements.checkProgressEta) elements.checkProgressEta.textContent = '';
-  if (elements.checkProgressSub) elements.checkProgressSub.textContent = '';
-
-  // 如果分析进度也已隐藏，则收起任务面板
-  const analyzeVisible = elements.analyzeProgressSection?.style.display !== 'none' &&
-    elements.analyzeProgressSection?.style.display !== '';
-  if (!analyzeVisible && state.taskPanelExpanded) {
-    // 不自动收起，留给用户手动操作
-  }
-
-  // 兼容旧 progressSection
-  const progressSection = document.getElementById('progressSection');
-  const progressFill = document.getElementById('progressFill');
-  if (progressSection) progressSection.style.display = 'none';
-  if (progressFill) progressFill.style.width = '0%';
-
-  if (elements.cancelCheckBtn) {
-    elements.cancelCheckBtn.style.display = 'none';
-  }
-
-  const etaEl = document.getElementById('progressEta');
-  const subEl = document.getElementById('progressSub');
-  if (etaEl) etaEl.textContent = '';
-  if (subEl) subEl.textContent = '';
 }
 
 /**
@@ -2747,7 +2701,11 @@ async function restoreCheckingState() {
  * 处理后台广播的检测完成事件
  * 仅用于"重新打开的 popup"场景；本实例发起的检测由 startBrokenLinkCheck.finally 处理
  */
-function handleCheckDone({ cancelled, total, brokenCount, skippedCount }) {
+/**
+ * 处理检测完成
+ * @deprecated 请使用 taskPanelManager.handleCheckDone() 代替
+ */
+function handleCheckDone(data) {
   // 本实例发起的检测，由 startBrokenLinkCheck 自己处理，此处跳过
   if (state.checkInitiatedLocally) return;
   // 若本实例并未处于检测中（正常不会触发），直接忽略
@@ -2757,53 +2715,23 @@ function handleCheckDone({ cancelled, total, brokenCount, skippedCount }) {
   state.checkInitiatedLocally = false;
   elements.checkBrokenBtn.disabled = false;
   elements.checkBrokenBtn.textContent = '⚠️ 检测';
-  hideProgress();
-  updateFooterStats();
 
-  if (cancelled) {
-    Toast.info('检测已取消。');
-  } else if (brokenCount === 0) {
-    const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
-    Toast.success(`检测完成！所有 ${total} 个收藏链接均有效。${skipNote}`);
-  } else {
-    const skipNote = skippedCount > 0 ? `（跳过 ${skippedCount} 个已检测）` : '';
-    Toast.warning(`检测完成！发现 ${brokenCount} 个失效链接，已移至「待清理」。${skipNote}`);
+  if (taskPanelManager) {
+    taskPanelManager.handleCheckDone(data);
   }
+
+  updateFooterStats();
   loadBookmarks();
 }
 
 /**
  * 更新检测进度（响应 background 推送的 CHECK_PROGRESS 消息）
+ * @deprecated 请使用 taskPanelManager.updateProgress('check', data) 代替
  */
 function updateCheckProgress() {
-  const { completed, total, brokenCount, percentage } = state.checkProgress;
-
-  // 新任务面板进度区
-  if (elements.checkProgressFill) elements.checkProgressFill.style.width = `${percentage}%`;
-  if (elements.checkProgressCount) elements.checkProgressCount.textContent = `${completed}/${total}`;
-  if (elements.checkProgressSub && brokenCount > 0) {
-    elements.checkProgressSub.textContent = `已发现 ${brokenCount} 个失效`;
+  if (taskPanelManager) {
+    taskPanelManager.updateProgress('check', state.checkProgress);
   }
-
-  // 计算并显示预计剩余时间
-  if (elements.checkProgressEta && completed > 0 && state.checkStartTime > 0) {
-    const elapsed = Date.now() - state.checkStartTime;
-    const rate = completed / elapsed;
-    const remaining = total - completed;
-    const etaMs = remaining / rate;
-    if (etaMs < 60000) {
-      elements.checkProgressEta.textContent = `约 ${Math.ceil(etaMs / 1000)} 秒`;
-    } else {
-      const mins = Math.ceil(etaMs / 60000);
-      elements.checkProgressEta.textContent = `约 ${mins} 分钟`;
-    }
-  }
-
-  // 兼容旧 compat 层
-  const progressFill = document.getElementById('progressFill');
-  const progressCount = document.getElementById('progressCount');
-  if (progressFill) progressFill.style.width = `${percentage}%`;
-  if (progressCount) progressCount.textContent = `${completed}/${total}`;
 }
 
 // escapeHtml() 已移至 utils/helpers.js（更安全，支持类型检查）
@@ -2824,17 +2752,23 @@ function loadSidebarWidth() {
 
 // ─────────────────────────── 任务面板 ───────────────────────────
 
+/**
+ * 初始化任务面板
+ * @deprecated 请使用 taskPanelManager.init() 代替
+ */
 function initTaskPanel() {
-  const toggle = elements.taskPanelToggle;
-  if (!toggle) return;
-  toggle.addEventListener('click', toggleTaskPanel);
+  if (taskPanelManager) {
+    taskPanelManager.init();
+  }
 }
 
+/**
+ * 切换任务面板
+ * @deprecated 请使用 taskPanelManager.toggle() 代替
+ */
 function toggleTaskPanel() {
-  state.taskPanelExpanded = !state.taskPanelExpanded;
-  if (elements.taskPanel) {
-    elements.taskPanel.classList.toggle('expanded', state.taskPanelExpanded);
-    elements.taskPanel.classList.toggle('collapsed', !state.taskPanelExpanded);
+  if (taskPanelManager) {
+    taskPanelManager.toggle();
   }
 }
 

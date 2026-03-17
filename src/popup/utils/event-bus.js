@@ -234,6 +234,8 @@ export const Events = {
   CONTEXT_MENU_HIDDEN: 'contextmenu:hidden',
   CONTEXT_MENU_ACTION: 'contextmenu:action',
   KEYBOARD_ACTION: 'keyboard:action',
+  TASK_PANEL_TOGGLED: 'task:panel:toggled',
+  TOAST_SHOW: 'toast:show',
 
   // 数据同步事件
   SYNC_STARTED: 'sync:started',
