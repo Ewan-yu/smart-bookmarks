@@ -2688,9 +2688,6 @@ async function handleImport() {
           mergeStrategy: 'merge'
         });
 
-        console.log('[handleImport] Received result:', result);
-        console.log(`[handleImport] imported: ${result.imported}, skipped: ${result.skipped}`);
-
         Toast.success(`导入成功：${result.imported} 个收藏${result.skipped > 0 ? `（跳过 ${result.skipped} 个重复）` : ''}`);
 
         // 重新加载数据

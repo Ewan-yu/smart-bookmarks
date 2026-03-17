@@ -2367,10 +2367,6 @@ async function handleImportBookmarks(request, sendResponse) {
 
     await initDatabase();
 
-    // 获取当前数据库中的书签数量
-    const existingBookmarks = await getAllBookmarks();
-    console.log(`[IMPORT] Current database has ${existingBookmarks.length} bookmarks`);
-
     let imported = 0;
     let skipped = 0;
     let failed = 0;
@@ -2449,7 +2445,6 @@ async function handleImportBookmarks(request, sendResponse) {
           if (skipDuplicates) {
             const existing = await getBookmark(finalId);
             if (existing) {
-              console.log(`[IMPORT-SKIP] ID duplicate: ${finalId} - ${bookmark.title}`);
               skipped++;
               continue;
             }
@@ -2463,14 +2458,9 @@ async function handleImportBookmarks(request, sendResponse) {
               const allBookmarks = await getAllBookmarks();
               const duplicateByUrl = allBookmarks.find(bm => normalizeUrl(bm.url) === normalizedUrl);
               if (duplicateByUrl) {
-                console.log(`[IMPORT-SKIP] URL duplicate: ${normalizedUrl}`);
-                console.log(`[IMPORT-SKIP]   Existing: ${duplicateByUrl.title} (ID: ${duplicateByUrl.id})`);
-                console.log(`[IMPORT-SKIP]   Current:  ${bookmark.title} (ID: ${finalId})`);
                 skipped++;
                 continue;
               }
-            } else {
-              console.log(`[IMPORT] Skip URL check for new browser bookmark: ${finalId} - ${bookmark.title}`);
             }
           }
 
@@ -2492,10 +2482,9 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmarkToSave);
 
-          console.log(`[IMPORT-ADD] ${bookmark.title} (ID: ${finalId})`);
           imported++;
         } catch (error) {
-          console.error(`[IMPORT-ERROR] ${bookmark.title}:`, error);
+          console.error(`[IMPORT] Failed to import bookmark ${bookmark.id}:`, error);
           failed++;
         }
       }
@@ -2516,23 +2505,6 @@ async function handleImportBookmarks(request, sendResponse) {
     }
 
     console.log(`[IMPORT] Completed: ${imported} imported, ${skipped} skipped, ${failed} failed`);
-    console.log(`[IMPORT] Variable types:`, {
-      imported: typeof imported,
-      skipped: typeof skipped,
-      failed: typeof failed,
-      importedValue: imported,
-      skippedValue: skipped,
-      failedValue: failed
-    });
-
-    const responseToSend = {
-      success: true,
-      imported,
-      skipped,
-      failed
-    };
-    console.log(`[IMPORT] Sending response:`, responseToSend);
-    console.log(`[IMPORT] Response structure:`, JSON.stringify(responseToSend));
 
     // 通知 popup 书签已变更
     notifyBookmarkChanged('imported', null);
@@ -2543,7 +2515,6 @@ async function handleImportBookmarks(request, sendResponse) {
       skipped,
       failed
     });
-    console.log(`[IMPORT] Response sent`);
   } catch (error) {
     console.error('[IMPORT] Failed:', error);
     sendResponse({

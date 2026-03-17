@@ -229,27 +229,16 @@ class ImportManager {
       }
     });
 
-    console.log('[ImportManager] Received response from background:', response);
-    console.log('[ImportManager] Response type:', typeof response);
-    console.log('[ImportManager] Response.success:', response.success);
-    console.log('[ImportManager] Response.imported:', response.imported, '(type:', typeof response.imported, ')');
-    console.log('[ImportManager] Response.skipped:', response.skipped, '(type:', typeof response.skipped, ')');
-    console.log('[ImportManager] Response.failed:', response.failed, '(type:', typeof response.failed, ')');
-
     if (response.error) {
       throw new Error(response.error);
     }
 
-    const result = {
+    return {
       imported: response.imported || 0,
       skipped: response.skipped || 0,
       failed: response.failed || 0,
       duration: Date.now() - startTime
     };
-
-    console.log('[ImportManager] Returning result:', result);
-    console.log('[ImportManager] Result.imported:', result.imported, '(type:', typeof result.imported, ')');
-    return result;
   }
 
   /**
