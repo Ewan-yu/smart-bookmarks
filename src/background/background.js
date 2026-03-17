@@ -1480,8 +1480,10 @@ async function handleDeleteBookmarksBatch(request, sendResponse) {
  */
 async function handleUpdateBookmark(request, sendResponse) {
   try {
-    const { id, data } = request;
-    console.log(`[UPDATE] Updating bookmark: ${id}`, data);
+    const { id, data, updates } = request;
+    // 兼容两种格式：data 或 updates
+    const updateData = updates || data || {};
+    console.log(`[UPDATE] Updating bookmark: ${id}`, updateData);
 
     await initDatabase();
 
@@ -1498,10 +1500,11 @@ async function handleUpdateBookmark(request, sendResponse) {
     // 更新字段
     const updatedBookmark = {
       ...bookmark,
-      title: data.title || bookmark?.title || '',
-      url: data.url !== undefined ? data.url : bookmark?.url || '',
-      summary: data.summary !== undefined ? data.summary : bookmark?.summary || '',
-      tags: data.tags !== undefined ? data.tags : bookmark?.tags || [],
+      title: updateData.title || bookmark?.title || '',
+      url: updateData.url !== undefined ? updateData.url : bookmark?.url || '',
+      summary: updateData.summary !== undefined ? updateData.summary : bookmark?.summary || '',
+      tags: updateData.tags !== undefined ? updateData.tags : bookmark?.tags || [],
+      categoryId: updateData.categoryId !== undefined ? updateData.categoryId : bookmark.categoryId,
       updatedAt: Date.now()
     };
 
