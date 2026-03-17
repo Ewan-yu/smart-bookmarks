@@ -365,16 +365,20 @@ async function importBrowserBookmarks() {
     // 获取已存在的书签
     const existingBookmarks = await getAllBookmarks();
     const existingIds = new Set(existingBookmarks.map(b => b.id));
+    const existingUrls = new Set(existingBookmarks.map(b => b.url).filter(u => u)); // 收集所有 URL
 
-    // 过滤出需要导入的书签（不存在的）
-    const newBookmarks = browserBookmarks.filter(bm => !existingIds.has(bm.id));
+    // 过滤出需要导入的书签（同时检查 ID 和 URL）
+    const newBookmarks = browserBookmarks.filter(bm => {
+      // ID 不存在且 URL 也不存在
+      return !existingIds.has(bm.id) && !existingUrls.has(bm.url);
+    });
 
     if (newBookmarks.length === 0) {
       console.log('All bookmarks already imported, nothing new to add');
       return;
     }
 
-    console.log(`Importing ${newBookmarks.length} new bookmarks (skipping ${existingIds.size} existing)`);
+    console.log(`Importing ${newBookmarks.length} new bookmarks (skipping ${existingIds.size} existing by ID, ${existingUrls.size - existingIds.size} by URL)`);
 
     // 存储到 IndexedDB
     for (const bm of newBookmarks) {
@@ -2361,26 +2365,8 @@ async function handleImportBookmarks(request, sendResponse) {
           // 保存到 IndexedDB
           await addBookmark(bookmark);
 
-          // 可选：同步到浏览器收藏夹
-          if (/^\d+$/.test(bookmark.id)) {
-            try {
-              const parentCategory = bookmark.parentCategoryId ?
-                await get(STORES.CATEGORIES, bookmark.parentCategoryId) : null;
-
-              let browserParentId = parentCategory?.id?.startsWith('cat_') ?
-                parentCategory.id.replace('cat_', '') : '1'; // 默认书签栏
-
-              await chrome.bookmarks.create({
-                parentId: browserParentId,
-                title: bookmark.title,
-                url: bookmark.url
-              });
-
-              console.log(`[IMPORT] Created browser bookmark: ${bookmark.title}`);
-            } catch (browserError) {
-              console.debug(`[IMPORT] Browser bookmark creation skipped: ${browserError.message}`);
-            }
-          }
+          // 注意：不再自动同步到浏览器收藏夹
+          // 原因：导入的数据通常就是从浏览器导出的，再同步回去会导致重复
 
           imported++;
         } catch (error) {
