@@ -22,6 +22,7 @@ import bookmarkManager from './modules/bookmarks.js';
 import { showAnalysisResumeDialog } from './modules/analysis-resume.js';
 import { showResumeDialog as showCheckResumeDialog } from './modules/check-resume.js';
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
+import { createSearchManager } from './modules/search-manager.js';
 
 console.log('Smart Bookmarks popup loaded');
 
@@ -98,6 +99,7 @@ const state = {
 // 渲染器实例（将在 DOM 加载后初始化）
 let treeRenderer = null;
 let searchRenderer = null;
+let searchManager = null;
 
 // 初始化
 function init() {
@@ -120,6 +122,13 @@ function init() {
 
   // 初始化书签事件监听器
   setupBookmarkListeners();
+
+  // 初始化搜索管理器
+  searchManager = createSearchManager({
+    elements: elements,
+    createBookmarkRow: createBookmarkRow,
+    onRender: renderBookmarks
+  });
 
   loadBookmarks();
   restoreCheckingState();
@@ -551,7 +560,7 @@ function renderBookmarks() {
 function setNavMode(mode) {
   state.currentNavMode = mode;
   state.searchTerm = '';
-  if (elements.searchInput) elements.searchInput.value = '';
+  if (searchManager) searchManager.clear();
 
   // 更新激活样式
   document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
@@ -1222,48 +1231,6 @@ function renderTagsView() {
 }
 
 /**
- * 渲染搜索结果
- */
-function renderSearchResults() {
-  if (elements.breadcrumb) {
-    elements.breadcrumb.innerHTML = `<span class="bc-item current">🔍 搜索：${escapeHtml(state.searchTerm)}</span>`;
-  }
-
-  const treeData = buildTreeData(state.bookmarks);
-  const results = filterBookmarks(treeData, state.searchTerm);
-  const container = elements.bookmarkList;
-  container.innerHTML = '';
-
-  if (elements.searchStats) {
-    elements.searchStats.textContent = `找到 ${results.length} 项`;
-    elements.searchStats.style.display = '';
-  }
-  if (elements.folderStats) elements.folderStats.textContent = '';
-
-  if (results.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>未找到相关结果</h3><p>请尝试其他关键词</p></div>`;
-    return;
-  }
-
-  const list = document.createElement('div');
-  list.className = 'bm-list';
-  results.forEach(bm => list.appendChild(createBookmarkRow(bm)));
-  container.appendChild(list);
-}
-
-/**
- * 执行搜索
- */
-function performSearch() {
-  if (!state.searchTerm.trim()) {
-    if (elements.searchStats) elements.searchStats.style.display = 'none';
-    renderBookmarks();
-    return;
-  }
-  renderSearchResults();
-}
-
-/**
  * 构建树形数据结构
  * 将扁平的收藏列表转换为层级结构
  */
@@ -1320,45 +1287,6 @@ function buildTreeData(bookmarks) {
   });
 
   return rootItems;
-}
-
-/**
- * 过滤收藏（搜索功能）
- * 递归搜索所有匹配的收藏项
- */
-function filterBookmarks(items, searchTerm) {
-  const results = [];
-  const term = searchTerm.toLowerCase().trim();
-
-  if (!term) return results;
-
-  // 递归搜索函数
-  function searchItems(items, path = '') {
-    items.forEach(item => {
-      // 检查标题、URL、标签是否匹配
-      const titleMatch = item.title && item.title.toLowerCase().includes(term);
-      const urlMatch = item.url && item.url.toLowerCase().includes(term);
-      const tagMatch = item.tags && item.tags.some(tag =>
-        tag.toLowerCase().includes(term)
-      );
-
-      if (titleMatch || urlMatch || tagMatch) {
-        results.push({
-          ...item,
-          categoryPath: path || item.categoryName || '根目录'
-        });
-      }
-
-      // 递归搜索子项
-      if (item.children && item.children.length > 0) {
-        const childPath = path ? `${path} / ${item.title}` : (item.title || '根目录');
-        searchItems(item.children, childPath);
-      }
-    });
-  }
-
-  searchItems(items);
-  return results;
 }
 
 /**
@@ -1508,7 +1436,7 @@ function bindEvents() {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => {
       state.searchTerm = e.target.value;
-      performSearch();
+      searchManager.search(e.target.value, state.bookmarks);
     }, 150);
   });
 
@@ -3480,21 +3408,6 @@ async function regenerateSummary(item) {
 /**
  * 高亮关键词（搜索结果使用）
  */
-function highlightKeywords(text, searchTerm) {
-  if (!text || !searchTerm) return escapeHtml(text || '');
-  const keywords = searchTerm
-    .toLowerCase()
-    .replace(/tag:\S+/gi, '')
-    .replace(/site:\S+/gi, '')
-    .replace(/"/g, '')
-    .trim()
-    .split(/\s+/)
-    .filter(k => k);
-  if (keywords.length === 0) return escapeHtml(text);
-  const regex = new RegExp(`(${keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
-  return escapeHtml(text).replace(regex, '<mark>$1</mark>');
-}
-
 // ─────────────────────────── 文件夹管理 ───────────────────────────
 
 /**
