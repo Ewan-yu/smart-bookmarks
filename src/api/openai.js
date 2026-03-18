@@ -125,6 +125,8 @@ export async function analyzeBookmarks(
       const inputIds = batch.map(b => String(b.id));
       const { result: validatedParsed, warnings } = validateAIResult(parsed, inputIds);
 
+      console.log(`[AI] 批 ${i + 1} 返回: ${validatedParsed.categories?.length || 0} 个分类, ${validatedParsed.tags?.length || 0} 个标签`);
+
       mergeBatch(validatedParsed.categories, validatedParsed.tags);
 
       const batchLog = {
@@ -153,6 +155,9 @@ export async function analyzeBookmarks(
 
   // ── 应用智能聚合去重（减少重复分类）────────────────────────────────────────────
   const rawCategories = Array.from(allCategories.values());
+  console.log(`[AI] 聚合前分类数: ${rawCategories.length}`);
+  console.log(`[AI] 分类列表:`, rawCategories.map(c => `${c.name}(${c.bookmarkIds.length})`).join(', '));
+
   const merger = new CategoryMerger({
     similarityThreshold: 0.75,
     minMergeSupport: 2
@@ -161,6 +166,9 @@ export async function analyzeBookmarks(
   // 执行聚合
   const mergeResult = merger.mergeCategories(rawCategories);
   const mergedCategories = mergeResult.categories;
+
+  console.log(`[AI] 聚合后分类数: ${mergedCategories.length}`);
+  console.log(`[AI] 聚合报告: ${mergeResult.report.mergedGroups} 个组合并`);
 
   // 记录聚合日志到 batchLogs
   if (mergeResult.report.mergedGroups > 0) {
@@ -186,6 +194,8 @@ export async function analyzeBookmarks(
 
   // 在摘要中添加聚合信息
   summary.mergeReport = mergeResult.report;
+
+  console.log(`[AI] 最终结果: ${mergedCategories.length} 个分类, ${allTags.length} 个标签`);
 
   return {
     categories: mergedCategories,
@@ -387,24 +397,46 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
   // 动态生成已有分类说明
   let existingCategoriesText = '';
   if (categories.length > 0) {
-    existingCategoriesText = `## 用户现有分类（必须优先使用）
+    // 将分类分组为根分类和子分类，传递层级结构
+    const rootCategories = categories.filter(c => !c.parentId);
+    const hasSubCategories = categories.some(c => c.parentId);
 
-${categories.join('、')}
+    let categoriesStructure = '';
+    if (hasSubCategories) {
+      // 有层级结构，按层级展示
+      categoriesStructure = rootCategories.map(root => {
+        const subCats = categories.filter(c => c.parentId === root.id);
+        if (subCats.length > 0) {
+          return `${root.name}（包含：${subCats.map(sc => sc.name).join('、')}）`;
+        }
+        return root.name;
+      }).join('\n');
+    } else {
+      // 扁平结构
+      categoriesStructure = categories.map(c => c.name).join('、');
+    }
 
-**重要**: 必须优先使用上述分类，不要创建新的相似分类。
-如果书签明确属于某个现有分类，请使用该分类。
+    existingCategoriesText = `## 用户现有分类
+
+${categoriesStructure}
+
+**分类原则**：
+1. **优先匹配**：如果书签明确属于现有分类，使用该分类
+2. **大类+细类**：对于书签栏下的书签（未分类），建议创建 大类/细类 结构
+   - 例如：技术/前端、技术/后端、设计/UI设计、工具/效率工具
+3. **适度创建**：不要为每个书签都创建新分类，合理合并相似主题
 `;
   } else {
     existingCategoriesText = `## 用户暂无分类（首次分类）
 
-请根据书签内容创建合理的分类：
-- 技术类：React、Vue、Spring Boot、Python、Docker 等
-- 设计类：UI设计、Figma、Photoshop、设计资源等
-- 财经类：投资理财、创业管理、市场营销等
-- 人文类：历史、哲学、心理学等
-- 书籍类：书单推荐、阅读笔记等
+请根据书签内容创建合理的分类结构，采用 大类/细类 模式：
+- 技术类：技术/前端、技术/后端、技术/数据库等
+- 设计类：设计/UI设计、设计/平面设计、设计/设计资源等
+- 工具类：工具/开发工具、工具/效率工具等
+- 学习类：学习/编程、学习/语言、学习/设计等
 
-请采用大类+细类的合理组合。`;
+建议：创建 5-10 个主要分类，每个分类包含 2-10 个书签。
+`;
   }
 
   return `${existingCategoriesText}

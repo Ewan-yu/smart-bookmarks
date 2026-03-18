@@ -943,6 +943,10 @@ async function handleAIAnalyze(request, sendResponse) {
 
     console.log(`[AI分析] 用户现有分类 (${existingCategoryNames.length}个): ${existingCategoryNames.join(', ')}`);
 
+    // 统计未分类书签
+    const uncategorizedCount = bookmarksToAnalyze.filter(bm => !bm.categoryId).length;
+    console.log(`[AI分析] 待分析书签总数: ${bookmarksToAnalyze.length}，未分类: ${uncategorizedCount}`);
+
     const configResult = await chrome.storage.local.get('aiConfig');
     const aiConfig = configResult.aiConfig;
 

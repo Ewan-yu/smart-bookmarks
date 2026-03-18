@@ -2097,6 +2097,12 @@ function finishAnalysisUI() {
 function showAnalysisConfirmDialog(analysisResult) {
   const { categories, tags, summary } = analysisResult;
 
+  console.log('[UI] 显示分析结果:', {
+    categoriesCount: categories.length,
+    tagsCount: tags.length,
+    categories: categories.map(c => ({ name: c.name, count: c.bookmarkIds.length, isNew: c.isNew }))
+  });
+
   // bookmarkId → 书签对象
   const bookmarkMap = new Map();
   state.bookmarks.forEach(bm => bookmarkMap.set(String(bm.id), bm));
