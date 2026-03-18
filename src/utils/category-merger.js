@@ -37,8 +37,9 @@ class CategoryMerger {
     // 4. 按书签数量降序排序
     mergedCategories.sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
 
-    // 5. 过滤小分类（bookmarkIds < 2）
-    const filteredCategories = mergedCategories.filter(cat => cat.bookmarkIds.length >= 2);
+    // 5. 过滤空分类（bookmarkIds === 0）
+    // 保留只有 1 个书签的分类，这样可以为每个书签都提供建议
+    const filteredCategories = mergedCategories.filter(cat => cat.bookmarkIds.length > 0);
 
     // 6. 生成合并报告
     const report = this.generateMergeReport(categories.length, filteredCategories.length, clusters);
