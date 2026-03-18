@@ -1980,7 +1980,8 @@ async function handleBatchDelete(request, sendResponse) {
 
         // 获取所有子内容并移动到父目录
         const allChildren = await getAllDescendants(categoryId);
-        const targetParentId = folder.parentId || null;
+        // 如果父目录是根级别（null），则移动到"书签栏"（'cat_1'），避免创建新的一级目录
+        const targetParentId = folder.parentId || 'cat_1';
 
         for (const child of allChildren) {
           if (child.type === 'category') {
@@ -1989,6 +1990,17 @@ async function handleBatchDelete(request, sendResponse) {
               childCat.parentId = targetParentId;
               childCat.updatedAt = Date.now();
               await addCategory(childCat);
+
+              // 同步到浏览器收藏夹
+              if (childCat.id.startsWith('cat_')) {
+                try {
+                  const browserId = childCat.id.replace('cat_', '');
+                  let targetBrowserId = targetParentId === 'cat_1' ? '1' : targetParentId.replace('cat_', '');
+                  await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
+                } catch (e) {
+                  console.debug(`[BATCH_DELETE] Browser sync warning for folder ${child.id}:`, e.message);
+                }
+              }
             }
           } else {
             const childBookmark = await getBookmark(child.id);
@@ -2000,7 +2012,7 @@ async function handleBatchDelete(request, sendResponse) {
               // 同步到浏览器
               if (/^\d+$/.test(childBookmark.id)) {
                 try {
-                  let targetBrowserId = targetParentId === null ? '1' : targetParentId.replace('cat_', '');
+                  let targetBrowserId = targetParentId === 'cat_1' ? '1' : targetParentId.replace('cat_', '');
                   await chrome.bookmarks.move(childBookmark.id, { parentId: targetBrowserId });
                 } catch (e) {
                   console.debug(`[BATCH_DELETE] Browser sync warning:`, e.message);
