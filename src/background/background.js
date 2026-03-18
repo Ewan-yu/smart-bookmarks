@@ -1332,8 +1332,8 @@ async function handleApplyCategories(request, sendResponse) {
       for (const bookmarkId of cat.bookmarkIds) {
         const bookmark = await getBookmark(bookmarkId);
         if (bookmark) {
-          // 1. 更新 IndexedDB 中的 categoryId
-          bookmark.categoryId = `cat_${cat.name}`;
+          // 1. 更新 IndexedDB 中的 categoryId（使用实际分类ID，不是分类名）
+          bookmark.categoryId = categoryRecord.id;  // ✅ 修复：使用 categoryRecord.id
           bookmark.updatedAt = Date.now();
           await addBookmark(bookmark);
 
@@ -1343,7 +1343,7 @@ async function handleApplyCategories(request, sendResponse) {
               await chrome.bookmarks.move(bookmark.browserId, {
                 parentId: browserFolderId
               });
-              console.log(`[应用分类] 移动书签到分类: ${bookmark.title} -> ${cat.name}`);
+              console.log(`[应用分类] 移动书签到分类: ${bookmark.title} -> ${cat.name} (文件夹ID: ${browserFolderId})`);
             } catch (error) {
               console.error(`[应用分类] 移动书签失败: ${bookmark.title}`, error);
             }
@@ -1412,7 +1412,16 @@ async function handleApplyCategories(request, sendResponse) {
     }
 
     console.log(`[应用分类] 完成！创建了 ${categories.length} 个分类，${tags.length} 个标签`);
-    sendResponse({ success: true });
+
+    // 返回所有分类（包括中间层级的分类）
+    const allCategories = await getAllCategories();
+    console.log(`[应用分类] 返回所有分类数量: ${allCategories.length}`);
+
+    sendResponse({
+      success: true,
+      categories: allCategories,  // 返回所有分类，包括中间层级
+      tags: tags
+    });
   } catch (error) {
     console.error('Failed to apply categories:', error);
     sendResponse({ error: error.message });

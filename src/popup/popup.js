@@ -2293,18 +2293,43 @@ function showAnalysisConfirmDialog(analysisResult) {
     try {
       confirmBtn.disabled = true;
       confirmBtn.textContent = '整理中...';
+
+      console.log('[应用分类] 开始应用分类...');
       const response = await chrome.runtime.sendMessage({
         type: 'APPLY_CATEGORIES',
         categories: analysisResult.categories,
         tags: analysisResult.tags || []
       });
-      if (response.error) throw new Error(response.error);
+
+      console.log('[应用分类] 收到响应:', response);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      if (!response.success) {
+        throw new Error('应用分类失败');
+      }
+
+      // 使用后端返回的所有分类（包括中间层级）
+      if (response.categories) {
+        state.categories = response.categories;
+        console.log(`[应用分类] 加载了 ${response.categories.length} 个分类`);
+      }
+
       const tagCount = analysisResult.tags?.length || 0;
-      Toast.success(`整理完成！已应用 ${analysisResult.categories.length} 个分类${tagCount > 0 ? `，${tagCount} 个标签` : ''}`);
+      const categoryCount = response.categories?.length || analysisResult.categories.length;
+      Toast.success(`整理完成！已应用 ${categoryCount} 个分类${tagCount > 0 ? `，${tagCount} 个标签` : ''}`);
+
+      // 重新加载书签（确保书签关联正确）
       await loadBookmarks();
+      console.log('[应用分类] 书签重新加载完成');
+
+      // 关闭对话框
+      console.log('[应用分类] 关闭对话框');
       closeDialog();
     } catch (error) {
-      console.error('Failed to apply categories:', error);
+      console.error('[应用分类] 失败:', error);
       confirmBtn.disabled = false;
       confirmBtn.textContent = '✓ 应用整理方案';
       Toast.error(`应用失败: ${error.message}`);
