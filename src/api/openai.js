@@ -428,23 +428,44 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
 ${categoriesStructure}
 
 **极重要约束（必须严格遵守）🔴**
+
 1. **强制使用层级分类格式**：必须使用 "大类/细类" 格式
    - ✅ 正确示例："技术/前端"、"技术/React"、"技术/Vue"、"开发工具/Docker"
    - ❌ 错误示例：直接创建"React"、"Vue"、"Docker"等根级细分类
    - 推荐大类：技术、开发工具、数据库、设计、运维、学习等
 
-2. **强制使用现有分类**：如果书签属于现有分类，必须归入现有分类
-   - 所有前端相关 → 归入 "前端" 或 "技术/前端"
-   - 所有 .NET、C#、ASP.NET → 归入 ".net"
+2. **强制使用现有分类**：如果书签明显属于现有分类范围，必须归入现有分类
+   - 所有前端、React、Vue、Angular → 归入 "前端" 或 "技术/前端"
+   - 所有 .NET、C#、ASP.NET、Entity Framework、 Orchard CMS、Umbraco → 归入 ".net"
    - 所有 Docker、Kubernetes → 归入 "容器化" 或 "开发工具/Docker"
-   - 所有数据库（Oracle、SQL、MySQL）→ 归入 "数据库"
+   - 所有数据库（Oracle、SQL Server、MySQL、PostgreSQL）→ 归入 "数据库"
 
-3. **严格限制新分类数量**：最多只允许创建 5-8 个新分类
+3. **严格区分技术栈（避免误分类）**：
+   ❌ **常见错误示例**（必须避免）：
+   - 错误：将 "Orchard CMS"（.NET的CMS）归入 "AI工具"
+   - 错误：将 "C# USB钩子" 归入 "AI工具"
+   - 错误：将 ".NET框架" 归入 "学习/编程"
+   - 错误：将 "SQL Server" 归入 "后端开发"
+
+   ✅ **正确分类**：
+   - .NET相关：C#、ASP.NET、Entity Framework、Orchard CMS、Umbraco、.NET Core → ".net"
+   - 前端相关：React、Vue、Angular、Webpack、Vite → "前端" 或 "技术/前端"
+   - 数据库相关：Oracle、SQL Server、MySQL、PostgreSQL、MongoDB → "数据库"
+   - AI工具：ChatGPT、Claude、AI编程助手、AI绘图工具 → "AI工具"
+   - 开发工具：Git、Docker、VS Code、Visual Studio → "开发工具"或相应子分类
+
+4. **判断依据（按优先级）**：
+   1. **技术栈明确**：C# → .net，Python → 学习/Python
+   2. **框架归属**：Orchard CMS（基于.NET） → .net
+   3. **功能定位**：Docker（容器技术） → 容器化，Git（版本控制） → 开发工具
+   4. **内容类型**：技术博客 → 技术/博客，个人博客 → 博客/个人
+
+5. **严格限制新分类数量**：最多只允许创建 5-8 个新分类
    - **禁止**创建根级细分类（如"React开发"、"Vue开发"）
    - **采用** "大类/细类" 格式创建细分类（如"技术/React"、"技术/Vue"）
    - **禁止**创建与现有分类冲突的新分类
 
-4. **目标要求**：
+6. **目标要求**：
    - 最终分类总数控制在 **10-15 个以内**
    - 每个分类至少包含 **3 个书签**
    - 采用层级结构合并相似内容（如所有前端相关都放在"技术/前端"下）
@@ -463,6 +484,23 @@ ${categoriesStructure}
   }
 
   return `${existingCategoriesText}
+
+## 分类示例（参考）
+
+**正确分类示例**：
+- "Orchard CMS 中文文档" → ".net"（Orchard是基于.NET的CMS）
+- "C#下usb条码扫描枪的钩子实现" → ".net"（C#技术）
+- "React Hooks 完全指南" → "技术/前端" 或 "前端"（前端框架）
+- "Docker 容器化部署实践" → "容器化" 或 "开发工具/Docker"（容器技术）
+- "SQL Server 查询优化" → "数据库"（数据库技术）
+- "ChatGPT API 使用教程" → "AI工具"（AI相关）
+- "Git 版本控制最佳实践" → "开发工具/Git"（开发工具）
+
+**错误分类示例（必须避免）**：
+- ❌ "Orchard CMS" → "AI工具"（错误：这是.NET CMS）
+- ❌ "C# USB钩子" → "AI工具"（错误：这是C#开发）
+- ❌ "SQL Server" → "后端开发"（错误：应归入数据库）
+- ❌ ".NET Core" → "学习/编程"（错误：应归入.net）
 
 ## 待分类收藏列表
 ${bookmarksList}

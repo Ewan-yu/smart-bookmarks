@@ -1413,9 +1413,55 @@ async function handleApplyCategories(request, sendResponse) {
 
     console.log(`[应用分类] 完成！创建了 ${categories.length} 个分类，${tags.length} 个标签`);
 
-    // 返回所有分类（包括中间层级的分类）
+    // 清理空的旧分类
+    console.log(`[应用分类] 开始清理空的旧分类...`);
     const allCategories = await getAllCategories();
-    console.log(`[应用分类] 返回所有分类数量: ${allCategories.length}`);
+    const allBookmarks = await getAllBookmarks();
+
+    // 找出所有有书签的分类ID
+    const usedCategoryIds = new Set(allBookmarks.map(bm => bm.categoryId).filter(id => id));
+
+    // 找出空的分类（没有书签的分类）
+    const emptyCategories = allCategories.filter(cat =>
+      !usedCategoryIds.has(cat.id) &&
+      !cat.name.includes('书签栏') &&  // 保留系统分类
+      !cat.name.includes('其他书签') &&
+      cat.name !== 'Test' &&
+      cat.name !== '已导入'
+    );
+
+    if (emptyCategories.length > 0) {
+      console.log(`[应用分类] 发现 ${emptyCategories.length} 个空分类，准备删除...`);
+
+      for (const emptyCat of emptyCategories) {
+        try {
+          // 删除浏览器文件夹
+          const browserFolderId = emptyCat.id.replace('cat_', '');
+          if (browserFolderId && browserFolderId !== emptyCat.id) {
+            try {
+              await chrome.bookmarks.removeTree(browserFolderId);
+              console.log(`[应用分类] 删除浏览器文件夹: ${emptyCat.name} (${browserFolderId})`);
+            } catch (err) {
+              console.log(`[应用分类] 浏览器文件夹不存在或已删除: ${emptyCat.name}`);
+            }
+          }
+
+          // 删除IndexedDB记录
+          await deleteCategory(emptyCat.id);
+          console.log(`[应用分类] 删除分类记录: ${emptyCat.name} (${emptyCat.id})`);
+        } catch (error) {
+          console.error(`[应用分类] 删除分类失败: ${emptyCat.name}`, error);
+        }
+      }
+
+      console.log(`[应用分类] 清理完成，删除了 ${emptyCategories.length} 个空分类`);
+    } else {
+      console.log(`[应用分类] 没有发现空分类`);
+    }
+
+    // 返回所有分类（包括中间层级的分类）
+    const finalCategories = await getAllCategories();
+    console.log(`[应用分类] 返回所有分类数量: ${finalCategories.length}`);
 
     sendResponse({
       success: true,
