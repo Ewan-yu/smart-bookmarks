@@ -159,8 +159,8 @@ export async function analyzeBookmarks(
   console.log(`[AI] 分类列表:`, rawCategories.map(c => `${c.name}(${c.bookmarkIds.length})`).join(', '));
 
   const merger = new CategoryMerger({
-    similarityThreshold: 0.75,
-    minMergeSupport: 2
+    similarityThreshold: 0.60,  // 降低阈值，让更多相似分类合并（0.75 → 0.60）
+    minMergeSupport: 1        // 降低最小支持数，单例分类也可以合并到相似分类中
   });
 
   // 执行聚合
@@ -420,11 +420,13 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
 
 ${categoriesStructure}
 
-**分类原则**：
-1. **优先匹配**：如果书签明确属于现有分类，使用该分类
-2. **大类+细类**：对于书签栏下的书签（未分类），建议创建 大类/细类 结构
-   - 例如：技术/前端、技术/后端、设计/UI设计、工具/效率工具
-3. **适度创建**：不要为每个书签都创建新分类，合理合并相似主题
+**重要：必须优先使用现有分类！**
+- 如果书签明显属于某个现有分类（例如：C#、ASP.NET → 归入 ".NET"），必须使用现有分类
+- 只有当书签明显不属于任何现有分类时，才创建新分类
+- 创建新分类时，采用 "大类/细类" 格式，例如："技术/前端"、"设计/UI设计"
+- 不要创建与现有分类相似的新分类（例如：已有 "前端"，不要创建 "前端开发"）
+- 目标：控制在 10-15 个分类以内，每个分类包含至少 3 个书签
+- 合并原则：C#、ASP.NET、.NET Core → ".NET"；Dapper、ORM框架 → ".NET"（或其他数据库相关分类）
 `;
   } else {
     existingCategoriesText = `## 用户暂无分类（首次分类）
