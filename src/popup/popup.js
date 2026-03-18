@@ -1138,17 +1138,24 @@ function renderCategories() {
     return;
   }
 
-  // 按分类渲染收藏
+  // 按分类渲染收藏（支持层级结构）
   const categoriesContainer = document.createElement('div');
   categoriesContainer.className = 'categories-container';
 
-  state.categories.forEach(category => {
+  // 构建分类树
+  const categoryTree = buildCategoryTree(state.categories);
+
+  // 递归渲染分类树
+  function renderCategoryNode(category, depth = 0) {
     const categoryBookmarks = state.bookmarks.filter(b =>
-      b.categoryId === category.id || b.parentId === category.id
+      b.categoryId === category.id
     );
 
     const categoryElement = document.createElement('div');
     categoryElement.className = 'category-item';
+    if (depth > 0) {
+      categoryElement.style.marginLeft = `${depth * 20}px`;
+    }
 
     const categoryHeader = document.createElement('div');
     categoryHeader.className = 'category-header';
@@ -1183,10 +1190,54 @@ function renderCategories() {
 
     categoryElement.appendChild(categoryHeader);
     categoryElement.appendChild(categoryList);
-    categoriesContainer.appendChild(categoryElement);
+
+    // 递归渲染子分类
+    if (category.children && category.children.length > 0) {
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = 'category-children';
+      category.children.forEach(child => {
+        childrenContainer.appendChild(renderCategoryNode(child, depth + 1));
+      });
+      categoryElement.appendChild(childrenContainer);
+    }
+
+    return categoryElement;
+  }
+
+  // 渲染所有顶级分类
+  categoryTree.forEach(category => {
+    categoriesContainer.appendChild(renderCategoryNode(category));
   });
 
   elements.bookmarkList.appendChild(categoriesContainer);
+}
+
+/**
+ * 构建分类树（从扁平的分类列表）
+ * @param {Array} categories - 扁平的分类列表
+ * @returns {Array} 树形结构的分类列表
+ */
+function buildCategoryTree(categories) {
+  const categoryMap = new Map();
+  const rootCategories = [];
+
+  // 第一遍：创建映射
+  categories.forEach(cat => {
+    categoryMap.set(cat.id, { ...cat, children: [] });
+  });
+
+  // 第二遍：构建树
+  categoryMap.forEach(cat => {
+    if (cat.parentId && categoryMap.has(cat.parentId)) {
+      // 有父分类，添加到父分类的 children
+      categoryMap.get(cat.parentId).children.push(cat);
+    } else {
+      // 无父分类或父分类不存在，作为根分类
+      rootCategories.push(cat);
+    }
+  });
+
+  return rootCategories;
 }
 
 /**

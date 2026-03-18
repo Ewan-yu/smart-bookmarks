@@ -1220,15 +1220,19 @@ async function handleApplyCategories(request, sendResponse) {
       let browserFolderId = null;
 
       if (cat.isNew) {
-        // 检查分类是否已存在
-        const existing = await get(STORES.CATEGORIES, `cat_${cat.name}`);
+        // 检查分类是否已存在（通过名称查找）
+        const allCategories = await getAllCategories();
+        const existing = allCategories.find(c => c.name === cat.name);
 
         if (!existing) {
-          // 1. 先在浏览器收藏夹中创建文件夹
+          // 1. 先在浏览器收藏夹中创建文件夹，获取真实的浏览器ID
           try {
+            console.log(`[应用分类] 开始创建分类: ${cat.name}`);
+
             // 处理层级结构（例如："技术/前端"）
             const folderNameParts = cat.name.split('/');
             let currentParentId = bookmarksBarId;
+            let parentCategoryId = null; // 用于 IndexedDB 的父分类 ID
 
             // 从第一层开始，逐层检查和创建
             for (let i = 0; i < folderNameParts.length; i++) {
@@ -1242,7 +1246,28 @@ async function handleApplyCategories(request, sendResponse) {
               if (existingChild) {
                 // 文件夹已存在，直接使用
                 currentParentId = existingChild.id;
-                console.log(`[应用分类] 复用现有文件夹: ${partName}, ID: ${currentParentId}`);
+                console.log(`[应用分类] 复用现有文件夹: ${partName}, 浏览器ID: ${currentParentId}`);
+
+                // 如果不是最后一层，需要找到或创建父分类记录
+                if (!isLast) {
+                  const parentCat = allCategories.find(c => c.name === folderNameParts.slice(0, i + 1).join('/'));
+                  if (parentCat) {
+                    parentCategoryId = parentCat.id;
+                  } else {
+                    // 创建父分类记录（中间层级）
+                    const intermediateCatId = `cat_${currentParentId}`;
+                    const intermediateCat = {
+                      id: intermediateCatId,
+                      name: folderNameParts.slice(0, i + 1).join('/'),
+                      parentId: parentCategoryId,
+                      createdAt: Date.now()
+                    };
+                    await addCategory(intermediateCat);
+                    parentCategoryId = intermediateCatId;
+                    allCategories.push(intermediateCat);
+                    console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}`);
+                  }
+                }
               } else {
                 // 文件夹不存在，创建
                 const newFolder = await chrome.bookmarks.create({
@@ -1250,39 +1275,56 @@ async function handleApplyCategories(request, sendResponse) {
                   title: partName
                 });
                 currentParentId = newFolder.id;
-                console.log(`[应用分类] 创建文件夹: ${partName}, ID: ${newFolder.id}, parentId: ${currentParentId}`);
+                console.log(`[应用分类] 创建浏览器文件夹: ${partName}, 浏览器ID: ${newFolder.id}, 父ID: ${newFolder.parentId}`);
+
+                // 如果不是最后一层，创建中间分类记录
+                if (!isLast) {
+                  const intermediateCatId = `cat_${newFolder.id}`;
+                  const intermediateCat = {
+                    id: intermediateCatId,
+                    name: folderNameParts.slice(0, i + 1).join('/'),
+                    parentId: parentCategoryId,
+                    createdAt: Date.now()
+                  };
+                  await addCategory(intermediateCat);
+                  parentCategoryId = intermediateCatId;
+                  allCategories.push(intermediateCat);
+                  console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}`);
+                }
               }
 
               // 如果是最后一层，这就是最终文件夹 ID
               if (isLast) {
                 browserFolderId = currentParentId;
-                console.log(`[应用分类] 最终文件夹: ${cat.name}, ID: ${browserFolderId}`);
+                console.log(`[应用分类] 最终文件夹: ${cat.name}, 浏览器ID: ${browserFolderId}`);
               }
             }
+
+            // 2. 在IndexedDB中保存最终分类（使用浏览器ID构建分类ID）
+            categoryRecord = {
+              id: `cat_${browserFolderId}`,  // ✅ 使用浏览器ID
+              name: cat.name,
+              parentId: parentCategoryId,  // ✅ 保留层级关系
+              createdAt: Date.now()
+            };
+            await addCategory(categoryRecord);
+            console.log(`[应用分类] 创建最终分类: ${cat.name}, ID: ${categoryRecord.id}, parentId: ${parentCategoryId}`);
           } catch (error) {
             console.error(`[应用分类] 创建浏览器文件夹失败: ${cat.name}`, error);
           }
-
-          // 2. 在IndexedDB中保存分类（保持扁平结构，所有分类都在"书签栏"下）
-          // 对于"技术/前端"，我们只在浏览器中创建层级，但在 IndexedDB 中保持扁平
-          // 这样可以避免复杂的层级管理，同时利用浏览器的层级显示
-          categoryRecord = {
-            id: `cat_${cat.name}`,
-            name: cat.name,
-            parentId: null, // 所有分类都在"书签栏"下（扁平管理）
-            createdAt: Date.now()
-          };
-          await addCategory(categoryRecord);
-          console.log(`[应用分类] 创建新分类: ${cat.name}, parentId: null (在书签栏下)`);
         } else {
           categoryRecord = existing;
-          browserFolderId = existing.parentId;
+          // 从分类ID中提取浏览器ID
+          browserFolderId = existing.id.replace('cat_', '');
+          console.log(`[应用分类] 使用现有分类: ${cat.name}, 浏览器ID: ${browserFolderId}`);
         }
       } else {
         // 使用现有分类
-        categoryRecord = await get(STORES.CATEGORIES, `cat_${cat.name}`);
+        const allCategories = await getAllCategories();
+        categoryRecord = allCategories.find(c => c.name === cat.name);
         if (categoryRecord) {
-          browserFolderId = categoryRecord.parentId;
+          browserFolderId = categoryRecord.id.replace('cat_', '');
+          console.log(`[应用分类] 使用已存在分类: ${cat.name}, 浏览器ID: ${browserFolderId}`);
         }
       }
 
