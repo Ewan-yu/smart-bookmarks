@@ -2742,6 +2742,12 @@ function listenToMessages() {
       finishAnalysisUI();
       showAnalysisConfirmDialog(message.data.result);
     } else if (message.type === 'ANALYSIS_CANCELLED') {
+      // 确保状态被清理
+      state.isAnalyzing = false;
+      if (elements.analyzeBtn) {
+        elements.analyzeBtn.disabled = false;
+        elements.analyzeBtn.textContent = '🤖 分析';
+      }
       finishAnalysisUI();
       Toast.info('分析已取消，进度已保存，下次可继续');
     } else if (message.type === 'ANALYSIS_FAILED') {

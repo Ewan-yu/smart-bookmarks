@@ -606,6 +606,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'CANCEL_ANALYSIS':
       if (currentAnalysisCancelToken) {
         currentAnalysisCancelToken.cancelled = true;
+        // 立即清理 token，允许重新启动
+        currentAnalysisCancelToken = null;
       }
       sendResponse({ success: true });
       return true;
@@ -1096,6 +1098,8 @@ async function handleAIAnalyze(request, sendResponse) {
           await chrome.storage.local.set({ analysisSession: sess });
         }
       } catch (_) {}
+      // 清理 token，允许重新启动
+      currentAnalysisCancelToken = null;
       chrome.runtime.sendMessage({ type: 'ANALYSIS_CANCELLED' }).catch(() => {});
     } else {
       // 非取消错误（网络中断、关机等）：保留已完成批次，用户下次可续分析
