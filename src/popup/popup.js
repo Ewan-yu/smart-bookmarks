@@ -1990,6 +1990,18 @@ async function handleAnalyze() {
     return;
   }
 
+  // 先检查后台是否有未完成的会话（避免状态不一致）
+  try {
+    const statusRes = await chrome.runtime.sendMessage({ type: 'GET_ANALYSIS_SESSION' });
+    // 如果有未完成的会话，且不是取消状态，先清理
+    if (statusRes?.session && !statusRes.session.completed && statusRes.session.cancelled) {
+      // 会话已取消但未清理，清理它
+      await chrome.runtime.sendMessage({ type: 'CLEAR_ANALYSIS_SESSION' }).catch(() => {});
+    }
+  } catch (e) {
+    console.debug('Failed to check analysis session:', e);
+  }
+
   // 查询是否有未完成的分析会话
   let resumeSession = null;
   try {
@@ -2087,6 +2099,9 @@ function finishAnalysisUI() {
   }
   if (elements.cancelAnalyzeBtn) {
     elements.cancelAnalyzeBtn.style.display = 'none';
+    elements.cancelAnalyzeBtn.disabled = false;
+    elements.cancelAnalyzeBtn.textContent = '✕ 取消分析';
+    elements.cancelAnalyzeBtn.onclick = null;
   }
   hideProgress();
 }
