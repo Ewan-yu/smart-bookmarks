@@ -428,28 +428,26 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
 ${categoriesStructure}
 
 **极重要约束（必须严格遵守）🔴**
-1. **强制使用现有分类**：如果书签属于现有分类范围，必须归入现有分类，不得创建新分类
-   - 所有前端、React、Vue、Angular、Webpack → 归入 "前端"
-   - 所有 .NET、C#、ASP.NET、Entity Framework → 归入 ".net"
-   - 所有 Oracle、SQL Server、MySQL、PostgreSQL → 归入 "数据库"
-   - 所有 Docker、Kubernetes、容器编排 → 归入 "容器化"
-   - 所有 Linux、服务器运维 → 归入 "linux"
+1. **强制使用层级分类格式**：必须使用 "大类/细类" 格式
+   - ✅ 正确示例："技术/前端"、"技术/React"、"技术/Vue"、"开发工具/Docker"
+   - ❌ 错误示例：直接创建"React"、"Vue"、"Docker"等根级细分类
+   - 推荐大类：技术、开发工具、数据库、设计、运维、学习等
 
-2. **严格限制新分类数量**：最多只允许创建 5-8 个新分类
-   - **禁止**为每个技术栈、框架、工具都创建独立分类
-   - **禁止**创建细粒度分类（如："React开发"、"Vue开发"、"前端框架" → 统一归入"前端"）
-   - **禁止**创建与现有分类相似的新分类（如：已有"前端"，不得创建"前端开发"）
+2. **强制使用现有分类**：如果书签属于现有分类，必须归入现有分类
+   - 所有前端相关 → 归入 "前端" 或 "技术/前端"
+   - 所有 .NET、C#、ASP.NET → 归入 ".net"
+   - 所有 Docker、Kubernetes → 归入 "容器化" 或 "开发工具/Docker"
+   - 所有数据库（Oracle、SQL、MySQL）→ 归入 "数据库"
 
-3. **合并原则**：
-   - 技术栈归大类：C#、ASP.NET、.NET Core → ".net"
-   - 前端全归入：React、Vue、Angular、Webpack、Vite → "前端"
-   - 数据库全归入：Oracle、SQL Server、MySQL、PostgreSQL → "数据库"
-   - 容器全归入：Docker、Kubernetes → "容器化"
+3. **严格限制新分类数量**：最多只允许创建 5-8 个新分类
+   - **禁止**创建根级细分类（如"React开发"、"Vue开发"）
+   - **采用** "大类/细类" 格式创建细分类（如"技术/React"、"技术/Vue"）
+   - **禁止**创建与现有分类冲突的新分类
 
 4. **目标要求**：
    - 最终分类总数控制在 **10-15 个以内**
    - 每个分类至少包含 **3 个书签**
-   - 宁可分类少而大，不可多而小
+   - 采用层级结构合并相似内容（如所有前端相关都放在"技术/前端"下）
 `;
   } else {
     existingCategoriesText = `## 用户暂无分类（首次分类）
@@ -868,18 +866,20 @@ export async function testConnection(config) {
 }
 
 /**
- * 后处理：强制合并包含相同关键词的分类
- * 用于解决相似度合并后的遗留问题
+ * 后处理：强制合并根级细分类，保留层级分类
+ * 规则：
+ * 1. 根级细分类（不含"/"）需要合并到大类
+ * 2. 层级分类（含"/"）保留不变
  *
  * @param {Array} categories - 分类数组
  * @returns {Array} 合并后的分类数组
  */
 function forceMergeByKeywords(categories) {
-  if (categories.length <= 10) return categories; // 已经足够少，无需处理
+  if (categories.length <= 15) return categories; // 已经足够少，无需处理
 
-  // 定义关键词映射：关键词 → 目标分类名
+  // 定义关键词映射：关键词 → 目标分类名（只合并根级细分类）
   const keywordMapping = {
-    '前端': '前端',
+    // 前端系列 → "前端"
     'react': '前端',
     'vue': '前端',
     'angular': '前端',
@@ -887,50 +887,55 @@ function forceMergeByKeywords(categories) {
     'typescript': '前端',
     'webpack': '前端',
     'vite': '前端',
-    'web': '前端',
+    '前端开发': '前端',
+    'web开发': '前端',
 
-    '.net': '.net',
+    // .NET 系列 → ".net"
     'c#': '.net',
     'asp': '.net',
-    'entity': '.net',
+    'entity framework': '.net',
+    '.net core': '.net',
 
-    'docker': '容器化',
+    // 容器系列 → "容器化"
     'kubernetes': '容器化',
     'k8s': '容器化',
-    '容器': '容器化',
-    '编排': '容器化',
 
-    'ai': 'AI/机器学习',
-    '机器学习': 'AI/机器学习',
-    '深度学习': 'AI/机器学习',
+    // AI 系列 → "AI/机器学习"（或保留层级）
     'llm': 'AI/机器学习',
-    '大语言': 'AI/机器学习',
+    '大语言模型': 'AI/机器学习',
+    '深度学习': 'AI/机器学习',
 
-    'oracle': '数据库',
-    'sql': '数据库',
+    // 数据库系列 → "数据库"
     'mysql': '数据库',
+    'postgresql': '数据库',
+    'mongodb': '数据库',
     'postgres': '数据库',
-    'mongo': '数据库',
 
-    'linux': 'linux',
-    '服务器': 'linux',
-    '运维': 'linux',
-
-    '微信': '微信',
-    '小程序': '微信',
-
+    // 其他
     'git': '开发工具',
-    '工具': '开发工具'
+    '项目管理': '开发工具'
   };
 
-  // 构建合并映射：源分类ID → 目标分类对象
   const mergeMap = new Map(); // categoryId → targetCategory
   const targetCategories = [];
 
   for (const cat of categories) {
     const nameLower = cat.name.toLowerCase();
 
-    // 检查是否匹配任何关键词
+    // 跳过层级分类（包含 "/" 的保留）
+    if (cat.name.includes('/')) {
+      targetCategories.push(cat);
+      continue;
+    }
+
+    // 跳过现有大类（保留用户的原始分类）
+    const existingCategories = ['前端', '.net', '数据库', '容器化', 'linux', '微信', '开发工具', 'AI/机器学习', '移动开发', '大数据分析'];
+    if (existingCategories.includes(cat.name)) {
+      targetCategories.push(cat);
+      continue;
+    }
+
+    // 检查是否需要合并根级细分类
     let targetKeyword = null;
     for (const [keyword, targetName] of Object.entries(keywordMapping)) {
       if (nameLower.includes(keyword)) {
@@ -940,29 +945,27 @@ function forceMergeByKeywords(categories) {
     }
 
     if (targetKeyword) {
-      // 查找或创建目标分类
-      let target = targetCategories.find(t => t.name.toLowerCase() === targetKeyword.toLowerCase());
+      // 查找目标分类（可能在 targetCategories，也可能在原始 categories 中）
+      let target = targetCategories.find(t => t.name === targetKeyword);
 
       if (!target) {
-        // 如果没有现有目标，使用当前分类（改名）
+        // 如果还没有目标，创建一个新的
         target = {
-          ...cat,
+          id: `cat_${targetKeyword}`,
           name: targetKeyword,
-          bookmarkIds: [...cat.bookmarkIds]
+          bookmarkIds: [],
+          confidence: cat.confidence
         };
         targetCategories.push(target);
-        mergeMap.set(cat.id, target); // 标记为已处理
-      } else {
-        // 合并到目标分类
-        const uniqueIds = new Set([...target.bookmarkIds, ...cat.bookmarkIds]);
-        target.bookmarkIds = Array.from(uniqueIds);
-        mergeMap.set(cat.id, target);
       }
+
+      // 合并书签ID
+      const uniqueIds = new Set([...target.bookmarkIds, ...cat.bookmarkIds]);
+      target.bookmarkIds = Array.from(uniqueIds);
+      mergeMap.set(cat.id, target);
     } else {
-      // 没匹配到关键词，保留原分类
-      if (!mergeMap.has(cat.id)) {
-        targetCategories.push(cat);
-      }
+      // 没匹配到任何规则，保留原分类
+      targetCategories.push(cat);
     }
   }
 
