@@ -458,83 +458,135 @@ class CategoryMerger {
    */
   generateMergeSuggestions(categories, getPathCallback = null) {
     const suggestions = [];
-    const used = new Set();
+    const usedTargets = new Set(); // 标记已作为目标的目录，避免循环合并
 
+    // 第一步：找出所有相似目录对
+    const similarPairs = [];
     for (let i = 0; i < categories.length; i++) {
-      if (used.has(i)) continue;
-
       for (let j = i + 1; j < categories.length; j++) {
-        if (used.has(j)) continue;
-
         const similarity = this.calculateSimilarity(
           categories[i].name,
           categories[j].name
         );
 
         if (similarity >= this.similarityThreshold) {
-          // 获取路径信息
-          let pathI = null;
-          let pathJ = null;
-          if (getPathCallback) {
-            pathI = getPathCallback(categories[i]);
-            pathJ = getPathCallback(categories[j]);
-          }
-
-          // 检查是否是原生根目录
-          const isINativeRoot = pathI && pathI.length === 1 && this.isNativeRootFolder(pathI[0]);
-          const isJNativeRoot = pathJ && pathJ.length === 1 && this.isNativeRootFolder(pathJ[0]);
-
-          // 如果任一个是原生根目录，跳过该合并建议
-          if (isINativeRoot || isJNativeRoot) {
-            continue;
-          }
-
-          // 确定合并方向：优先将其他书签下的文件夹合并到书签栏下的文件夹
-          let source, target, sourcePath, targetPath;
-          const isIInBookmarksBar = pathI && this.isInBookmarksBar(pathI);
-          const isJInBookmarksBar = pathJ && this.isInBookmarksBar(pathJ);
-
-          if (isIInBookmarksBar && !isJInBookmarksBar) {
-            // i 在书签栏，j 不在 → j 合并到 i
-            source = categories[j];
-            target = categories[i];
-            sourcePath = pathJ;
-            targetPath = pathI;
-          } else if (!isIInBookmarksBar && isJInBookmarksBar) {
-            // j 在书签栏，i 不在 → i 合并到 j
-            source = categories[i];
-            target = categories[j];
-            sourcePath = pathI;
-            targetPath = pathJ;
-          } else {
-            // 都在或都不在书签栏 → 保持默认顺序（i → j）
-            source = categories[i];
-            target = categories[j];
-            sourcePath = pathI;
-            targetPath = pathJ;
-          }
-
-          // 找到一个合并建议
-          const suggestion = {
-            source: source.name,
-            target: target.name,
-            sourceId: source.id,
-            targetId: target.id,
-            confidence: similarity,
-            reason: this.getMergeReason(source.name, target.name, similarity)
-          };
-
-          // 如果提供了路径回调，添加路径信息
-          if (getPathCallback) {
-            suggestion.sourcePath = sourcePath;
-            suggestion.targetPath = targetPath;
-          }
-
-          suggestions.push(suggestion);
-
-          used.add(i);
-          used.add(j);
+          similarPairs.push({
+            i, j,
+            similarity,
+            catI: categories[i],
+            catJ: categories[j]
+          });
         }
+      }
+    }
+
+    // 第二步：聚类相似的目录
+    const clusters = [];
+    const clusterMap = new Map(); // category index -> cluster index
+
+    for (const pair of similarPairs) {
+      const clusterI = clusterMap.get(pair.i);
+      const clusterJ = clusterMap.get(pair.j);
+
+      if (clusterI === undefined && clusterJ === undefined) {
+        // 创建新聚类
+        const newCluster = [pair.i, pair.j];
+        const clusterIndex = clusters.length;
+        clusters.push(newCluster);
+        clusterMap.set(pair.i, clusterIndex);
+        clusterMap.set(pair.j, clusterIndex);
+      } else if (clusterI === undefined) {
+        // 将 i 加入 j 的聚类
+        clusters[clusterJ].push(pair.i);
+        clusterMap.set(pair.i, clusterJ);
+      } else if (clusterJ === undefined) {
+        // 将 j 加入 i 的聚类
+        clusters[clusterI].push(pair.j);
+        clusterMap.set(pair.j, clusterI);
+      } else if (clusterI !== clusterJ) {
+        // 合并两个聚类
+        clusters[clusterI] = [...clusters[clusterI], ...clusters[clusterJ]];
+        // 更新 clusterJ 中所有元素的映射
+        for (const idx of clusters[clusterJ]) {
+          clusterMap.set(idx, clusterI);
+        }
+        clusters[clusterJ] = []; // 清空旧聚类
+      }
+    }
+
+    // 第三步：为每个聚类生成合并建议（所有成员合并到同一个目标）
+    for (const cluster of clusters) {
+      if (cluster.length < 2) continue;
+
+      // 获取聚类中所有目录
+      const clusterCategories = cluster.map(idx => categories[idx]);
+
+      // 获取路径信息
+      const paths = clusterCategories.map(cat => getPathCallback ? getPathCallback(cat) : null);
+
+      // 检查是否包含原生根目录
+      const hasNativeRoot = paths.some((path, idx) =>
+        path && path.length === 1 && this.isNativeRootFolder(path[0])
+      );
+
+      // 如果包含原生根目录，跳过该聚类
+      if (hasNativeRoot) {
+        continue;
+      }
+
+      // 选择目标目录：优先选择在书签栏中的，否则选择名称最短的
+      let targetIndex = 0;
+      let targetPriority = -1;
+
+      for (let i = 0; i < cluster.length; i++) {
+        const path = paths[i];
+        const cat = clusterCategories[i];
+
+        let priority = 0;
+
+        // 优先级1：在书签栏中
+        if (path && this.isInBookmarksBar(path)) {
+          priority = 100;
+        }
+
+        // 优先级2：名称最短（通常是"已导入"而不是"已导入1"）
+        priority -= cat.name.length;
+
+        if (priority > targetPriority) {
+          targetPriority = priority;
+          targetIndex = i;
+        }
+      }
+
+      const target = clusterCategories[targetIndex];
+      const targetPath = paths[targetIndex];
+
+      // 为其他成员生成合并建议
+      for (let i = 0; i < cluster.length; i++) {
+        if (i === targetIndex) continue;
+
+        const source = clusterCategories[i];
+        const sourcePath = paths[i];
+
+        // 计算相似度
+        const similarity = this.calculateSimilarity(source.name, target.name);
+
+        const suggestion = {
+          source: source.name,
+          target: target.name,
+          sourceId: source.id,
+          targetId: target.id,
+          confidence: similarity,
+          reason: this.getMergeReason(source.name, target.name, similarity)
+        };
+
+        // 如果提供了路径回调，添加路径信息
+        if (getPathCallback) {
+          suggestion.sourcePath = sourcePath;
+          suggestion.targetPath = targetPath;
+        }
+
+        suggestions.push(suggestion);
       }
     }
 
