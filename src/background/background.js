@@ -1981,24 +1981,83 @@ async function handleBatchDelete(request, sendResponse) {
         // 获取所有子内容并移动到父目录
         const allChildren = await getAllDescendants(categoryId);
         // 如果父目录是根级别（null），则移动到"书签栏"（'cat_1'），避免创建新的一级目录
-        const targetParentId = folder.parentId || 'cat_1';
+        let targetParentId = folder.parentId || 'cat_1';
 
         for (const child of allChildren) {
           if (child.type === 'category') {
             const childCat = await get(STORES.CATEGORIES, child.id);
             if (childCat) {
-              childCat.parentId = targetParentId;
-              childCat.updatedAt = Date.now();
-              await addCategory(childCat);
+              // 特殊处理：如果子目录名称是"书签栏"或"其他书签"，将其内容提升，而不是保留这个子目录
+              // 这样可以避免：书签栏 -> 已导入 -> 书签栏 -> oracle
+              // 变成：书签栏 -> 书签栏 -> oracle (一级目录)
+              // 而是：书签栏 -> oracle
+              if ((childCat.name === '书签栏' || childCat.name === '其他书签') &&
+                  targetParentId === 'cat_1') {
+                console.log(`[BATCH_DELETE] Found root-level folder name "${childCat.name}", flattening its content`);
+                // 将这个子目录的内容直接移动到 cat_1
+                const grandchildren = await getAllDescendants(childCat.id);
+                for (const grandchild of grandchildren) {
+                  if (grandchild.type === 'category') {
+                    const grandchildCat = await get(STORES.CATEGORIES, grandchild.id);
+                    if (grandchildCat) {
+                      grandchildCat.parentId = 'cat_1';
+                      grandchildCat.updatedAt = Date.now();
+                      await addCategory(grandchildCat);
 
-              // 同步到浏览器收藏夹
-              if (childCat.id.startsWith('cat_')) {
-                try {
-                  const browserId = childCat.id.replace('cat_', '');
-                  let targetBrowserId = targetParentId === 'cat_1' ? '1' : targetParentId.replace('cat_', '');
-                  await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
-                } catch (e) {
-                  console.debug(`[BATCH_DELETE] Browser sync warning for folder ${child.id}:`, e.message);
+                      // 同步到浏览器收藏夹
+                      if (grandchildCat.id.startsWith('cat_')) {
+                        try {
+                          const browserId = grandchildCat.id.replace('cat_', '');
+                          await chrome.bookmarks.move(browserId, { parentId: '1' });
+                        } catch (e) {
+                          console.debug(`[BATCH_DELETE] Browser sync warning for folder ${grandchild.id}:`, e.message);
+                        }
+                      }
+                    }
+                  } else {
+                    const grandchildBookmark = await getBookmark(grandchild.id);
+                    if (grandchildBookmark) {
+                      grandchildBookmark.parentCategoryId = 'cat_1';
+                      grandchildBookmark.updatedAt = Date.now();
+                      await addBookmark(grandchildBookmark);
+
+                      // 同步到浏览器
+                      if (/^\d+$/.test(grandchildBookmark.id)) {
+                        try {
+                          await chrome.bookmarks.move(grandchildBookmark.id, { parentId: '1' });
+                        } catch (e) {
+                          console.debug(`[BATCH_DELETE] Browser sync warning:`, e.message);
+                        }
+                      }
+                    }
+                  }
+                }
+                // 删除这个空目录
+                await deleteCategory(childCat.id);
+                // 同步删除浏览器文件夹
+                if (childCat.id.startsWith('cat_')) {
+                  try {
+                    const browserId = childCat.id.replace('cat_', '');
+                    await chrome.bookmarks.removeTree(browserId);
+                  } catch (e) {
+                    console.debug(`[BATCH_DELETE] Browser folder removal warning:`, e.message);
+                  }
+                }
+              } else {
+                // 正常移动子目录
+                childCat.parentId = targetParentId;
+                childCat.updatedAt = Date.now();
+                await addCategory(childCat);
+
+                // 同步到浏览器收藏夹
+                if (childCat.id.startsWith('cat_')) {
+                  try {
+                    const browserId = childCat.id.replace('cat_', '');
+                    let targetBrowserId = targetParentId === 'cat_1' ? '1' : targetParentId.replace('cat_', '');
+                    await chrome.bookmarks.move(browserId, { parentId: targetBrowserId });
+                  } catch (e) {
+                    console.debug(`[BATCH_DELETE] Browser sync warning for folder ${child.id}:`, e.message);
+                  }
                 }
               }
             }
