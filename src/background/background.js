@@ -964,7 +964,7 @@ async function handleAIAnalyze(request, sendResponse) {
     // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
     sendResponse({ started: true });
 
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 100;
     const totalBatches = Math.ceil(bookmarksToAnalyze.length / BATCH_SIZE);
     const sessionBookmarkIds = bookmarksToAnalyze.map(b => b.id);
 
@@ -1306,9 +1306,10 @@ async function handleApplyCategories(request, sendResponse) {
       }
 
       // 🔒 检查分类名称中的斜杠数量（最多允许两个斜杠，即三级：大类/中类/小类）
+      // 注意：仅对 isNew 的分类做此限制；现有分类可能本来就是4级+，应照常使用
       const slashCount = (cat.name.match(/\//g) || []).length;
-      if (slashCount > 2) {
-        console.error(`[应用分类] ❌ 分类名称层级过深（${slashCount + 1}级）: ${cat.name}`);
+      if (cat.isNew && slashCount > 2) {
+        console.error(`[应用分类] ❌ 新建分类层级过深（${slashCount + 1}级）: ${cat.name}`);
         console.error(`[应用分类] 最多允许三级（大类/中类/小类），跳过此分类。`);
         continue;
       }
@@ -1516,7 +1517,15 @@ async function handleApplyCategories(request, sendResponse) {
         if (categoryRecord) {
           browserFolderId = categoryRecord.id.replace('cat_', '');
           console.log(`[应用分类] 使用已存在分类: ${cat.name} → ${categoryRecord.name}, 浏览器ID: ${browserFolderId}`);
+        } else {
+          console.warn(`[应用分类] ⚠️ 找不到现有分类: "${cat.name}"，跳过该分类的 ${cat.bookmarkIds.length} 个书签`);
         }
+      }
+
+      // 分类记录未找到（查找失败或创建失败），跳过后续书签处理
+      if (!categoryRecord) {
+        console.error(`[应用分类] ❌ 分类 "${cat.name}" 无对应的分类记录，跳过书签移动。`);
+        continue;
       }
 
       // 更新收藏的分类，并移动到浏览器文件夹

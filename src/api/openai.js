@@ -34,7 +34,7 @@ export async function analyzeBookmarks(
   options = {}
 ) {
   const {
-    batchSize = 10,
+    batchSize = 100,
     onProgress,
     onBatchComplete,
     cancelToken,
@@ -188,7 +188,7 @@ export async function analyzeBookmarks(
   console.log(`[AI] 分类列表:`, rawCategories.map(c => `${c.name}(${c.bookmarkIds.length})`).join(', '));
 
   const merger = new CategoryMerger({
-    similarityThreshold: 0.45,  // 更激进：合并更多相似分类（0.60 → 0.45）
+    similarityThreshold: 0.65,  // 路径分类已有专门保护，非路径分类用更保守的阈值避免误合并
     minMergeSupport: 1          // 单例分类也可以合并
   });
 
@@ -529,22 +529,51 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
   const hasCategories = inputData.existingCategories.length > 0;
 
   if (hasCategories) {
-    // 生成已有分类的路径清单，方便 AI 直接参考
-    const pathList = inputData.existingCategories
+    // 将分类分为两组：有意义的具体分类 vs 兜底杂类
+    const CATCH_ALL_KEYWORDS = ['其他', '未分类', '待整理', '杂项', 'other', 'misc', 'uncategorized'];
+    const isCatchAll = (path) => CATCH_ALL_KEYWORDS.some(kw => path.split('/').pop().toLowerCase().includes(kw));
+
+    const specificCategories = inputData.existingCategories.filter(c => !isCatchAll(c.path));
+    const catchAllCategories = inputData.existingCategories.filter(c => isCatchAll(c.path));
+
+    // 检测是否存在 "已导入" 这类透明容器（所有叶子分类都在其下）
+    const importedPrefix = '已导入/';
+    const importedSubCats = specificCategories.filter(c => c.path.startsWith(importedPrefix));
+    const hasImportedContainer = importedSubCats.length > specificCategories.length * 0.5;
+
+    // 构建发给 AI 的 JSON 数据：existingCategories 只含具体分类（排除兜底），避免 AI 从数据中提取并使用它们
+    const filteredInputData = {
+      ...inputData,
+      existingCategories: specificCategories
+    };
+    const inputJson = JSON.stringify(filteredInputData, null, 2);
+
+    // 构建分类路径清单（优先展示，不含兜底分类）
+    const pathList = specificCategories
       .map(c => `  - "${c.path}"`)
       .join('\n');
+
+    const catchAllNote = catchAllCategories.length > 0
+      ? `\n**禁止使用的兜底分类**（不得将书签归入这些分类）：\n${catchAllCategories.map(c => `  - "${c.path}"`).join('\n')}`
+      : '';
+
+    const importedNote = hasImportedContainer
+      ? `\n**特别说明**："已导入/xxx" 是从浏览器批量导入时自动生成的旧目录结构。你可以：\n  1. 将书签归入这些现有分类（名称必须与上方列表完全一致）\n  2. **推荐**：为内容明确的书签新建不含"已导入/"前缀的更合理分类（如 "技术/前端"、"设计/UI" 等）`
+      : '';
 
     return `## 你的任务
 分析下方每个书签是否在合适的分类中，将其归入最佳分类。
 
-## 用户现有分类（共 ${inputData.existingCategories.length} 个，优先使用以下路径）
+## 用户现有分类（共 ${specificCategories.length} 个，优先使用）
 ${pathList}
+${catchAllNote}${importedNote}
 
 ## 使用规则
 1. **name 字段必须与上方列表中的路径字符串完全一致**（如 "前端"、"技术/前端"），不要改写
-2. 90% 以上书签应归入现有分类；只有在没有任何现有分类适合时才新建
-3. 新建分类禁止单级根目录（如 "Docker"），至少两级（"开发工具/Docker"），允许三级（"技术/前端/React"）
-4. 斜杠最多两个（三级），禁止四级及以上
+2. 优先将书签归入现有具体分类；没有合适的再新建
+3. **严格禁止**：不得新建或使用任何名称含"其他"、"未分类"、"待整理"、"杂项"的分类
+4. 新建分类禁止单级根目录（如 "Docker"），至少两级（"开发工具/Docker"），允许三级（"技术/前端/React"）
+5. 斜杠最多两个（三级），禁止四级及以上
 
 ## 输入数据
 \`\`\`json

@@ -87,6 +87,32 @@ class CategoryMerger {
     if (n1 === n2) return 1.0;
     if (n1.includes(n2) || n2.includes(n1)) return 0.9;
 
+    // === 路径感知：处理层级分类名称（含"/"）===
+    // 两个不同父路径的分类在语义上是完全独立的，不应被合并
+    const isPath1 = n1.includes('/');
+    const isPath2 = n2.includes('/');
+
+    if (isPath1 && isPath2) {
+      const parent1 = n1.substring(0, n1.lastIndexOf('/'));
+      const parent2 = n2.substring(0, n2.lastIndexOf('/'));
+      // 父路径不同 → 结构上完全不同的分类，直接返回 0 防止合并
+      if (parent1 !== parent2) return 0.0;
+      // 父路径相同 → 只比较叶子部分（递归调用，去除路径前缀）
+      const leaf1 = name1.substring(name1.lastIndexOf('/') + 1);
+      const leaf2 = name2.substring(name2.lastIndexOf('/') + 1);
+      return this.calculateSimilarity(leaf1, leaf2);
+    }
+
+    if (isPath1 !== isPath2) {
+      // 一个是路径，一个不是：提取路径的叶子部分对比，但相似度降权
+      const leaf = isPath1
+        ? name1.substring(name1.lastIndexOf('/') + 1)
+        : name2.substring(name2.lastIndexOf('/') + 1);
+      const plain = isPath1 ? name2 : name1;
+      return this.calculateSimilarity(leaf, plain) * 0.5;
+    }
+    // === 路径感知结束 ===
+
     // 2. 中文字符重叠相似度（对中文最重要）
     const charOverlapSim = this.chineseCharOverlapSimilarity(name1, name2);
 
