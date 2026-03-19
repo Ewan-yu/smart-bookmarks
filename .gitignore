@@ -39,3 +39,6 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+skills
+.bmad
+_bmad

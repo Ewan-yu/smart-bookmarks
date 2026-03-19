@@ -940,10 +940,8 @@ async function handleAIAnalyze(request, sendResponse) {
     }
 
     const categories = await getAllCategories();
-    // 获取所有用户分类的名称（不过滤，让AI自己判断使用哪些）
-    const existingCategoryNames = categories.map(c => c.name);
-
-    console.log(`[AI分析] 用户现有分类 (${existingCategoryNames.length}个): ${existingCategoryNames.join(', ')}`);
+    // 获取所有用户分类（完整对象，包含id、name、parentId等信息）
+    console.log(`[AI分析] 用户现有分类 (${categories.length}个): ${categories.map(c => c.name).join(', ')}`);
 
     // 统计未分类书签
     const uncategorizedCount = bookmarksToAnalyze.filter(bm => !bm.categoryId).length;
@@ -1037,7 +1035,7 @@ async function handleAIAnalyze(request, sendResponse) {
     const analysisResult = await analyzeBookmarks(
       aiConfig,
       enrichedBookmarks,
-      existingCategoryNames,
+      categories,  // 传递完整的分类对象数组（包含id、name、parentId）
       {
         batchSize: BATCH_SIZE,
         cancelToken: currentAnalysisCancelToken,
@@ -1142,10 +1140,8 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
 
     // 获取现有分类作为参考
     const categories = await getAllCategories();
-    // 获取所有用户分类的名称（不过滤，让AI自己判断）
-    const existingCategoryNames = categories.map(c => c.name);
-
-    console.log(`[AI Debug] 用户现有分类 (${existingCategoryNames.length}个): ${existingCategoryNames.join(', ')}`);
+    // 获取所有用户分类（完整对象，包含id、name、parentId等信息）
+    console.log(`[AI Debug] 用户现有分类 (${categories.length}个): ${categories.map(c => c.name).join(', ')}`);
 
     // 获取 AI 配置
     const configResult = await chrome.storage.local.get('aiConfig');
@@ -1166,7 +1162,7 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
     const debugLog = await analyzeBookmarksDebug(
       aiConfig,
       enrichedBookmarks,
-      existingCategoryNames
+      categories  // 传递完整的分类对象数组
     );
 
     // 在 debugLog 中记录摘要提取结果
@@ -1195,12 +1191,21 @@ async function handleApplyCategories(request, sendResponse) {
     // 获取浏览器书签栏根目录ID（用于新建分类的父目录）
     const getBookmarksBarId = async () => {
       const tree = await chrome.bookmarks.getTree();
-      // 查找"书签栏"节点
+
+      // 🔒 安全的查找逻辑：只找根节点下的"书签栏"
       function findBookmarksBar(nodes) {
         for (const node of nodes) {
-          if (node.title === '书签栏' || node.title === 'Bookmarks Bar') {
+          // Chrome的根节点ID是'0'（虚拟节点），书签栏的parentId应该是'0'
+          // 注意：parentId可能是'0'（字符串）或 undefined（某些情况下）
+          const isRootFolder = !node.parentId || node.parentId === '0' || node.parentId === 0;
+          const isBookmarksBar = (node.title === '书签栏' || node.title === 'Bookmarks Bar' || node.title === 'Bookmarks');
+
+          if (isRootFolder && isBookmarksBar) {
+            console.log(`[应用分类] 找到书签栏根节点: ${node.title} (ID: ${node.id}, parentId: ${node.parentId})`);
             return node.id;
           }
+
+          // 递归搜索子节点
           if (node.children) {
             const found = findBookmarksBar(node.children);
             if (found) return found;
@@ -1208,16 +1213,92 @@ async function handleApplyCategories(request, sendResponse) {
         }
         return null;
       }
-      return findBookmarksBar(tree);
+
+      const barId = findBookmarksBar(tree);
+
+      if (!barId) {
+        console.error('[应用分类] ❌ 无法找到"书签栏"根目录！将使用根节点的第一个子节点。');
+        // 降级方案：使用根节点的第一个子节点
+        const rootChildren = tree[0].children;
+        if (rootChildren && rootChildren.length > 0) {
+          const fallbackId = rootChildren[0].id;
+          console.warn(`[应用分类] ⚠️ 降级使用: ${rootChildren[0].title} (ID: ${fallbackId})`);
+          return fallbackId;
+        }
+      }
+
+      return barId;
     };
 
     const bookmarksBarId = await getBookmarksBarId();
     console.log(`[应用分类] 书签栏根目录ID: ${bookmarksBarId}`);
 
+    // 🔍 验证 bookarksBarId 是否有效
+    try {
+      const barNode = await chrome.bookmarks.get(bookmarksBarId);
+      console.log(`[应用分类] 书签栏节点信息:`, {
+        id: barNode[0].id,
+        title: barNode[0].title,
+        parentId: barNode[0].parentId,
+        index: barNode[0].index
+      });
+
+      // 验证父节点是否为根（parentId应该是'0'、0、undefined或null）
+      const parentId = barNode[0].parentId;
+      const isValidRoot = (!parentId || parentId === '0' || parentId === 0);
+
+      if (!isValidRoot) {
+        console.error(`[应用分类] ❌ 书签栏的parentId无效！parentId: ${parentId} (应该是'0'、0、undefined或null)`);
+        console.error(`[应用分类] 这会导致文件夹被创建到错误位置！`);
+      } else {
+        console.log(`[应用分类] ✅ 书签栏节点验证通过，parentId: ${parentId} (这是Chrome虚拟根节点)`);
+      }
+    } catch (error) {
+      console.error(`[应用分类] ❌ 无法获取书签栏节点信息:`, error);
+    }
+
     // 创建新分类（同时在浏览器收藏夹和IndexedDB中创建）
     for (const cat of categories) {
       let categoryRecord = null;
       let browserFolderId = null;
+
+      // 🔒 分类名称规范化验证
+      const trimmedName = cat.name.trim();
+      if (trimmedName === '') {
+        console.error(`[应用分类] ❌ 分类名称为空，跳过: "${cat.name}"`);
+        continue;
+      }
+
+      if (trimmedName !== cat.name) {
+        console.warn(`[应用分类] ⚠️ 分类名称包含空格，已规范化: "${cat.name}" → "${trimmedName}"`);
+        cat.name = trimmedName;
+      }
+
+      // 🔒 检查分类名称中的斜杠数量
+      const slashCount = (cat.name.match(/\//g) || []).length;
+      if (slashCount > 2) {
+        console.error(`[应用分类] ❌ 分类名称包含过多斜杠（${slashCount}个）: ${cat.name}`);
+        console.error(`[应用分类] 这可能创建过深的层级结构！跳过此分类。`);
+        continue;
+      }
+
+      // 🔒 安全检查：禁止创建带浏览器根目录前缀的分类
+      const ROOT_FOLDER_PREFIXES = ['书签栏/', '其他书签/', 'Bookmarks Bar/', 'Other Bookmarks/'];
+      const hasInvalidPrefix = ROOT_FOLDER_PREFIXES.some(prefix => cat.name.startsWith(prefix));
+
+      if (hasInvalidPrefix) {
+        console.error(`[应用分类] ❌ 拒绝创建无效分类（包含根目录前缀）: ${cat.name}`);
+        console.error(`[应用分类] 这会创建一级目录，违反浏览器兼容要求！跳过此分类。`);
+        continue; // 跳过这个分类
+      }
+
+      // 🔒 额外检查：禁止与浏览器根目录同名
+      const ROOT_FOLDER_NAMES = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
+      if (ROOT_FOLDER_NAMES.has(cat.name)) {
+        console.error(`[应用分类] ❌ 分类名称与浏览器根目录同名: ${cat.name}`);
+        console.error(`[应用分类] 这会造成混乱！跳过此分类。`);
+        continue;
+      }
 
       if (cat.isNew) {
         // 检查分类是否已存在（通过名称查找）
@@ -1270,10 +1351,60 @@ async function handleApplyCategories(request, sendResponse) {
                 }
               } else {
                 // 文件夹不存在，创建
+
+                // 🔒 安全验证：确保父ID有效
+                if (!currentParentId) {
+                  console.error(`[应用分类] ❌ currentParentId为空，无法创建文件夹: ${partName}`);
+                  console.error(`[应用分类] 跳过此分类，避免创建到错误位置`);
+                  continue; // 跳过整个分类
+                }
+
+                // 🔒 额外验证：确认父ID确实指向"书签栏"下的节点
+                try {
+                  const parentNode = await chrome.bookmarks.get(currentParentId);
+                  if (!parentNode || parentNode.length === 0) {
+                    console.error(`[应用分类] ❌ 父节点无效: ${currentParentId}`);
+                    continue;
+                  }
+
+                  // 验证父节点是否在"书签栏"下（或就是"书签栏"本身）
+                  const parentInfo = parentNode[0];
+
+                  // 判断是否在书签栏下：
+                  // 1. 父节点就是书签栏本身（title匹配）
+                  // 2. 父节点的parentId等于bookmarksBarId（在书签栏下）
+                  // 3. 父节点的parentId是'0'或0（在根节点下，且bookmarksBarId就是'1'等根节点ID）
+                  const isDirectChildOfRoot = (parentInfo.parentId === '0' || parentInfo.parentId === 0);
+                  const isBookmarksBar = (parentInfo.title === '书签栏' || parentInfo.title === 'Bookmarks Bar' || parentInfo.title === 'Bookmarks');
+                  const isUnderBookmarksBar = (isBookmarksBar ||
+                                               parentInfo.parentId === bookmarksBarId ||
+                                               isDirectChildOfRoot);
+
+                  if (!isUnderBookmarksBar) {
+                    console.error(`[应用分类] ❌ 父节点不在书签栏下！`);
+                    console.error(`[应用分类] 父节点: ${parentInfo.title} (ID: ${parentInfo.id}, parentId: ${parentInfo.parentId})`);
+                    console.error(`[应用分类] 书签栏ID: ${bookmarksBarId}`);
+                    console.error(`[应用分类] 拒绝创建文件夹，避免创建到错误位置！`);
+                    continue;
+                  }
+
+                  console.log(`[应用分类] ✅ 验证通过：在"${parentInfo.title}"下创建"${partName}"`);
+                } catch (verifyError) {
+                  console.error(`[应用分类] ❌ 验证父节点时出错:`, verifyError);
+                  continue;
+                }
+
                 const newFolder = await chrome.bookmarks.create({
                   parentId: currentParentId,
                   title: partName
                 });
+
+                // 🔒 创建后再次验证
+                if (newFolder.parentId !== currentParentId) {
+                  console.error(`[应用分类] ❌ 创建的文件夹父ID不匹配！`);
+                  console.error(`[应用分类] 期望: ${currentParentId}, 实际: ${newFolder.parentId}`);
+                }
+
                 currentParentId = newFolder.id;
                 console.log(`[应用分类] 创建浏览器文件夹: ${partName}, 浏览器ID: ${newFolder.id}, 父ID: ${newFolder.parentId}`);
 
@@ -1316,7 +1447,32 @@ async function handleApplyCategories(request, sendResponse) {
           categoryRecord = existing;
           // 从分类ID中提取浏览器ID
           browserFolderId = existing.id.replace('cat_', '');
-          console.log(`[应用分类] 使用现有分类: ${cat.name}, 浏览器ID: ${browserFolderId}`);
+
+          // 🔒 验证现有分类的位置是否正确
+          try {
+            const folderNode = await chrome.bookmarks.get(browserFolderId);
+            if (folderNode && folderNode.length > 0) {
+              const node = folderNode[0];
+              console.log(`[应用分类] 使用现有分类: ${cat.name}, 浏览器ID: ${browserFolderId}, 父ID: ${node.parentId}`);
+
+              // 验证是否在"书签栏"下
+              const isValidLocation = (node.parentId === bookmarksBarId ||
+                                      node.title === '书签栏' ||
+                                      node.title === 'Bookmarks Bar' ||
+                                      node.title === 'Bookmarks');
+
+              if (!isValidLocation) {
+                console.warn(`[应用分类] ⚠️ 现有分类 ${cat.name} 不在书签栏下！`);
+                console.warn(`[应用分类] 分类位置: ${node.title} (父ID: ${node.parentId})`);
+                console.warn(`[应用分类] 书签栏ID: ${bookmarksBarId}`);
+                console.warn(`[应用分类] 这可能导致书签被移动到错误位置！`);
+                // 注意：这里不跳过，因为用户可能确实想使用这个分类
+                // 但会记录警告日志
+              }
+            }
+          } catch (error) {
+            console.error(`[应用分类] ❌ 无法验证现有分类位置: ${cat.name}`, error);
+          }
         }
       } else {
         // 使用现有分类

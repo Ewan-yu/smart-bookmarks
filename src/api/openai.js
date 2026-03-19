@@ -101,6 +101,9 @@ export async function analyzeBookmarks(
   }
 
   // ── 逐批发送 API 请求 ────────────────────────────────────────────────────────
+  // 累积所有已生成的分类（包括用户原有分类 + 新生成的分类）
+  let accumulatedCategories = [...categories];
+
   for (let i = startBatchIndex; i < batches.length; i++) {
     // 检查取消令牌
     if (cancelToken?.cancelled) {
@@ -112,7 +115,8 @@ export async function analyzeBookmarks(
       onProgress(i + 1, batches.length, `正在分析第 ${i + 1}/${batches.length} 批（${batch.length} 个）...`);
     }
 
-    const prompt = buildAnalysisPrompt(batch, existingCategories);
+    // 🔄 传入累积的分类列表（用户原有 + 前面批次生成的）
+    const prompt = buildAnalysisPrompt(batch, accumulatedCategories);
     const batchStartTime = Date.now();
 
     try {
@@ -126,6 +130,21 @@ export async function analyzeBookmarks(
       const { result: validatedParsed, warnings } = validateAIResult(parsed, inputIds);
 
       console.log(`[AI] 批 ${i + 1} 返回: ${validatedParsed.categories?.length || 0} 个分类, ${validatedParsed.tags?.length || 0} 个标签`);
+
+      // 🔄 将新分类累积到列表中
+      const newCategories = validatedParsed.categories || [];
+      newCategories.forEach(cat => {
+        // 检查是否是新分类（不在累积列表中）
+        const exists = accumulatedCategories.some(c => c.name === cat.name);
+        if (!exists) {
+          accumulatedCategories.push({
+            id: `cat_new_${cat.name}`,
+            name: cat.name,
+            parentId: null
+          });
+          console.log(`[AI] 批 ${i + 1} 新增分类: ${cat.name}`);
+        }
+      });
 
       mergeBatch(validatedParsed.categories, validatedParsed.tags);
 
@@ -350,190 +369,210 @@ function getCategoryNameById(categoryId, categories) {
   const category = categories.find(c => c.id === categoryId);
   return category ? category.name : null;
 }
+
+/**
+ * 构建分类树（添加path字段）
+ * @param {Array} categories - 分类数组
+ * @returns {Array} 带path的分类树
+ */
+function buildCategoryTree(categories) {
+  const categoryMap = new Map(categories.map(c => [c.id, c]));
+
+  // 浏览器根目录名称（需要从path中排除）
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks']);
+
+  // 为每个分类添加path字段
+  const addPath = (category) => {
+    const path = [];
+    let current = category;
+    while (current) {
+      // 跳过浏览器根目录
+      if (!ROOT_FOLDERS.has(current.name)) {
+        path.unshift(current.name);
+      }
+      const parentId = current.parentId;
+      current = parentId ? categoryMap.get(parentId) : null;
+    }
+    return {
+      ...category,
+      path: path.join('/')
+    };
+  };
+
+  return categories.map(addPath);
+}
+
+/**
+ * 获取书签当前分类信息
+ * @param {string} categoryId - 分类ID
+ * @param {Array} categories - 分类数组
+ * @returns {Object|null} 分类信息
+ */
+function getCategoryInfo(categoryId, categories) {
+  if (!categoryId) return null;
+
+  const category = categories.find(c => c.id === categoryId);
+  if (!category) return null;
+
+  // 浏览器根目录名称（需要从path中排除）
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks']);
+
+  // 构建完整路径
+  const path = [];
+  let current = category;
+  const categoryMap = new Map(categories.map(c => [c.id, c]));
+
+  while (current) {
+    // 跳过浏览器根目录
+    if (!ROOT_FOLDERS.has(current.name)) {
+      path.unshift(current.name);
+    }
+    const parentId = current.parentId;
+    current = parentId ? categoryMap.get(parentId) : null;
+  }
+
+  return {
+    id: category.id,
+    name: category.name,
+    path: path.join('/')
+  };
+}
+
+/**
+ * 构建结构化的输入数据（用于JSON格式提示词）
+ * @param {Array} bookmarks - 书签数组
+ * @param {Array} existingCategories - 现有分类数组
+ * @returns {Object} 结构化输入数据
+ */
+function buildStructuredInput(bookmarks, existingCategories) {
+  // 构建分类树（添加path字段）
+  const categoryTree = buildCategoryTree(existingCategories || []);
+
+  // 构建书签数据（包含当前分类、标签、摘要）
+  const bookmarksData = bookmarks.map(bm => {
+    const bookmarkData = {
+      id: String(bm.id),
+      title: bm.title,
+      url: bm.url
+    };
+
+    // 添加描述（如果存在）
+    if (bm.description) {
+      bookmarkData.description = bm.description;
+    }
+
+    // 添加当前分类信息
+    const currentCategory = getCategoryInfo(bm.categoryId, existingCategories || []);
+    if (currentCategory) {
+      bookmarkData.currentCategory = currentCategory;
+    }
+
+    // 添加标签
+    if (bm.tags && bm.tags.length > 0) {
+      bookmarkData.tags = bm.tags;
+    }
+
+    // 添加摘要信息
+    if (bm._summary) {
+      const summary = {};
+      if (bm._summary.siteName) {
+        summary.siteName = bm._summary.siteName;
+      }
+      if (bm._summary.description) {
+        summary.description = bm._summary.description;
+      }
+      if (bm._summary.keywords && bm._summary.keywords.length > 0) {
+        summary.keywords = bm._summary.keywords.slice(0, 5);
+      }
+      if (Object.keys(summary).length > 0) {
+        bookmarkData.summary = summary;
+      }
+    }
+
+    return bookmarkData;
+  });
+
+  return {
+    existingCategories: categoryTree,
+    bookmarks: bookmarksData
+  };
+}
+
 /**
  * 每个书签在 prompt 中的最大字符数（含标题+URL+摘要）
  */
 const MAX_BOOKMARK_PROMPT_CHARS = 300;
 
 /**
- * 构建分析提示词
- * 支持 _summary 字段（由 page-summarizer 提取的页面摘要信息）
+ * 构建分析提示词（使用JSON结构化输入）
  * @param {Array} bookmarks - 书签数组（可携带 _summary）
  * @param {Array} existingCategories - 现有分类列表（包含id和name）
  * @returns {string}
  */
 function buildAnalysisPrompt(bookmarks, existingCategories) {
-  // 确保 existingCategories 是一个数组
-  const categories = existingCategories || [];
+  // 构建结构化输入数据
+  const inputData = buildStructuredInput(bookmarks, existingCategories);
 
-  const bookmarksList = bookmarks.map((bm, index) => {
-    let entry = `${index + 1}. [ID:${bm.id}] ${truncateText(bm.title, 80)}\n   URL: ${bm.url}`;
+  // 将输入数据转换为JSON字符串
+  const inputJson = JSON.stringify(inputData, null, 2);
 
-    // 添加当前分类信息（用于检测书签是否放错目录）
-    const currentCategoryName = getCategoryNameById(bm.categoryId, categories);
-    if (currentCategoryName) {
-      entry += `\n   当前分类: ${currentCategoryName}`;
-    }
+  // 根据是否有现有分类，动态生成提示词
+  const hasCategories = inputData.existingCategories.length > 0;
+  const categoryHint = hasCategories
+    ? `## 用户现有分类
+已有 ${inputData.existingCategories.length} 个分类，详见下方的 existingCategories.path 字段。
 
-    // 优先使用页面摘要，其次使用 description
-    const summary = bm._summary;
-    if (summary) {
-      // 来源站点标识（URL fallback 时提供）
-      if (summary.siteName) {
-        entry += `\n   来源: ${summary.siteName}`;
-      }
-      if (summary.description) {
-        entry += `\n   摘要: ${truncateText(summary.description, 120)}`;
-      }
-      if (summary.keywords && summary.keywords.length > 0) {
-        entry += `\n   关键词: ${summary.keywords.slice(0, 5).join(', ')}`;
-      }
-      if (!summary.description && summary.snippet) {
-        entry += `\n   摘要: ${truncateText(summary.snippet, 120)}`;
-      }
-    } else if (bm.description) {
-      entry += `\n   摘要: ${truncateText(bm.description, 120)}`;
-    }
+**极重要约束**：
+1. **分类名称必须直接使用现有分类名称**（从 existingCategories.name 或 existingCategories.path 中选择）
+   - ✅ 正确：直接使用 "前端"、".net"、"数据库"（现有分类的name字段）
+   - ✅ 正确：使用 "前端/React"（如果是层级分类的path字段）
+   - ❌ 错误：不要添加 "书签栏/"、"其他书签/" 前缀
+   - ❌ 错误：不要创建 "书签栏/前端"、"其他书签/.net" 这样的分类
 
-    // 控制单条长度
-    return entry.length > MAX_BOOKMARK_PROMPT_CHARS
-      ? entry.slice(0, MAX_BOOKMARK_PROMPT_CHARS) + '...'
-      : entry;
-  }).join('\n');
+2. **优先使用现有分类**（90%以上的书签应归入现有分类）
+   - 如果书签明显属于现有分类，必须使用现有分类
+   - 只有在现有分类完全不适用时才创建新分类
 
-  // 动态生成已有分类说明
-  let existingCategoriesText = '';
-  if (categories.length > 0) {
-    // 将分类分组为根分类和子分类，传递层级结构
-    const rootCategories = categories.filter(c => !c.parentId);
-    const hasSubCategories = categories.some(c => c.parentId);
+3. **创建新分类时的格式**：
+   - 必须使用 "大类/细类" 格式（如 "技术/AI"、"开发工具/Docker"）
+   - 禁止创建根级细分类（如 "React"、"Vue" 必须用 "技术/React"）`
+    : `## 用户暂无分类（首次分类）
+请根据书签内容创建合理的分类结构。
 
-    let categoriesStructure = '';
-    if (hasSubCategories) {
-      // 有层级结构，按层级展示
-      categoriesStructure = rootCategories.map(root => {
-        const subCats = categories.filter(c => c.parentId === root.id);
-        if (subCats.length > 0) {
-          return `${root.name}（包含：${subCats.map(sc => sc.name).join('、')}）`;
-        }
-        return root.name;
-      }).join('\n');
-    } else {
-      // 扁平结构
-      categoriesStructure = categories.map(c => c.name).join('、');
-    }
-
-    existingCategoriesText = `## 用户现有分类
-
-${categoriesStructure}
-
-**极重要约束（必须严格遵守）🔴**
-
-1. **强制使用层级分类格式**：必须使用 "大类/细类" 格式
-   - ✅ 正确示例："技术/前端"、"技术/React"、"技术/Vue"、"开发工具/Docker"
-   - ❌ 错误示例：直接创建"React"、"Vue"、"Docker"、"博客"、"设计"等根级细分类
-   - 推荐大类：技术、开发工具、数据库、设计、运维、学习等
-
-2. **强制使用现有分类**：如果书签明显属于现有分类范围，必须归入现有分类
-   - 所有前端、React、Vue、Angular → 归入 "前端" 或 "技术/前端"
-   - 所有 .NET、C#、ASP.NET、Entity Framework、 Orchard CMS、Umbraco → 归入 ".net"
-   - 所有 Docker、Kubernetes → 归入 "容器化" 或 "开发工具/Docker"
-   - 所有数据库（Oracle、SQL Server、MySQL、PostgreSQL）→ 归入 "数据库"
-
-3. **禁止创建的根级分类**（这些必须使用层级格式）：
-   ❌ **严禁直接创建**：
-   - "博客"、"个人博客"、"技术博客" → 必须用 "技术/博客"
-   - "设计"、"UI设计"、"UI框架" → 必须用 "技术/前端" 或 "技术/设计"
-   - "Git"、"Docker"、"Jenkins" → 必须用 "开发工具/Git" 等
-   - "性能优化"、"架构"、"安全" → 必须用 "技术/性能优化" 等
-   - "项目管理"、"系统架构"、"大数据" → 必须用 "技术/架构" 等
-
-   ✅ **正确做法**：
-   - 所有博客类 → "技术/博客"
-   - 所有设计类 → "技术/前端"（大部分UI是前端相关）
-   - 所有开发工具 → "开发工具/xxx" 或直接归入 "开发工具"
-   - 所有技术文章 → "技术/xxx"
-
-4. **严格区分技术栈（避免误分类）**：
-   ❌ **常见错误示例**（必须避免）：
-   - 错误：将 "Orchard CMS"（.NET的CMS）归入 "AI工具"
-   - 错误：将 "C# USB钩子" 归入 "AI工具"
-   - 错误：将 ".NET框架" 归入 "学习/编程"
-   - 错误：将 "SQL Server" 归入 "后端开发"
-   - 错误：将 "博客/个人" 归入根级（应该用 "技术/博客"）
-
-   ✅ **正确分类**：
-   - .NET相关：C#、ASP.NET、Entity Framework、Orchard CMS、Umbraco、.NET Core → ".net"
-   - 前端相关：React、Vue、Angular、Webpack、Vite → "前端" 或 "技术/前端"
-   - 数据库相关：Oracle、SQL Server、MySQL、PostgreSQL、MongoDB → "数据库"
-   - AI工具：ChatGPT、Claude、AI编程助手、AI绘图工具 → "AI工具"
-   - 开发工具：Git、Docker、VS Code、Visual Studio → "开发工具"或相应子分类
-   - 所有博客、文章、教程 → "技术/博客"
-
-5. **判断依据（按优先级）**：
-   1. **技术栈明确**：C# → .net
-   2. **框架归属**：Orchard CMS（基于.NET） → .net
-   3. **功能定位**：Docker → 容器化，Git → 开发工具
-   4. **内容类型**：博客/文章/教程 → 技术/博客
-
-6. **严格限制新分类数量**：最多只允许创建 5-8 个新分类
-   - **禁止**创建根级细分类
-   - **采用** "大类/细类" 格式
-   - **禁止**创建与现有分类冲突的新分类
-
-7. **目标要求**：
-   - 最终分类总数控制在 **10-15 个以内**
-   - 每个分类至少包含 **3 个书签**
-   - 采用层级结构合并相似内容
-`;
-  } else {
-    existingCategoriesText = `## 用户暂无分类（首次分类）
-
-请根据书签内容创建合理的分类结构，采用 大类/细类 模式：
+**推荐模式**：
 - 技术类：技术/前端、技术/后端、技术/数据库等
-- 设计类：设计/UI设计、设计/平面设计、设计/设计资源等
-- 工具类：工具/开发工具、工具/效率工具等
-- 学习类：学习/编程、学习/语言、学习/设计等
+- 设计类：设计/UI设计、设计/平面设计等
+- 工具类：开发工具/Git、开发工具/Docker等
+- 学习类：学习/编程、学习/语言等
 
-建议：创建 5-10 个主要分类，每个分类包含 2-10 个书签。
-`;
-  }
+建议创建 5-10 个主要分类，每个分类包含 2-10 个书签。`;
 
-  return `${existingCategoriesText}
+  return `${categoryHint}
 
-## 分类示例（参考）
+## 输入数据
+\`\`\`json
+${inputJson}
+\`\`\`
 
-**正确分类示例**：
-- "Orchard CMS 中文文档" → ".net"（Orchard是基于.NET的CMS）
-- "C#下usb条码扫描枪的钩子实现" → ".net"（C#技术）
-- "React Hooks 完全指南" → "技术/前端" 或 "前端"（前端框架）
-- "Docker 容器化部署实践" → "容器化" 或 "开发工具/Docker"（容器技术）
-- "SQL Server 查询优化" → "数据库"（数据库技术）
-- "ChatGPT API 使用教程" → "AI工具"（AI相关）
-- "Git 版本控制最佳实践" → "开发工具/Git"（开发工具）
+## 要求
+1. **分类名称必须直接使用 existingCategories.name 或 existingCategories.path**
+2. **禁止在分类名称前添加 "书签栏/" 或 "其他书签/" 前缀**
+3. 检测 currentCategory 与内容不匹配的书签，在 reason 字段说明 "建议从XX移动到YY"
+4. 为每个书签提取 2-5 个标签（tags）
+5. 最终分类总数控制在 5-15 个
+6. 每个分类至少包含 2 个书签
 
-**错误分类示例（必须避免）**：
-- ❌ "Orchard CMS" → "AI工具"（错误：这是.NET CMS）
-- ❌ "C# USB钩子" → "AI工具"（错误：这是C#开发）
-- ❌ "SQL Server" → "后端开发"（错误：应归入数据库）
-- ❌ ".NET Core" → "学习/编程"（错误：应归入.net）
-
-## 待分类收藏列表
-${bookmarksList}
-
-## 输出要求
-**重要**：必须同时返回分类建议（categories）和标签建议（tags），不能只返回其中一项！
-
+## 输出格式
 严格返回 JSON 格式，不要添加任何解释：
 
 \`\`\`json
 {
   "categories": [
     {
-      "name": "分类名称（优先使用用户现有分类）",
+      "name": "分类名称（直接使用现有分类名称，如"前端"、".net"）",
       "confidence": 0.9,
       "bookmarkIds": ["id1", "id2"],
-      "reason": "分类理由（如果检测到放错目录，说明：建议从XX移动到YY）"
+      "reason": "分类理由或移动建议"
     }
   ],
   "tags": [
@@ -920,10 +959,11 @@ export async function testConnection(config) {
 }
 
 /**
- * 后处理：强制合并根级细分类，保留层级分类
+ * 后处理：智能合并根级细分类，保留层级分类
  * 规则：
- * 1. 根级细分类（不含"/"）需要合并到大类
- * 2. 层级分类（含"/"）保留不变
+ * 1. 层级分类（含"/"）保留不变
+ * 2. 现有大类（用户已有）保留不变
+ * 3. 根级细分类合并到相似的大类（基于名称相似度）
  *
  * @param {Array} categories - 分类数组
  * @returns {Array} 合并后的分类数组
@@ -931,158 +971,87 @@ export async function testConnection(config) {
 function forceMergeByKeywords(categories) {
   if (categories.length <= 15) return categories; // 已经足够少，无需处理
 
-  // 定义关键词映射：关键词 → 目标分类名（只合并根级细分类）
-  const keywordMapping = {
-    // 前端系列 → "前端"
-    'react': '前端',
-    'vue': '前端',
-    'angular': '前端',
-    'javascript': '前端',
-    'typescript': '前端',
-    'webpack': '前端',
-    'vite': '前端',
-    '前端开发': '前端',
-    'web开发': '前端',
-    'ui组件': '前端',
-    'ui框架': '前端',
+  // 识别常见的大类名称（保留这些分类不合并）
+  const commonCategories = new Set([
+    '前端', '后端', '数据库', '容器化', '开发工具', 'AI工具',
+    '运维', '测试', '设计', '学习', '技术', '工具'
+  ]);
 
-    // .NET 系列 → ".net"
-    'c#': '.net',
-    'asp': '.net',
-    'entity framework': '.net',
-    '.net core': '.net',
-    'dapper': '.net',
-    '高级特性': '.net',
-
-    // 容器系列 → "容器化"
-    'kubernetes': '容器化',
-    'k8s': '容器化',
-    '容器编排': '容器化',
-    '容器平台': '容器化',
-
-    // AI 系列 → "AI工具"
-    'llm': 'AI工具',
-    '大语言模型': 'AI工具',
-    '深度学习': 'AI工具',
-    '机器学习': 'AI工具',
-
-    // 数据库系列 → "数据库"
-    'mysql': '数据库',
-    'postgresql': '数据库',
-    'mongodb': '数据库',
-    'postgres': '数据库',
-    'oracle': '数据库',
-    'sap': '数据库',
-
-    // 开发工具系列 → "开发工具"
-    'git': '开发工具',
-    'jenkins': '开发工具',
-    'docker': '开发工具',
-    '报表工具': '开发工具',
-    'ide': '开发工具',
-    '浏览器扩展': '开发工具',
-    '建模': '开发工具',
-    '打印': '开发工具',
-    '监控': '开发工具',
-    '配置管理': '开发工具',
-    '在线工具': '开发工具',
-    '代码美化': '开发工具',
-
-    // 技术系列 → "技术/博客"
-    '博客': '技术/博客',
-    '个人': '技术/博客',
-
-    // 设计系列 → "技术/前端"（大部分设计工具是前端相关）
-    'ui组件库': '技术/前端',
-    'ui框架': '技术/前端',
-    '设计': '技术/前端',
-
-    // 学习系列 → "技术/博客"
-    '性能优化': '技术/博客',
-    '阅读': '技术/博客',
-    '社区': '技术/博客',
-    '个人成长': '技术/博客',
-
-    // 其他小分类合并
-    '开源': '技术/博客',
-    '系统架构': '技术/架构',
-    '架构': '技术/架构',
-    '安全': '技术/安全',
-    '网络安全': '技术/安全',
-    '大数据': '技术/大数据',
-    '微服务': '技术/架构',
-    '移动开发': '技术/前端',
-    '小程序': '技术/前端',
-    '项目管理': '开发工具',
-    '服务器': '运维',
-    'vps': '运维',
-    '内部系统': '开发工具',
-    '公司内部': '开发工具',
-    '财经': '技术/博客',
-    '软件': '开发工具',
-    '硬件': '开发工具',
-    '未分类': '技术/博客',
-    '内容管理': '技术/博客',
-    'cms': '技术/博客',
-    'wordpress': '技术/博客'
-  };
+  // 提取所有大类（书签数 >= 3 的分类）
+  const majorCategories = categories.filter(cat => cat.bookmarkIds.length >= 3);
+  const majorCategoryNames = new Set(majorCategories.map(cat => cat.name));
 
   const mergeMap = new Map(); // categoryId → targetCategory
   const targetCategories = [];
 
   for (const cat of categories) {
-    const nameLower = cat.name.toLowerCase();
-
     // 跳过层级分类（包含 "/" 的保留）
     if (cat.name.includes('/')) {
       targetCategories.push(cat);
       continue;
     }
 
-    // 跳过现有大类（保留用户的原始分类）
-    const existingCategories = [
-      '前端', '.net', '数据库', '容器化', 'linux', '微信',
-      '开发工具', 'AI工具', '移动开发', '大数据分析',
-      'oracle', 'sql', '工具', '公司办公', 'Test'
-    ];
-    if (existingCategories.includes(cat.name)) {
+    // 跳过常见大类和已有的大类
+    if (commonCategories.has(cat.name) || majorCategoryNames.has(cat.name)) {
       targetCategories.push(cat);
       continue;
     }
 
-    // 检查是否需要合并根级细分类
-    let targetKeyword = null;
-    for (const [keyword, targetName] of Object.entries(keywordMapping)) {
-      if (nameLower.includes(keyword)) {
-        targetKeyword = targetName;
-        break;
+    // 查找相似的大类进行合并
+    let targetCategory = null;
+    let maxSimilarity = 0;
+
+    for (const major of majorCategories) {
+      if (major.name === cat.name) continue;
+
+      // 计算名称相似度（简单的包含关系）
+      const similarity = calculateSimilarity(cat.name, major.name);
+      if (similarity > maxSimilarity && similarity > 0.4) {
+        maxSimilarity = similarity;
+        targetCategory = major;
       }
     }
 
-    if (targetKeyword) {
-      // 查找目标分类（可能在 targetCategories，也可能在原始 categories 中）
-      let target = targetCategories.find(t => t.name === targetKeyword);
-
-      if (!target) {
-        // 如果还没有目标，创建一个新的
-        target = {
-          id: `cat_${targetKeyword}`,
-          name: targetKeyword,
-          bookmarkIds: [],
-          confidence: cat.confidence
-        };
-        targetCategories.push(target);
+    if (targetCategory) {
+      // 合并到目标大类
+      const target = targetCategories.find(t => t.name === targetCategory.name);
+      if (target) {
+        const uniqueIds = new Set([...target.bookmarkIds, ...cat.bookmarkIds]);
+        target.bookmarkIds = Array.from(uniqueIds);
+        mergeMap.set(cat.id, target);
+      } else {
+        targetCategories.push({...targetCategory, bookmarkIds: [...cat.bookmarkIds]});
       }
-
-      // 合并书签ID
-      const uniqueIds = new Set([...target.bookmarkIds, ...cat.bookmarkIds]);
-      target.bookmarkIds = Array.from(uniqueIds);
-      mergeMap.set(cat.id, target);
+      console.log(`[后处理] 合并 "${cat.name}" → "${targetCategory.name}" (相似度: ${maxSimilarity.toFixed(2)})`);
     } else {
-      // 没匹配到任何规则，保留原分类
+      // 没找到相似的大类，保留原分类
       targetCategories.push(cat);
     }
   }
 
   return targetCategories;
+}
+
+/**
+ * 计算两个分类名称的相似度
+ * @param {string} name1 - 分类名称1
+ * @param {string} name2 - 分类名称2
+ * @returns {number} 相似度（0-1）
+ */
+function calculateSimilarity(name1, name2) {
+  const lower1 = name1.toLowerCase();
+  const lower2 = name2.toLowerCase();
+
+  // 包含关系
+  if (lower1.includes(lower2) || lower2.includes(lower1)) {
+    return 0.8;
+  }
+
+  // 计算公共字符比例
+  const set1 = new Set(lower1);
+  const set2 = new Set(lower2);
+  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const union = new Set([...set1, ...set2]);
+
+  return intersection.size / union.size;
 }
