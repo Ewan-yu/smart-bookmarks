@@ -1180,6 +1180,37 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
 }
 
 /**
+ * 构建分类路径映射（路径 → 分类对象）
+ * 用于将 AI 返回的分类路径（如"前端/React"）准确匹配到已有分类记录
+ * 修复：原代码用 c.name === catName ，对路径格式的分类名找不到
+ * @param {Array} allCategories - 所有分类数组
+ * @returns {Map<string, Object>} 小写路径 → 分类对象
+ */
+function buildCategoryPathMap(allCategories) {
+  const categoryMap = new Map(allCategories.map(c => [c.id, c]));
+  const ROOT_FOLDERS = new Set(['书笾栏', '其他书笾', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
+  const pathMap = new Map();
+
+  for (const cat of allCategories) {
+    // 构建该分类的完整路径
+    const parts = [];
+    let current = cat;
+    while (current) {
+      if (!ROOT_FOLDERS.has(current.name)) {
+        parts.unshift(current.name);
+      }
+      current = current.parentId ? categoryMap.get(current.parentId) : null;
+    }
+    const fullPath = parts.join('/');
+    // 映射完整路径（如"前端/React"）和叶子名（如"React"）
+    if (fullPath) pathMap.set(fullPath.toLowerCase(), cat);
+    pathMap.set(cat.name.toLowerCase(), cat);
+  }
+
+  return pathMap;
+}
+
+/**
  * 应用分类建议
  */
 async function handleApplyCategories(request, sendResponse) {
@@ -1274,11 +1305,11 @@ async function handleApplyCategories(request, sendResponse) {
         cat.name = trimmedName;
       }
 
-      // 🔒 检查分类名称中的斜杠数量
+      // 🔒 检查分类名称中的斜杠数量（最多允许两个斜杠，即三级：大类/中类/小类）
       const slashCount = (cat.name.match(/\//g) || []).length;
       if (slashCount > 2) {
-        console.error(`[应用分类] ❌ 分类名称包含过多斜杠（${slashCount}个）: ${cat.name}`);
-        console.error(`[应用分类] 这可能创建过深的层级结构！跳过此分类。`);
+        console.error(`[应用分类] ❌ 分类名称层级过深（${slashCount + 1}级）: ${cat.name}`);
+        console.error(`[应用分类] 最多允许三级（大类/中类/小类），跳过此分类。`);
         continue;
       }
 
@@ -1301,9 +1332,10 @@ async function handleApplyCategories(request, sendResponse) {
       }
 
       if (cat.isNew) {
-        // 检查分类是否已存在（通过名称查找）
+        // 检查分类是否已存在（通过路径匹配，修复原名称匹配对路径格式分类无效的问题）
         const allCategories = await getAllCategories();
-        const existing = allCategories.find(c => c.name === cat.name);
+        const pathMap = buildCategoryPathMap(allCategories);
+        const existing = pathMap.get(cat.name.toLowerCase());
 
         if (!existing) {
           // 1. 先在浏览器收藏夹中创建文件夹，获取真实的浏览器ID
@@ -1413,7 +1445,7 @@ async function handleApplyCategories(request, sendResponse) {
                   const intermediateCatId = `cat_${newFolder.id}`;
                   const intermediateCat = {
                     id: intermediateCatId,
-                    name: folderNameParts.slice(0, i + 1).join('/'),
+                    name: folderNameParts[i],  // 修复：只存加叶子名，不存全路径
                     parentId: parentCategoryId,
                     createdAt: Date.now()
                   };
@@ -1432,14 +1464,16 @@ async function handleApplyCategories(request, sendResponse) {
             }
 
             // 2. 在IndexedDB中保存最终分类（使用浏览器ID构建分类ID）
+            // 修复：只存叶子名称，不存全路径，与浏览器导入时的分类存储格式一致
+            const leafName = folderNameParts[folderNameParts.length - 1];
             categoryRecord = {
-              id: `cat_${browserFolderId}`,  // ✅ 使用浏览器ID
-              name: cat.name,
-              parentId: parentCategoryId,  // ✅ 保留层级关系
+              id: `cat_${browserFolderId}`,
+              name: leafName,
+              parentId: parentCategoryId,
               createdAt: Date.now()
             };
             await addCategory(categoryRecord);
-            console.log(`[应用分类] 创建最终分类: ${cat.name}, ID: ${categoryRecord.id}, parentId: ${parentCategoryId}`);
+            console.log(`[应用分类] 创建最终分类: ${leafName} (路径: ${cat.name}), ID: ${categoryRecord.id}, parentId: ${parentCategoryId}`);
           } catch (error) {
             console.error(`[应用分类] 创建浏览器文件夹失败: ${cat.name}`, error);
           }
@@ -1475,12 +1509,13 @@ async function handleApplyCategories(request, sendResponse) {
           }
         }
       } else {
-        // 使用现有分类
+        // 使用现有分类（修复：用路径匹配，支持"前端/React"格式的分类名称）
         const allCategories = await getAllCategories();
-        categoryRecord = allCategories.find(c => c.name === cat.name);
+        const pathMap = buildCategoryPathMap(allCategories);
+        categoryRecord = pathMap.get(cat.name.toLowerCase());
         if (categoryRecord) {
           browserFolderId = categoryRecord.id.replace('cat_', '');
-          console.log(`[应用分类] 使用已存在分类: ${cat.name}, 浏览器ID: ${browserFolderId}`);
+          console.log(`[应用分类] 使用已存在分类: ${cat.name} → ${categoryRecord.name}, 浏览器ID: ${browserFolderId}`);
         }
       }
 

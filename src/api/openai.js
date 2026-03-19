@@ -47,6 +47,15 @@ export async function analyzeBookmarks(
   // 确保 existingCategories 是一个数组（防御性编程）
   const categories = Array.isArray(existingCategories) ? existingCategories : [];
 
+  // 构建已知分类的名称和路径集合，用于准确判断 isNew
+  // 修复：原代码用 categories.includes(string)，但 categories 是对象数组，永远返回 false
+  const categoryTree = buildCategoryTree(categories);
+  const knownCategoryNamesAndPaths = new Set();
+  categories.forEach(c => knownCategoryNamesAndPaths.add(c.name.toLowerCase()));
+  categoryTree.forEach(c => {
+    if (c.path) knownCategoryNamesAndPaths.add(c.path.toLowerCase());
+  });
+
   // 分批
   const batches = [];
   for (let i = 0; i < bookmarks.length; i += batchSize) {
@@ -73,7 +82,8 @@ export async function analyzeBookmarks(
             name: cat.name,
             confidence: cat.confidence ?? 0.5,
             bookmarkIds: cat.bookmarkIds || [],
-            isNew: !categories.includes(cat.name)
+            // 修复：正确判断是否为新分类——检查名称或路径是否在已知集合中
+            isNew: !knownCategoryNamesAndPaths.has(cat.name.toLowerCase())
           });
         }
       });
@@ -516,68 +526,77 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
   // 将输入数据转换为JSON字符串
   const inputJson = JSON.stringify(inputData, null, 2);
 
-  // 根据是否有现有分类，动态生成提示词
   const hasCategories = inputData.existingCategories.length > 0;
-  const categoryHint = hasCategories
-    ? `## 用户现有分类
-已有 ${inputData.existingCategories.length} 个分类，详见下方的 existingCategories.path 字段。
 
-**极重要约束**：
-1. **分类名称必须直接使用现有分类名称**（从 existingCategories.name 或 existingCategories.path 中选择）
-   - ✅ 正确：直接使用 "前端"、".net"、"数据库"（现有分类的name字段）
-   - ✅ 正确：使用 "前端/React"（如果是层级分类的path字段）
-   - ❌ 错误：不要添加 "书签栏/"、"其他书签/" 前缀
-   - ❌ 错误：不要创建 "书签栏/前端"、"其他书签/.net" 这样的分类
+  if (hasCategories) {
+    // 生成已有分类的路径清单，方便 AI 直接参考
+    const pathList = inputData.existingCategories
+      .map(c => `  - "${c.path}"`)
+      .join('\n');
 
-2. **优先使用现有分类**（90%以上的书签应归入现有分类）
-   - 如果书签明显属于现有分类，必须使用现有分类
-   - 只有在现有分类完全不适用时才创建新分类
+    return `## 你的任务
+分析下方每个书签是否在合适的分类中，将其归入最佳分类。
 
-3. **创建新分类时的格式**：
-   - 必须使用 "大类/细类" 格式（如 "技术/AI"、"开发工具/Docker"）
-   - 禁止创建根级细分类（如 "React"、"Vue" 必须用 "技术/React"）`
-    : `## 用户暂无分类（首次分类）
-请根据书签内容创建合理的分类结构。
+## 用户现有分类（共 ${inputData.existingCategories.length} 个，优先使用以下路径）
+${pathList}
 
-**推荐模式**：
-- 技术类：技术/前端、技术/后端、技术/数据库等
-- 设计类：设计/UI设计、设计/平面设计等
-- 工具类：开发工具/Git、开发工具/Docker等
-- 学习类：学习/编程、学习/语言等
-
-建议创建 5-10 个主要分类，每个分类包含 2-10 个书签。`;
-
-  return `${categoryHint}
+## 使用规则
+1. **name 字段必须与上方列表中的路径字符串完全一致**（如 "前端"、"技术/前端"），不要改写
+2. 90% 以上书签应归入现有分类；只有在没有任何现有分类适合时才新建
+3. 新建分类禁止单级根目录（如 "Docker"），至少两级（"开发工具/Docker"），允许三级（"技术/前端/React"）
+4. 斜杠最多两个（三级），禁止四级及以上
 
 ## 输入数据
 \`\`\`json
 ${inputJson}
 \`\`\`
 
-## 要求
-1. **分类名称必须直接使用 existingCategories.name 或 existingCategories.path**
-2. **禁止在分类名称前添加 "书签栏/" 或 "其他书签/" 前缀**
-3. 检测 currentCategory 与内容不匹配的书签，在 reason 字段说明 "建议从XX移动到YY"
-4. 为每个书签提取 2-5 个标签（tags）
-5. 最终分类总数控制在 5-15 个
-6. 每个分类至少包含 2 个书签
-
-## 输出格式
-严格返回 JSON 格式，不要添加任何解释：
+## 输出要求（严格 JSON，不要添加解释）
+- 每个书签仅归入一个最匹配的分类
+- 若书签当前分类有误，在 reason 中注明：建议从[当前分类]移动到[推荐分类]
+- 为每个书签提取 2-5 个标签
+- 分类总数 5-15 个，每个分类至少 2 个书签
 
 \`\`\`json
 {
   "categories": [
     {
-      "name": "分类名称（直接使用现有分类名称，如"前端"、".net"）",
+      "name": "与existingCategories.path完全一致的值，或大类/小类格式的新分类",
       "confidence": 0.9,
       "bookmarkIds": ["id1", "id2"],
-      "reason": "分类理由或移动建议"
+      "reason": "归类理由"
     }
   ],
-  "tags": [
-    {"name": "标签名", "bookmarkId": "id1"}
-  ]
+  "tags": [{"name": "标签名", "bookmarkId": "id1"}]
+}
+\`\`\``;
+  }
+
+  // 首次分类（无现有分类）
+  return `## 你的任务
+用户还没有任何收藏夹分类，请根据书签内容创建合理的层级分类结构。
+
+## 分类格式要求
+- 至少使用两级格式，例如：技术/前端、开发工具/Docker、学习/英语
+- 内容细分明确时，可用三级，例如：技术/前端/React
+- 禁止单级根目录（如直接用 "Vue"、"Docker"）
+- 大类建议：技术、开发工具、设计、学习、工具
+
+## 输入数据
+\`\`\`json
+${inputJson}
+\`\`\`
+
+## 输出要求（严格 JSON）
+- 分类总数 5-12 个，每个分类 2-10 个书签
+- 为每个书签提取 2-5 个标签
+
+\`\`\`json
+{
+  "categories": [
+    {"name": "大类/小类", "confidence": 0.9, "bookmarkIds": ["id1"], "reason": "归类理由"}
+  ],
+  "tags": [{"name": "标签名", "bookmarkId": "id1"}]
 }
 \`\`\``;
 }
