@@ -136,22 +136,115 @@ function bindEvents() {
   });
 
   // 导入浏览器收藏
-  elements.importBookmarks.addEventListener('click', () => {
-    console.log('导入收藏功能待实现');
-    showToast('导入功能开发中...', 'success');
+  elements.importBookmarks.addEventListener('click', async () => {
+    if (!confirm('确定要从浏览器导入收藏吗？\n\n这将导入浏览器中的所有书签到插件本地数据库。')) {
+      return;
+    }
+
+    elements.importBookmarks.disabled = true;
+    elements.importBookmarks.textContent = '导入中...';
+    showToast('正在导入...', 'success');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'IMPORT_FROM_BROWSER'
+      });
+
+      if (response && response.success) {
+        const count = response.imported || 0;
+        const catCount = response.categories || 0;
+        showToast(`✅ 导入成功！共 ${count} 个书签，${catCount} 个分类`, 'success');
+      } else {
+        throw new Error(response?.error || '导入失败');
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      showToast('❌ 导入失败：' + error.message, 'error');
+    } finally {
+      elements.importBookmarks.disabled = false;
+      elements.importBookmarks.textContent = '📥 从浏览器导入';
+    }
   });
 
   // 导出数据
-  elements.exportBookmarks.addEventListener('click', () => {
-    console.log('导出功能待实现');
-    showToast('导出功能开发中...', 'success');
+  elements.exportBookmarks.addEventListener('click', async () => {
+    elements.exportBookmarks.disabled = true;
+    elements.exportBookmarks.textContent = '导出中...';
+    showToast('正在准备导出...', 'success');
+
+    try {
+      // 获取所有数据
+      const response = await chrome.runtime.sendMessage({
+        type: 'GET_BOOKMARKS'
+      });
+
+      if (!response || response.error) {
+        throw new Error(response?.error || '获取数据失败');
+      }
+
+      const data = {
+        bookmarks: response.bookmarks || [],
+        categories: response.categories || [],
+        tags: response.tags || [],
+        exportedAt: new Date().toISOString(),
+        version: '1.0'
+      };
+
+      // 生成 JSON 文件
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smart-bookmarks-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast(`✅ 导出成功！共 ${data.bookmarks.length} 个书签`, 'success');
+    } catch (error) {
+      console.error('Export failed:', error);
+      showToast('❌ 导出失败：' + error.message, 'error');
+    } finally {
+      elements.exportBookmarks.disabled = false;
+      elements.exportBookmarks.textContent = '📤 导出为 JSON';
+    }
   });
 
   // 清空数据
-  elements.clearData.addEventListener('click', () => {
-    if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-      console.log('清空数据功能待实现');
-      showToast('清空功能开发中...', 'success');
+  elements.clearData.addEventListener('click', async () => {
+    if (!confirm('确定要清空所有数据吗？\n\n此操作将清空插件本地数据库中的所有书签、分类和标签数据。\n\n⚠️ 此操作不可恢复！')) {
+      return;
+    }
+
+    // 二次确认
+    if (!confirm('⚠️ 最终确认：真的要清空所有数据吗？')) {
+      return;
+    }
+
+    elements.clearData.disabled = true;
+    elements.clearData.textContent = '清空中...';
+    showToast('正在清空数据...', 'success');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'CLEAR_DATA'
+      });
+
+      if (response && response.success) {
+        showToast('✅ 数据已清空', 'success');
+      } else {
+        throw new Error(response?.error || '清空失败');
+      }
+    } catch (error) {
+      console.error('Clear failed:', error);
+      showToast('❌ 清空失败：' + error.message, 'error');
+    } finally {
+      elements.clearData.disabled = false;
+      elements.clearData.textContent = '🗑️ 清空所有数据';
     }
   });
 }
