@@ -37,7 +37,6 @@ const elements = {
   deduplicateBtn: document.getElementById('deduplicateBtn'),
   debugAnalyzeBtn: document.getElementById('debugAnalyzeBtn'),
   checkBrokenBtn: document.getElementById('checkBrokenBtn'),
-  syncBtn: document.getElementById('syncBtn'),
   exportBtn: document.getElementById('exportBtn'),
   importBtn: document.getElementById('importBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
@@ -1348,7 +1347,6 @@ function bindEvents() {
   elements.checkBrokenBtn.addEventListener('click', handleCheckBrokenLinks);
 
   // 工具栏
-  elements.syncBtn.addEventListener('click', handleSync);
   elements.exportBtn.addEventListener('click', handleExport);
   elements.importBtn.addEventListener('click', handleImport);
   elements.settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
@@ -2705,10 +2703,6 @@ function getStatusIcon(status) {
 /**
  * 处理同步
  */
-async function handleSync() {
-  Toast.info('同步功能开发中');
-}
-
 /**
  * 处理导出
  */
