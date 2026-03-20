@@ -24,18 +24,20 @@ npm run dev
 src/
   background/background.js   # Service Worker，处理消息、AI分析、链接检测
   popup/
-    popup.js                 # 主界面入口（4487 行，持续重构中）
-    modules/                 # 功能模块（模块化重构进行中）
-      keyboard.js            # 全局快捷键 + 键盘导航（已集成）
-      context-menu.js        # 右键菜单管理（已集成）
+    popup.js                 # 主界面入口（3678 行，持续重构中）
+    modules/                 # 功能模块
+      keyboard.js            # 全局快捷键 + 键盘导航
+      context-menu.js        # 右键菜单管理
       dialog.js              # 对话框管理
       drag-drop.js           # 拖拽排序
-      search.js              # 搜索管理
       bookmarks.js           # 书签操作
       folder-manager.js      # 文件夹管理
       link-checker.js        # 链接检测
-      navigation.js          # 导航管理
       ai-analysis.js         # AI 分析
+      search-manager.js      # 搜索管理器
+      navigation-manager.js  # 导航管理器
+      task-panel-manager.js  # 任务面板管理
+      folder-dialog-manager.js # 文件夹对话框管理
       state.js               # 状态管理
     utils/
       event-bus.js           # 事件总线（模块间通信）
@@ -53,7 +55,7 @@ src/
 - 模块间通信: `eventBus`（发布-订阅模式）
 - popup 通过 eventBus 监听模块事件并响应
 
-## 模块化架构（重构进行中）
+## 模块化架构
 
 ### 设计原则
 
@@ -74,12 +76,18 @@ src/
 
 ### 已集成模块
 
-| 模块 | 功能 | 减少代码 | 状态 |
-|------|------|---------|------|
-| keyboard.js | 全局快捷键 + 键盘导航 | -41 行 | ✅ 完成 |
-| context-menu.js | 右键菜单管理 | -104 行 | ✅ 完成 |
-
-**总计减少**: 145 行（从 4632 → 4487）
+| 模块 | 功能 | 状态 |
+|------|------|------|
+| bookmarks.js | 书签 CRUD 操作 | ✅ 已集成 |
+| search-manager.js | 搜索输入、结果展示 | ✅ 已集成 |
+| keyboard.js | 全局快捷键 + 键盘导航 | ✅ 已集成 |
+| context-menu.js | 右键菜单管理 | ✅ 已集成 |
+| navigation-manager.js | 侧边栏导航、面包屑 | ✅ 已集成 |
+| task-panel-manager.js | 任务面板、进度显示 | ✅ 已集成 |
+| folder-dialog-manager.js | 文件夹增删改查对话框 | ✅ 已集成 |
+| analysis-resume.js | AI 分析恢复对话框 | ✅ 已集成 |
+| check-resume.js | 链接检测恢复对话框 | ✅ 已集成 |
+| debug-dialog.js | 调试工具对话框 | ✅ 已集成 |
 
 ### 模块集成检查清单
 

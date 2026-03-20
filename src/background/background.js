@@ -429,6 +429,7 @@ async function importBrowserBookmarks() {
     for (const bm of newBookmarks) {
       const bookmark = {
         id: bm.id,
+        browserId: bm.id,  // 保存浏览器书签ID，用于同步移动
         title: bm.title,
         url: bm.url,
         description: '',
@@ -964,7 +965,7 @@ async function handleAIAnalyze(request, sendResponse) {
     // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
     sendResponse({ started: true });
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 50;
     const totalBatches = Math.ceil(bookmarksToAnalyze.length / BATCH_SIZE);
     const sessionBookmarkIds = bookmarksToAnalyze.map(b => b.id);
 
@@ -1364,22 +1365,26 @@ async function handleApplyCategories(request, sendResponse) {
 
                 // 如果不是最后一层，需要找到或创建父分类记录
                 if (!isLast) {
-                  const parentCat = allCategories.find(c => c.name === folderNameParts.slice(0, i + 1).join('/'));
+                  // 查找时用完整路径匹配
+                  const fullPath = folderNameParts.slice(0, i + 1).join('/');
+                  let parentCat = allCategories.find(c => c.name === fullPath || c.id === `cat_${existingChild.id}`);
+
                   if (parentCat) {
                     parentCategoryId = parentCat.id;
+                    console.log(`[应用分类] 找到已存在的父分类: ${fullPath}, ID: ${parentCat.id}`);
                   } else {
                     // 创建父分类记录（中间层级）
-                    const intermediateCatId = `cat_${currentParentId}`;
+                    const intermediateCatId = `cat_${existingChild.id}`;
                     const intermediateCat = {
                       id: intermediateCatId,
-                      name: folderNameParts.slice(0, i + 1).join('/'),
+                      name: fullPath,  // 存完整路径便于查找
                       parentId: parentCategoryId,
                       createdAt: Date.now()
                     };
                     await addCategory(intermediateCat);
                     parentCategoryId = intermediateCatId;
                     allCategories.push(intermediateCat);
-                    console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}`);
+                    console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}, parentId: ${parentCategoryId}`);
                   }
                 }
               } else {
@@ -1403,15 +1408,54 @@ async function handleApplyCategories(request, sendResponse) {
                   // 验证父节点是否在"书签栏"下（或就是"书签栏"本身）
                   const parentInfo = parentNode[0];
 
-                  // 判断是否在书签栏下：
-                  // 1. 父节点就是书签栏本身（title匹配）
-                  // 2. 父节点的parentId等于bookmarksBarId（在书签栏下）
-                  // 3. 父节点的parentId是'0'或0（在根节点下，且bookmarksBarId就是'1'等根节点ID）
-                  const isDirectChildOfRoot = (parentInfo.parentId === '0' || parentInfo.parentId === 0);
-                  const isBookmarksBar = (parentInfo.title === '书签栏' || parentInfo.title === 'Bookmarks Bar' || parentInfo.title === 'Bookmarks');
-                  const isUnderBookmarksBar = (isBookmarksBar ||
-                                               parentInfo.parentId === bookmarksBarId ||
-                                               isDirectChildOfRoot);
+                  // 判断是否在书签栏下（支持多级分类）：
+                  // 方法：递归向上查找，直到到达书签栏或根节点
+                  const isUnderBookmarksBar = await (async () => {
+                    // 特殊情况：parentInfo 本身就是书签栏
+                    if (parentInfo.id === bookmarksBarId ||
+                        parentInfo.title === '书签栏' ||
+                        parentInfo.title === 'Bookmarks Bar' ||
+                        parentInfo.title === 'Bookmarks') {
+                      return true;
+                    }
+
+                    let currentId = parentInfo.parentId;
+                    let maxDepth = 20; // 防止无限循环
+
+                    while (currentId && maxDepth > 0) {
+                      // 如果到达书签栏，返回 true
+                      if (currentId === bookmarksBarId) {
+                        return true;
+                      }
+
+                      // 获取上一级节点
+                      try {
+                        const upperNode = await chrome.bookmarks.get(currentId);
+                        if (!upperNode || upperNode.length === 0) break;
+
+                        const upper = upperNode[0];
+
+                        // 如果是书签栏（通过标题匹配）
+                        if (upper.title === '书签栏' || upper.title === 'Bookmarks Bar' || upper.title === 'Bookmarks') {
+                          return true;
+                        }
+
+                        // 如果到达根节点（parentId 为 '0'），检查是否是书签栏
+                        if (upper.parentId === '0' || upper.parentId === 0) {
+                          // 根节点的直接子节点，检查标题
+                          return (upper.title === '书签栏' || upper.title === 'Bookmarks Bar' || upper.title === 'Bookmarks');
+                        }
+
+                        currentId = upper.parentId;
+                      } catch (e) {
+                        break;
+                      }
+
+                      maxDepth--;
+                    }
+
+                    return false;
+                  })();
 
                   if (!isUnderBookmarksBar) {
                     console.error(`[应用分类] ❌ 父节点不在书签栏下！`);
@@ -1432,10 +1476,31 @@ async function handleApplyCategories(request, sendResponse) {
                   title: partName
                 });
 
-                // 🔒 创建后再次验证
+                // 🔒 创建后验证：确认文件夹被创建在正确位置
                 if (newFolder.parentId !== currentParentId) {
                   console.error(`[应用分类] ❌ 创建的文件夹父ID不匹配！`);
-                  console.error(`[应用分类] 期望: ${currentParentId}, 实际: ${newFolder.parentId}`);
+                  console.error(`[应用分类] 期望父ID: ${currentParentId}, 实际父ID: ${newFolder.parentId}`);
+                  console.error(`[应用分类] 文件夹 "${partName}" 被创建到了错误位置！`);
+
+                  // 尝试移动到正确位置
+                  try {
+                    console.log(`[应用分类] 尝试移动文件夹 "${partName}" 到正确位置...`);
+                    await chrome.bookmarks.move(newFolder.id, { parentId: currentParentId });
+                    const movedFolder = await chrome.bookmarks.get(newFolder.id);
+                    if (movedFolder[0].parentId === currentParentId) {
+                      console.log(`[应用分类] ✅ 成功移动文件夹到正确位置`);
+                    } else {
+                      console.error(`[应用分类] ❌ 移动后位置仍然不正确！`);
+                      await chrome.bookmarks.remove(newFolder.id);
+                      continue;
+                    }
+                  } catch (moveError) {
+                    console.error(`[应用分类] 移动文件夹失败:`, moveError);
+                    try {
+                      await chrome.bookmarks.remove(newFolder.id);
+                    } catch (e) {}
+                    continue;
+                  }
                 }
 
                 currentParentId = newFolder.id;
@@ -1444,16 +1509,17 @@ async function handleApplyCategories(request, sendResponse) {
                 // 如果不是最后一层，创建中间分类记录
                 if (!isLast) {
                   const intermediateCatId = `cat_${newFolder.id}`;
+                  const fullPath = folderNameParts.slice(0, i + 1).join('/');
                   const intermediateCat = {
                     id: intermediateCatId,
-                    name: folderNameParts[i],  // 修复：只存加叶子名，不存全路径
+                    name: fullPath,  // 存完整路径便于查找
                     parentId: parentCategoryId,
                     createdAt: Date.now()
                   };
                   await addCategory(intermediateCat);
                   parentCategoryId = intermediateCatId;
                   allCategories.push(intermediateCat);
-                  console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}`);
+                  console.log(`[应用分类] 创建中间分类: ${intermediateCat.name}, ID: ${intermediateCatId}, parentId: ${parentCategoryId}`);
                 }
               }
 
@@ -1475,6 +1541,37 @@ async function handleApplyCategories(request, sendResponse) {
             };
             await addCategory(categoryRecord);
             console.log(`[应用分类] 创建最终分类: ${leafName} (路径: ${cat.name}), ID: ${categoryRecord.id}, parentId: ${parentCategoryId}`);
+
+            // 🔒 最终验证：检查浏览器书签的实际结构
+            try {
+              const actualFolder = await chrome.bookmarks.get(browserFolderId);
+              if (actualFolder && actualFolder[0]) {
+                const folder = actualFolder[0];
+                console.log(`[应用分类] 📋 最终验证 - 文件夹: ${folder.title}, ID: ${folder.id}, 实际父ID: ${folder.parentId}`);
+
+                // 构建预期的父ID链
+                const expectedParentIds = [];
+                let expectedParentId = folder.parentId;
+                for (let j = 0; j < folderNameParts.length; j++) {
+                  expectedParentIds.push(expectedParentId);
+                  // 获取上一级
+                  const upper = await chrome.bookmarks.get(expectedParentId);
+                  if (upper && upper[0]) {
+                    expectedParentId = upper[0].parentId;
+                  } else {
+                    break;
+                  }
+                }
+
+                // 验证：如果有多级，父ID应该不是书签栏
+                if (folderNameParts.length > 1 && folder.parentId === bookmarksBarId) {
+                  console.error(`[应用分类] ❌ 验证失败！多级分类 "${cat.name}" 的最终文件夹直接在书签栏下！`);
+                  console.error(`[应用分类] 这意味着父文件夹 "${folderNameParts[0]}" 没有被正确创建或使用！`);
+                }
+              }
+            } catch (e) {
+              console.error(`[应用分类] 最终验证失败:`, e);
+            }
           } catch (error) {
             console.error(`[应用分类] 创建浏览器文件夹失败: ${cat.name}`, error);
           }
@@ -1538,16 +1635,23 @@ async function handleApplyCategories(request, sendResponse) {
           await addBookmark(bookmark);
 
           // 2. 如果有浏览器文件夹ID，移动书签到该文件夹
-          if (browserFolderId && bookmark.browserId) {
+          const actualBrowserId = bookmark.browserId || bookmark.id;  // 兼容旧数据：browserId 可能不存在
+          if (!browserFolderId) {
+            console.warn(`[应用分类] ⚠️ browserFolderId 为空，无法移动书签到浏览器: ${bookmark.title}`);
+          } else if (!actualBrowserId) {
+            console.warn(`[应用分类] ⚠️ 书签没有 browserId 或 id，无法移动到浏览器: ${bookmark.title}`);
+          } else {
             try {
-              await chrome.bookmarks.move(bookmark.browserId, {
+              await chrome.bookmarks.move(actualBrowserId, {
                 parentId: browserFolderId
               });
-              console.log(`[应用分类] 移动书签到分类: ${bookmark.title} -> ${cat.name} (文件夹ID: ${browserFolderId})`);
+              console.log(`[应用分类] ✅ 移动书签到浏览器文件夹: "${bookmark.title}" -> ${cat.name} (文件夹ID: ${browserFolderId})`);
             } catch (error) {
-              console.error(`[应用分类] 移动书签失败: ${bookmark.title}`, error);
+              console.error(`[应用分类] ❌ 移动书签失败: ${bookmark.title}`, error);
             }
           }
+        } else {
+          console.warn(`[应用分类] ⚠️ 找不到书签: ${bookmarkId}`);
         }
       }
     }
@@ -1621,9 +1725,17 @@ async function handleApplyCategories(request, sendResponse) {
     // 找出所有有书签的分类ID
     const usedCategoryIds = new Set(allBookmarks.map(bm => bm.categoryId).filter(id => id));
 
-    // 找出空的分类（没有书签的分类）
+    // 找出被其他分类作为父分类引用的分类ID（中间分类不应被删除）
+    const parentCategoryIds = new Set(
+      allCategories
+        .map(cat => cat.parentId)
+        .filter(id => id && id !== 'cat_1')  // 排除书签栏作为父分类
+    );
+
+    // 找出空的分类（没有书签且没有被其他分类作为父分类引用）
     const emptyCategories = allCategories.filter(cat =>
       !usedCategoryIds.has(cat.id) &&
+      !parentCategoryIds.has(cat.id) &&  // 如果被其他分类作为父分类，不删除
       !cat.name.includes('书签栏') &&  // 保留系统分类
       !cat.name.includes('其他书签') &&
       cat.name !== 'Test' &&
@@ -1632,13 +1744,21 @@ async function handleApplyCategories(request, sendResponse) {
 
     if (emptyCategories.length > 0) {
       console.log(`[应用分类] 发现 ${emptyCategories.length} 个空分类，准备删除...`);
+      console.log(`[应用分类] 有书签的分类: ${Array.from(usedCategoryIds).join(', ')}`);
+      console.log(`[应用分类] 被引用的父分类: ${Array.from(parentCategoryIds).join(', ')}`);
 
       for (const emptyCat of emptyCategories) {
         try {
-          // 删除浏览器文件夹
+          // 检查该分类下是否还有子文件夹（浏览器中）
           const browserFolderId = emptyCat.id.replace('cat_', '');
           if (browserFolderId && browserFolderId !== emptyCat.id) {
             try {
+              const children = await chrome.bookmarks.getChildren(browserFolderId);
+              if (children && children.length > 0) {
+                console.log(`[应用分类] 跳过有子文件夹的分类: ${emptyCat.name} (有 ${children.length} 个子项)`);
+                continue;  // 不删除，保留浏览器文件夹
+              }
+              // 没有子项，可以删除浏览器文件夹
               await chrome.bookmarks.removeTree(browserFolderId);
               console.log(`[应用分类] 删除浏览器文件夹: ${emptyCat.name} (${browserFolderId})`);
             } catch (err) {
@@ -1665,7 +1785,7 @@ async function handleApplyCategories(request, sendResponse) {
 
     sendResponse({
       success: true,
-      categories: allCategories,  // 返回所有分类，包括中间层级
+      categories: finalCategories,  // 返回最新获取的所有分类，包括中间层级
       tags: tags
     });
   } catch (error) {

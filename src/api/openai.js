@@ -34,7 +34,7 @@ export async function analyzeBookmarks(
   options = {}
 ) {
   const {
-    batchSize = 100,
+    batchSize = 50,
     onProgress,
     onBatchComplete,
     cancelToken,
