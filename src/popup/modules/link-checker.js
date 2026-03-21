@@ -294,26 +294,37 @@ class LinkCheckerManager {
     const bookmark = bookmarkManager.getById(item.bookmarkId);
     if (!bookmark) return '';
 
-    const statusIcon = item.status === 'invalid'
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger,#ef4444)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-warning,#f59e0b)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-    const statusText = item.status === 'invalid' ? '失效' : '不确定';
-    const statusColor = item.status === 'invalid' ? 'var(--c-danger)' : 'var(--c-warning)';
+    const isInvalid = item.status === 'invalid';
+    const accentColor = isInvalid ? 'var(--c-danger, #ef4444)' : 'var(--c-warning, #f59e0b)';
+    const statusText = isInvalid ? '失效' : '不确定';
+    const statusBg = isInvalid ? 'rgba(239,68,68,.1)' : 'rgba(245,158,11,.1)';
+    const faviconUrl = bookmark.url ? `https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(bookmark.url)}` : '';
+    const detail = [
+      item.statusCode ? `HTTP ${item.statusCode}` : '',
+      item.error ? escapeHtml(item.error.slice(0, 40)) : ''
+    ].filter(Boolean).join(' · ');
 
     return `
-      <div class="broken-item" data-bookmark-id="${item.bookmarkId}" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--c-border); border-radius: 8px; margin-bottom: 8px; background: var(--c-bg-alt);">
-        <span style="font-size: 18px;">${statusIcon}</span>
-        <div style="flex: 1; min-width: 0;">
-          <div style="font-weight: 600; color: var(--c-text); margin-bottom: 4px;">${escapeHtml(bookmark.title)}</div>
-          <div style="font-size: 12px; color: var(--c-text-muted); margin-bottom: 4px;">${escapeHtml(truncateUrl(bookmark.url, 50))}</div>
-          <div style="font-size: 11px; color: ${statusColor}; font-weight: 500;">
-            ${statusText}${item.statusCode ? ` (${item.statusCode})` : ''}
-            ${item.error ? ` - ${escapeHtml(item.error)}` : ''}
-          </div>
+      <div class="broken-item" data-bookmark-id="${item.bookmarkId}" style="
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px;
+        border-left: 3px solid ${accentColor};
+        border-radius: 0 6px 6px 0;
+        margin-bottom: 6px;
+        background: #ffffff;
+      ">
+        <div style="flex-shrink:0; width:22px; height:22px; border-radius:5px; overflow:hidden; background:var(--c-surface-low,#f1f5f9); display:flex; align-items:center; justify-content:center;">
+          ${faviconUrl ? `<img src="${faviconUrl}" width="14" height="14" loading="lazy" onerror="this.style.display='none'" />` : ''}
         </div>
-        <button class="btn" style="padding: 4px 10px; font-size: 12px;" data-recheck="${item.bookmarkId}">
-          重新检测
-        </button>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--c-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(bookmark.title || '(无标题)')}</div>
+          <div style="font-size: 11px; color: var(--c-text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(truncateUrl(bookmark.url, 48))}</div>
+          ${detail ? `<div style="font-size: 11px; color: var(--c-text-muted); margin-top: 2px; opacity:.75;">${detail}</div>` : ''}
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+          <span style="font-size: 11px; font-weight: 600; color: ${accentColor}; background: ${statusBg}; padding: 2px 7px; border-radius: 20px; white-space: nowrap;">${statusText}</span>
+          <button class="btn" style="padding: 3px 9px; font-size: 11px;" data-recheck="${item.bookmarkId}">重检</button>
+        </div>
       </div>
     `;
   }

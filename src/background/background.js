@@ -1290,6 +1290,21 @@ async function handleApplyCategories(request, sendResponse) {
     }
 
     // 创建新分类（同时在浏览器收藏夹和IndexedDB中创建）
+
+    // 🔒 确保"书签栏"在 IndexedDB 中有对应的 category 记录，防止新建分类的 parentId 找不到父节点
+    const bookmarksBarCatId = `cat_${bookmarksBarId}`;
+    const existingBarCat = await get(STORES.CATEGORIES, bookmarksBarCatId);
+    if (!existingBarCat) {
+      try {
+        const barNodeArr = await chrome.bookmarks.get(bookmarksBarId);
+        const barTitle = barNodeArr[0]?.title || '书签栏';
+        await addCategory({ id: bookmarksBarCatId, name: barTitle, parentId: null, createdAt: Date.now() });
+        console.log(`[应用分类] 自动创建书签栏 category 记录: ${barTitle} (${bookmarksBarCatId})`);
+      } catch (e) {
+        console.warn('[应用分类] 无法自动创建书签栏 category 记录:', e.message);
+      }
+    }
+
     for (const cat of categories) {
       let categoryRecord = null;
       let browserFolderId = null;
@@ -1347,7 +1362,8 @@ async function handleApplyCategories(request, sendResponse) {
             // 处理层级结构（例如："技术/前端"）
             const folderNameParts = cat.name.split('/');
             let currentParentId = bookmarksBarId;
-            let parentCategoryId = null; // 用于 IndexedDB 的父分类 ID
+            // 🔒 修复：新建分类的顶层父节点必须是"书签栏"，而非 null（null 会造成分类成为侧边栏根节点）
+            let parentCategoryId = `cat_${bookmarksBarId}`; // 用于 IndexedDB 的父分类 ID
 
             // 从第一层开始，逐层检查和创建
             for (let i = 0; i < folderNameParts.length; i++) {

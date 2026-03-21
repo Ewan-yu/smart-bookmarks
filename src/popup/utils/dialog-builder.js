@@ -34,7 +34,7 @@ export function createInputDialog({
   dialog.innerHTML = `
     <div class="confirm-dialog" style="max-width: 400px;">
       <div class="dialog-header">
-        <h2>${escapeHtml(title)}</h2>
+        <h2 class="dialog-title-el"></h2>
         <button class="dialog-close" data-prompt-close>&times;</button>
       </div>
       <div class="dialog-content">
@@ -53,6 +53,7 @@ export function createInputDialog({
     </div>
   `;
 
+  dialog.querySelector('.dialog-title-el').innerHTML = title;
   document.body.appendChild(dialog);
 
   const closeBtn = dialog.querySelector('[data-prompt-close]');
@@ -150,7 +151,7 @@ export function createSelectDialog({
   dialog.innerHTML = `
     <div class="confirm-dialog" style="max-width: 500px;">
       <div class="dialog-header">
-        <h2>${escapeHtml(title)}</h2>
+        <h2 class="dialog-title-el"></h2>
         <button class="dialog-close" data-select-close>&times;</button>
       </div>
       <div class="dialog-content">
@@ -178,6 +179,7 @@ export function createSelectDialog({
     </div>
   `;
 
+  dialog.querySelector('.dialog-title-el').innerHTML = title;
   document.body.appendChild(dialog);
 
   const closeBtn = dialog.querySelector('[data-select-close]');

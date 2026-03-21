@@ -714,6 +714,30 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   background: rgba(242,244,246,.7);
 }
 
+/* ===== 失效链接检测结果 ===== */
+.check-result-summary {
+  display: flex;
+  gap: 0;
+  margin-bottom: 18px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+}
+.check-stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  background: var(--c-surface-low);
+  border-right: 1px solid var(--c-border);
+}
+.check-stat-item:last-child { border-right: none; }
+.check-stat-label { font-size: 11px; color: var(--c-text-muted); letter-spacing: .03em; margin-bottom: 3px; }
+.check-stat-value { font-size: 24px; font-weight: 700; color: var(--c-text); letter-spacing: -0.04em; line-height: 1; }
+.broken-bookmarks-section h3 { font-size: 13px; font-weight: 600; color: var(--c-text); margin: 0 0 10px; }
+.broken-bookmarks-list { max-height: 300px; overflow-y: auto; }
+
 /* ===== 分析结果组件 ===== */
 .analysis-summary {
   display: flex;
@@ -1106,8 +1130,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   position: relative;
 }
 .bm-row:hover { background: var(--c-surface-low); }
-.bm-row.broken-row { background: var(--c-danger-bg); border-left: 3px solid rgba(201,57,58,.4); }
-.bm-row.broken-row:hover { background: rgba(201,57,58,.06); }
+.bm-row.broken-row { background: #ffffff; border-left: 3px solid var(--c-danger, #ef4444); }
+.bm-row.broken-row:hover { background: rgba(239,68,68,.03); }
 
 .bm-favicon {
   width: 18px; height: 18px; flex-shrink: 0;
@@ -1443,6 +1467,56 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 #bookmarkList::-webkit-scrollbar-thumb { background: rgba(26,26,110,.18); border-radius: var(--radius-full); }
 #sidebarTree::-webkit-scrollbar-thumb:hover,
 #bookmarkList::-webkit-scrollbar-thumb:hover { background: rgba(26,26,110,.32); }
+
+/* 全局薄滚动条 — 对话框/面板等所有溢出容器 */
+.dialog-content::-webkit-scrollbar,
+.analysis-dialog-content::-webkit-scrollbar,
+.analysis-bookmark-list::-webkit-scrollbar,
+.merge-suggestions-list::-webkit-scrollbar,
+.select-list::-webkit-scrollbar,
+.broken-bookmarks-list::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+.edit-dialog-body::-webkit-scrollbar,
+.details-content::-webkit-scrollbar,
+.debug-content::-webkit-scrollbar,
+.suggestion-dropdown::-webkit-scrollbar,
+pre::-webkit-scrollbar { width: 4px; height: 4px; }
+.dialog-content::-webkit-scrollbar-track,
+.analysis-dialog-content::-webkit-scrollbar-track,
+.analysis-bookmark-list::-webkit-scrollbar-track,
+.merge-suggestions-list::-webkit-scrollbar-track,
+.select-list::-webkit-scrollbar-track,
+.broken-bookmarks-list::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track,
+.edit-dialog-body::-webkit-scrollbar-track,
+.details-content::-webkit-scrollbar-track,
+.debug-content::-webkit-scrollbar-track,
+.suggestion-dropdown::-webkit-scrollbar-track,
+pre::-webkit-scrollbar-track { background: transparent; }
+.dialog-content::-webkit-scrollbar-thumb,
+.analysis-dialog-content::-webkit-scrollbar-thumb,
+.analysis-bookmark-list::-webkit-scrollbar-thumb,
+.merge-suggestions-list::-webkit-scrollbar-thumb,
+.select-list::-webkit-scrollbar-thumb,
+.broken-bookmarks-list::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb,
+.edit-dialog-body::-webkit-scrollbar-thumb,
+.details-content::-webkit-scrollbar-thumb,
+.debug-content::-webkit-scrollbar-thumb,
+.suggestion-dropdown::-webkit-scrollbar-thumb,
+pre::-webkit-scrollbar-thumb { background: rgba(26,26,110,.15); border-radius: var(--radius-full); }
+.dialog-content::-webkit-scrollbar-thumb:hover,
+.analysis-dialog-content::-webkit-scrollbar-thumb:hover,
+.analysis-bookmark-list::-webkit-scrollbar-thumb:hover,
+.merge-suggestions-list::-webkit-scrollbar-thumb:hover,
+.select-list::-webkit-scrollbar-thumb:hover,
+.broken-bookmarks-list::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover,
+.edit-dialog-body::-webkit-scrollbar-thumb:hover,
+.details-content::-webkit-scrollbar-thumb:hover,
+.debug-content::-webkit-scrollbar-thumb:hover,
+.suggestion-dropdown::-webkit-scrollbar-thumb:hover,
+pre::-webkit-scrollbar-thumb:hover { background: rgba(26,26,110,.30); }
 
 /* ===== 拖拽样式 ===== */
 .bm-row[draggable="true"] {
@@ -1817,8 +1891,8 @@ select:focus-visible,
 }
 
 .analysis-category-badge.new {
-  background: rgba(26,26,110,.1);
-  color: var(--c-primary);
+  background: rgba(34,197,94,.12);
+  color: #16a34a;
 }
 
 .analysis-category-badge.existing {
