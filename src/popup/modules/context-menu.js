@@ -60,7 +60,7 @@ class ContextMenuManager {
       // 通用菜单项
       {
         id: 'open',
-        icon: '🔗',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
         label: '打开链接',
         action: 'open',
         shortcut: 'Enter',
@@ -68,14 +68,14 @@ class ContextMenuManager {
       },
       {
         id: 'openIncognito',
-        icon: '🕵️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
         label: '无痕打开',
         action: 'openIncognito',
         for: 'bookmark'
       },
       {
         id: 'openNewWindow',
-        icon: '🪟',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
         label: '新窗口打开',
         action: 'openNewWindow',
         for: 'bookmark'
@@ -83,7 +83,7 @@ class ContextMenuManager {
       { separator: true },
       {
         id: 'edit',
-        icon: '✏️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
         label: '编辑',
         action: 'edit',
         shortcut: 'F2',
@@ -91,7 +91,7 @@ class ContextMenuManager {
       },
       {
         id: 'copy',
-        icon: '📋',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
         label: '复制链接',
         action: 'copy',
         shortcut: 'Ctrl+C',
@@ -99,7 +99,7 @@ class ContextMenuManager {
       },
       {
         id: 'cut',
-        icon: '✂️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="9" x2="6" y2="21"/><line x1="18" y1="9" x2="18" y2="11"/><path d="M14 21h6"/><path d="M17 18v6"/></svg>',
         label: '剪切',
         action: 'cut',
         shortcut: 'Ctrl+X',
@@ -107,7 +107,7 @@ class ContextMenuManager {
       },
       {
         id: 'paste',
-        icon: '📌',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
         label: '粘贴',
         action: 'paste',
         shortcut: 'Ctrl+V',
@@ -115,7 +115,7 @@ class ContextMenuManager {
       },
       {
         id: 'move',
-        icon: '📁',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
         label: '移动到...',
         action: 'move',
         for: 'both'
@@ -123,21 +123,21 @@ class ContextMenuManager {
       { separator: true },
       {
         id: 'addTag',
-        icon: '🏷️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
         label: '添加标签',
         action: 'addTag',
         for: 'bookmark'
       },
       {
         id: 'check',
-        icon: '✅',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
         label: '检测链接',
         action: 'check',
         for: 'bookmark'
       },
       {
         id: 'regenerateSummary',
-        icon: '🔄',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>',
         label: '重新生成摘要',
         action: 'regenerateSummary',
         for: 'bookmark'
@@ -146,21 +146,21 @@ class ContextMenuManager {
       // 文件夹专用菜单
       {
         id: 'addSubFolder',
-        icon: '➕',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
         label: '添加子文件夹',
         action: 'addSubFolder',
         for: 'folder'
       },
       {
         id: 'renameFolder',
-        icon: '✏️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
         label: '重命名',
         action: 'renameFolder',
         for: 'folder'
       },
       {
         id: 'mergeFolder',
-        icon: '🔀',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>',
         label: '合并文件夹...',
         action: 'mergeFolder',
         for: 'folder'
@@ -169,7 +169,7 @@ class ContextMenuManager {
       // 删除菜单
       {
         id: 'delete',
-        icon: '🗑️',
+        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
         label: '删除',
         action: 'delete',
         shortcut: 'Del',

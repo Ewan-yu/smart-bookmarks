@@ -19,13 +19,13 @@ export function showAnalysisResumeDialog({ sessionTime, completedBatches, totalB
   overlay.className = 'confirm-dialog-overlay';
 
   const reasonHtml = lastError
-    ? `<p style="font-size:12px;color:#ef4444;margin:10px 0 0;padding:8px 10px;background:#fef2f2;border-radius:6px;">⚠️ 上次因错误中断：${lastError}</p>`
+    ? `<p style="font-size:12px;color:var(--c-danger,#ef4444);margin:10px 0 0;padding:8px 10px;background:var(--c-danger-bg,#fef2f2);border-radius:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 上次因错误中断：${lastError}</p>`
     : '';
 
   overlay.innerHTML = `
     <div class="confirm-dialog" style="max-width:440px;">
       <div class="dialog-header">
-        <h2>🤖 发现未完成的分析</h2>
+        <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>发现未完成的分析</h2>
         <button class="dialog-close" id="aResumeClose">&times;</button>
       </div>
       <div class="dialog-content" style="padding:16px 20px;">
@@ -55,9 +55,9 @@ export function showAnalysisResumeDialog({ sessionTime, completedBatches, totalB
         <button class="btn btn-cancel" id="aResumeCancel">稍后再说</button>
         <button class="btn" id="aResumeRestart"
           style="background:#f8fafc;border:1px solid #cbd5e1;color:#475569;">
-          🔄 重新全量分析
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>重新全量分析
         </button>
-        <button class="btn btn-primary" id="aResumeResume">▶ 续分析</button>
+        <button class="btn btn-primary" id="aResumeResume"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>续分析</button>
       </div>
     </div>
   `;

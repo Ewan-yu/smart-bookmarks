@@ -324,7 +324,7 @@ function renderContentAreaItems(folderId, subFolders, bookmarks, container) {
   }
 
   if (total === 0 && folderId !== null) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><h3>文件夹为空</h3><p>点击左侧其他文件夹浏览内容</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><h3>文件夹为空</h3><p>点击左侧其他文件夹浏览内容</p></div>`;
     return;
   }
   if (total === 0) {
@@ -449,16 +449,17 @@ function showWelcomeState() {
 
   welcomeContainer.innerHTML = `
     <div class="welcome-content">
-      <div class="welcome-icon">📚</div>
+      <div class="welcome-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
       <h2>欢迎使用 Smart Bookmarks!</h2>
       <p class="welcome-desc">这是您第一次使用，让我们先导入浏览器收藏吧</p>
 
       <div class="welcome-actions">
         <button id="welcomeImportBtn" class="btn btn-primary">
-          📥 导入浏览器收藏
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导入浏览器收藏
         </button>
         <p class="welcome-note">
-          💡 <strong>不会覆盖</strong>您现有的浏览器收藏，只会创建一个副本
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;color:var(--c-warning)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <strong>不会覆盖</strong>您现有的浏览器收藏，只会创建一个副本
         </p>
       </div>
     </div>
@@ -485,7 +486,7 @@ function showWelcomeState() {
     } catch (error) {
       Toast.error('导入失败：' + error.message);
     } finally {
-      welcomeImportBtn.textContent = '📥 导入浏览器收藏';
+    welcomeImportBtn.textContent = '导入浏览器收藏';
       welcomeImportBtn.disabled = false;
     }
   });
@@ -505,16 +506,16 @@ function showEmptyState(title = '暂无收藏', description = '点击浏览器�
     buttonsHtml = `
       <div class="welcome-actions">
         <button id="emptyImportBtn" class="btn btn-primary">
-          📥 导入浏览器收藏
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导入浏览器收藏
         </button>
-        ${showClearButton ? `<button id="emptyClearBtn" class="btn" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">🗑️ 清空数据并重新导入</button>` : ''}
+        ${showClearButton ? `<button id="emptyClearBtn" class="btn" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>清空数据并重新导入</button>` : ''}
       </div>
     `;
   }
 
   emptyContainer.innerHTML = `
     <div class="welcome-content">
-      <div class="welcome-icon">📚</div>
+      <div class="welcome-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--c-primary)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20l-7-4-7 4V2z"/></svg></div>
       <h2>${title}</h2>
       <p class="welcome-desc">${description}</p>
       ${buttonsHtml}
@@ -543,7 +544,7 @@ function showEmptyState(title = '暂无收藏', description = '点击浏览器�
         } catch (error) {
           Toast.error('导入失败：' + error.message);
         } finally {
-          importBtn.textContent = '📥 导入浏览器收藏';
+          importBtn.textContent = '导入浏览器收藏';
           importBtn.disabled = false;
         }
       });
@@ -589,7 +590,7 @@ function showEmptyState(title = '暂无收藏', description = '点击浏览器�
         } catch (error) {
           Toast.error('清空失败：' + error.message);
         } finally {
-          clearBtn.textContent = '🗑️ 清空数据并重新导入';
+          clearBtn.textContent = '清空数据并重新导入';
           clearBtn.disabled = false;
         }
       });
@@ -615,7 +616,7 @@ function updateFooterStats() {
     }
   }
   if (elements.sidebarStats) {
-    elements.sidebarStats.textContent = total > 0 ? `共 ${total} 条收藏${broken > 0 ? `  ⚠️ ${broken} 失效` : ''}` : '';
+    elements.sidebarStats.textContent = total > 0 ? `共 ${total} 条收藏${broken > 0 ? `  [${broken} 失效]` : ''}` : '';
   }
 }
 
@@ -676,7 +677,7 @@ function createFolderRow(folder) {
   if (subFolderCount > 0) metaText += (metaText ? '  ' : '') + `${subFolderCount} 个子文件夹`;
 
   row.innerHTML = `
-    <span class="bm-folder-icon">📁</span>
+    <span class="bm-folder-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
     <span class="bm-folder-name">${escapeHtml(folder.title || '未命名')}</span>
     ${metaText ? `<span class="bm-folder-meta">${escapeHtml(metaText)}</span>` : ''}
     <button class="bm-menu-btn bm-folder-menu" data-id="${escapeHtml(folder.id)}" title="更多操作">⋮</button>
@@ -749,12 +750,12 @@ function createBookmarkRow(bm) {
   if (bm.url) {
     try {
       const domain = new URL(bm.url).hostname;
-      faviconHtml = `<img class="bm-favicon" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt=""><span class="bm-favicon-fallback" style="display:none;">🔖</span>`;
+      faviconHtml = `<img class="bm-favicon" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt=""><span class="bm-favicon-fallback" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>`;
     } catch {
-      faviconHtml = `<span class="bm-favicon-fallback">🔖</span>`;
+      faviconHtml = `<span class="bm-favicon-fallback"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>`;
     }
   } else {
-    faviconHtml = `<span class="bm-favicon-fallback">📁</span>`;
+    faviconHtml = `<span class="bm-favicon-fallback"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>`;
   }
 
   // 状态徽标
@@ -939,7 +940,7 @@ function createBookmarkRow(bm) {
  */
 function renderRecentView() {
   if (elements.breadcrumb) {
-    elements.breadcrumb.innerHTML = '<span class="bc-item current">🕐 最近添加</span>';
+    elements.breadcrumb.innerHTML = '<span class="bc-item current"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>最近添加</span>';
   }
 
   // 按 dateAdded 或 createdAt 或 updatedAt 排序
@@ -958,7 +959,7 @@ function renderRecentView() {
   container.innerHTML = '';
 
   if (recent.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🕐</div><h3>暂无最近收藏</h3></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--c-muted)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><h3>暂无最近收藏</h3></div>`;
     return;
   }
 
@@ -986,7 +987,7 @@ function renderBrokenView() {
   const container = elements.bookmarkList;
   container.innerHTML = '';
   if (broken.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✅</div><h3>暂无失效链接</h3><p>所有收藏链接均正常</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--c-success)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>暂无失效链接</h3><p>所有收藏链接均正常</p></div>`;
     return;
   }
 
@@ -1041,7 +1042,7 @@ function renderTagsView() {
   });
 
   if (tagMap.size === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🏷️</div><h3>暂无标签</h3><p>为收藏添加标签以便更好地组织</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--c-muted)"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><h3>暂无标签</h3><p>为收藏添加标签以便更好地组织</p></div>`;
     return;
   }
 
@@ -1164,7 +1165,7 @@ function renderCategories() {
     categoryHeader.style.cursor = 'pointer';
     categoryHeader.innerHTML = `
       <span class="category-toggle">▶</span>
-      <span class="category-icon">📁</span>
+      <span class="category-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
       <span class="category-name">${escapeHtml(category.name)}</span>
       <span class="category-count">${categoryBookmarks.length}</span>
     `;
@@ -1248,7 +1249,7 @@ function buildCategoryTree(categories) {
 function renderTags() {
   if (!state.tags || state.tags.length === 0) {
     const emptyState = new EmptyState({
-      icon: '🏷️',
+      icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
       title: '暂无标签',
       description: '为收藏添加标签以便更好地组织'
     });
@@ -1268,7 +1269,7 @@ function renderTags() {
     const tagElement = document.createElement('div');
     tagElement.className = 'tag-item';
     tagElement.innerHTML = `
-      <span class="tag-icon">🏷️</span>
+      <span class="tag-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
       <span class="tag-name">${escapeHtml(tag.name)}</span>
       <span class="tag-count">${tagBookmarks.length}</span>
     `;
@@ -1297,15 +1298,17 @@ function createBookmarkElement(bookmark) {
   element.className = 'bookmark-item';
   element.dataset.id = bookmark.id;
 
-  const statusIcon = bookmark.status === 'broken' ? '⚠️'
-    : bookmark.checkStatus === 'uncertain' ? '❓'
-    : '🔖';
+  const statusSvg = bookmark.status === 'broken'
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    : bookmark.checkStatus === 'uncertain'
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   const statusClass = bookmark.status === 'broken' ? 'broken'
     : bookmark.checkStatus === 'uncertain' ? 'uncertain'
     : '';
 
   element.innerHTML = `
-    <span class="bookmark-icon ${statusClass}">${statusIcon}</span>
+    <span class="bookmark-icon ${statusClass}">${statusSvg}</span>
     <span class="bookmark-title">${escapeHtml(bookmark.title || '未命名')}</span>
     ${bookmark.url ? `<span class="bookmark-url">${escapeHtml(truncateUrl(bookmark.url, 40))}</span>` : ''}
   `;
@@ -1781,7 +1784,7 @@ function showDeduplicateDialog(duplicates) {
   dialog.innerHTML = `
     <div class="confirm-dialog" style="max-width: 700px;">
       <div class="dialog-header">
-        <h2>🗑️ 去重建议</h2>
+        <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>去重建议</h2>
         <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
       <div class="dialog-content">
@@ -1800,13 +1803,11 @@ function showDeduplicateDialog(duplicates) {
                     <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
                     <div style="flex: 1; min-width: 0;">
                       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-weight: 600; color: #10b981; font-size: 13px;">✓ 保留</span>
-                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">${escapeHtml(item.keep.title)}</span>
+                        <span style="font-weight: 600; color: var(--c-success); font-size: 13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><path d="M20 6L9 17l-5-5"/></svg>保留</span>
                         ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                       </div>
                       <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 4px;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
-                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;">📍 ${escapeHtml(getBookmarkCategoryPath(item.keep))}</div>
-                      <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复：</div>
+                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(getBookmarkCategoryPath(item.keep))}</div>
                       ${item.remove.map(r => `
                         <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
                           <div style="display: flex; align-items: center; gap: 6px;">
@@ -1814,7 +1815,7 @@ function showDeduplicateDialog(duplicates) {
                             <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
                             ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                           </div>
-                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(getBookmarkCategoryPath(r))}</div>
+                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(getBookmarkCategoryPath(r))}</div>
                         </div>
                       `).join('')}
                     </div>
@@ -1835,20 +1836,20 @@ function showDeduplicateDialog(duplicates) {
                     <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
                     <div style="flex: 1; min-width: 0;">
                       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-weight: 600; color: #10b981; font-size: 13px;">✓ 保留</span>
-                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;">📁 ${escapeHtml(item.keep.name)}</span>
+                        <span style="font-weight: 600; color: var(--c-success); font-size: 13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><path d="M20 6L9 17l-5-5"/></svg>保留</span>
+                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:3px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${escapeHtml(item.keep.name)}</span>
                         ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                       </div>
-                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;">📍 ${escapeHtml(buildCategoryPath(item.keep))}</div>
+                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(buildCategoryPath(item.keep))}</div>
                       <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复目录：</div>
                       ${item.remove.map(r => `
                         <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
                           <div style="display: flex; align-items: center; gap: 6px;">
                             <span style="color: var(--c-danger);">✗</span>
-                            <span style="text-decoration: line-through;">📁 ${escapeHtml(r.name)}</span>
+                            <span style="text-decoration: line-through;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${escapeHtml(r.name)}</span>
                             ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                           </div>
-                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(buildCategoryPath(r))}</div>
+                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(buildCategoryPath(r))}</div>
                         </div>
                       `).join('')}
                     </div>
@@ -1859,9 +1860,7 @@ function showDeduplicateDialog(duplicates) {
           </div>
         ` : ''}
 
-        <div style="padding: 12px; background: #fef3c7; border-radius: 6px; font-size: 12px; color: #92400e;">
-          ⚠️ 去重操作将永久删除选中的项目，请确认后再执行。书签栏中的内容具有更高的保留优先级。
-        </div>
+        <div style="padding: 12px; background: var(--c-warning-bg); border-radius: 6px; font-size: 12px; color: var(--c-warning);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>去重操作将永久删除选中的项目，请确认后再执行。书签栏中的内容具有更高的保留优先级。
       </div>
       <div class="dialog-footer" style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; gap: 10px;">
@@ -2098,7 +2097,7 @@ async function handleAnalyze() {
 async function startAnalysis(forceRestart) {
   state.isAnalyzing = true;
   elements.analyzeBtn.disabled = true;
-  elements.analyzeBtn.textContent = '⏳ 分析中...';
+  elements.analyzeBtn.textContent = '分析中...';
 
   // 展开任务面板并显示分析进度区
   if (elements.analyzeProgressSection) {
@@ -2144,7 +2143,7 @@ async function startAnalysis(forceRestart) {
 function finishAnalysisUI() {
   state.isAnalyzing = false;
   elements.analyzeBtn.disabled = false;
-  elements.analyzeBtn.textContent = '🤖 分析';
+  elements.analyzeBtn.textContent = '分析';
 
   if (elements.analyzeProgressSection) {
     elements.analyzeProgressSection.style.display = 'none';
@@ -2219,7 +2218,7 @@ function showAnalysisConfirmDialog(analysisResult) {
     <div class="analysis-tags-section">
       <details>
         <summary class="analysis-tags-header">
-          <span class="analysis-tags-title">🏷 标签建议</span>
+          <span class="analysis-tags-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签建议</span>
           <span class="analysis-tags-count">${uniqueTagNames.length} 个</span>
         </summary>
         <div class="analysis-tags-list">
@@ -2237,7 +2236,7 @@ function showAnalysisConfirmDialog(analysisResult) {
   dialog.innerHTML = `
     <div class="confirm-dialog analysis-dialog">
       <div class="dialog-header analysis-dialog-header">
-        <h2>🤖 AI 整理建议</h2>
+        <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>AI 整理建议</h2>
         <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
       <div class="dialog-content analysis-dialog-content">
@@ -2260,7 +2259,7 @@ function showAnalysisConfirmDialog(analysisResult) {
         </div>
 
         <!-- 分类方案 -->
-        <div class="analysis-categories-header">📁 分类整理方案</div>
+        <div class="analysis-categories-header"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>分类整理方案</div>
         <div class="analysis-categories-list">
           ${catRows || '<div class="analysis-empty-state">暂无分类建议</div>'}
         </div>
@@ -2269,7 +2268,7 @@ function showAnalysisConfirmDialog(analysisResult) {
       </div>
       <div class="dialog-footer">
         <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm">✓ 应用整理方案</button>
+        <button class="btn btn-primary" id="dialogConfirm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>应用整理方案</button>
       </div>
     </div>
   `;
@@ -2332,7 +2331,7 @@ function showAnalysisConfirmDialog(analysisResult) {
     } catch (error) {
       console.error('[应用分类] 失败:', error);
       confirmBtn.disabled = false;
-      confirmBtn.textContent = '✓ 应用整理方案';
+      confirmBtn.textContent = '应用整理方案';
       Toast.error(`应用失败: ${error.message}`);
     }
   });
@@ -2357,7 +2356,7 @@ async function handleDebugAnalyze() {
     bookmarks: state.bookmarks,
     onAnalyze: async (selectedIds) => {
       elements.debugAnalyzeBtn.disabled = true;
-      elements.debugAnalyzeBtn.textContent = '⏳ 分析中...';
+      elements.debugAnalyzeBtn.textContent = '分析中...';
       showProgress('调试分析中...', 0, 0);
 
       try {
@@ -2379,7 +2378,7 @@ async function handleDebugAnalyze() {
         Toast.error(`调试分析失败: ${error.message}`);
       } finally {
         elements.debugAnalyzeBtn.disabled = false;
-        elements.debugAnalyzeBtn.textContent = '🔬 调试';
+        elements.debugAnalyzeBtn.textContent = '调试';
       }
     }
   });
@@ -2477,7 +2476,7 @@ async function startBrokenLinkCheck(resume = false) {
   };
 
   elements.checkBrokenBtn.disabled = true;
-  elements.checkBrokenBtn.textContent = '⏳ 检测中...';
+  elements.checkBrokenBtn.textContent = '检测中...';
 
   updateFooterStats();
 
@@ -2557,7 +2556,7 @@ async function startBrokenLinkCheck(resume = false) {
       state.isChecking = false;
       state.checkInitiatedLocally = false;
       elements.checkBrokenBtn.disabled = false;
-      elements.checkBrokenBtn.textContent = '⚠️ 检测';
+      elements.checkBrokenBtn.textContent = '检测';
       hideProgress();
     }
   }
@@ -2697,13 +2696,13 @@ function cleanupBrokenLinks(brokenLinks) {
  */
 function getStatusIcon(status) {
   const icons = {
-    'broken': '❌',
-    'timeout': '⏱️',
-    'dns_error': '🌐',
-    'network_error': '🔌',
-    'unknown': '❓'
+    'broken':        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    'timeout':       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="12" y2="8"/><circle cx="12" cy="14" r="8"/></svg>',
+    'dns_error':     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 9h20M2 15h20"/><line x1="4" y1="4" x2="20" y2="20"/></svg>',
+    'network_error': '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8H6a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2z"/><line x1="4" y1="4" x2="20" y2="20"/></svg>',
+    'unknown':       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
   };
-  return icons[status] || '⚠️';
+  return icons[status] || '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 }
 
 /**
@@ -2837,7 +2836,7 @@ function listenToMessages() {
       state.isAnalyzing = false;
       if (elements.analyzeBtn) {
         elements.analyzeBtn.disabled = false;
-        elements.analyzeBtn.textContent = '🤖 分析';
+        elements.analyzeBtn.textContent = '分析';
       }
       finishAnalysisUI();
       Toast.info('分析已取消，进度已保存，下次可继续');
@@ -2872,12 +2871,12 @@ async function restoreCheckingState() {
     };
 
     elements.checkBrokenBtn.disabled = true;
-    elements.checkBrokenBtn.textContent = '⏳ 检测中...';
+    elements.checkBrokenBtn.textContent = '检测中...';
 
     if (elements.cancelCheckBtn) {
       elements.cancelCheckBtn.style.display = '';
       elements.cancelCheckBtn.disabled = false;
-      elements.cancelCheckBtn.textContent = '✕ 取消';
+      elements.cancelCheckBtn.textContent = '取消';
       elements.cancelCheckBtn.onclick = async () => {
         elements.cancelCheckBtn.disabled = true;
         elements.cancelCheckBtn.textContent = '正在取消...';
@@ -2912,7 +2911,7 @@ function handleCheckDone(data) {
   state.isChecking = false;
   state.checkInitiatedLocally = false;
   elements.checkBrokenBtn.disabled = false;
-  elements.checkBrokenBtn.textContent = '⚠️ 检测';
+  elements.checkBrokenBtn.textContent = '检测';
 
   if (taskPanelManager) {
     taskPanelManager.handleCheckDone(data);
@@ -3396,7 +3395,7 @@ function showMergeSuggestionsDialog(mergeSuggestions, categories) {
   dialog.innerHTML = `
     <div class="confirm-dialog ai-merge-dialog">
       <div class="dialog-header">
-        <h2>🔀 合并建议</h2>
+        <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>合并建议</h2>
         <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
       <div class="dialog-content">

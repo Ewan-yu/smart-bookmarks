@@ -46,7 +46,7 @@ export class FolderDialogManager {
       const childCount = this.state.bookmarks.filter(bm => bm.parentCategoryId === folder.id).length;
       return {
         value: folder.id,
-        label: `📁 ${folder.title}`,
+        label: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${folder.title}`,
         description: `${childCount} 项内容`
       };
     });
@@ -149,7 +149,7 @@ export class FolderDialogManager {
   async showAddSub(parentFolder) {
     return new Promise((resolve, reject) => {
       createInputDialog({
-        title: '➕ 新建子文件夹',
+        title: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>新建子文件夹',
         message: `在 <strong>${escapeHtml(parentFolder.title)}</strong> 下创建新文件夹：`,
         placeholder: '例如: 前端开发',
         confirmText: '创建',
@@ -199,7 +199,7 @@ export class FolderDialogManager {
   async showRename(folder) {
     return new Promise((resolve, reject) => {
       createInputDialog({
-        title: '✏️ 重命名文件夹',
+        title: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>重命名文件夹',
         message: '',
         placeholder: '输入新的名称',
         confirmText: '保存',

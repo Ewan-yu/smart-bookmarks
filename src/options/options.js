@@ -94,10 +94,10 @@ async function testConnection(config) {
       throw new Error('API 返回结构异常，请确认模型名称是否正确');
     }
 
-    showToast('✅ 测试通过', 'success');
+    showToast('测试通过', 'success');
   } catch (error) {
     console.error('Connection test failed:', error);
-    showToast('❌ 连接测试失败：' + error.message, 'error');
+    showToast('连接测试失败：' + error.message, 'error');
   } finally {
     elements.testBtn.disabled = false;
     elements.testBtn.textContent = '测试连接';
@@ -153,16 +153,16 @@ function bindEvents() {
       if (response && response.success) {
         const count = response.imported || 0;
         const catCount = response.categories || 0;
-        showToast(`✅ 导入成功！共 ${count} 个书签，${catCount} 个分类`, 'success');
+        showToast(`导入成功！共 ${count} 个书签，${catCount} 个分类`, 'success');
       } else {
         throw new Error(response?.error || '导入失败');
       }
     } catch (error) {
       console.error('Import failed:', error);
-      showToast('❌ 导入失败：' + error.message, 'error');
+      showToast('导入失败：' + error.message, 'error');
     } finally {
       elements.importBookmarks.disabled = false;
-      elements.importBookmarks.textContent = '📥 从浏览器导入';
+      elements.importBookmarks.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>从浏览器导入';
     }
   });
 
@@ -204,24 +204,24 @@ function bindEvents() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showToast(`✅ 导出成功！共 ${data.bookmarks.length} 个书签`, 'success');
+        showToast(`导出成功！共 ${data.bookmarks.length} 个书签`, 'success');
     } catch (error) {
       console.error('Export failed:', error);
-      showToast('❌ 导出失败：' + error.message, 'error');
+      showToast('导出失败：' + error.message, 'error');
     } finally {
       elements.exportBookmarks.disabled = false;
-      elements.exportBookmarks.textContent = '📤 导出为 JSON';
+      elements.exportBookmarks.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>导出为 JSON';
     }
   });
 
   // 清空数据
   elements.clearData.addEventListener('click', async () => {
-    if (!confirm('确定要清空所有数据吗？\n\n此操作将清空插件本地数据库中的所有书签、分类和标签数据。\n\n⚠️ 此操作不可恢复！')) {
+    if (!confirm('确定要清空所有数据吗？\n\n此操作将清空插件本地数据库中的所有书签、分类和标签数据。\n\n此操作不可恢复！')) {
       return;
     }
 
     // 二次确认
-    if (!confirm('⚠️ 最终确认：真的要清空所有数据吗？')) {
+    if (!confirm('最终确认：真的要清空所有数据吗？')) {
       return;
     }
 
@@ -235,16 +235,16 @@ function bindEvents() {
       });
 
       if (response && response.success) {
-        showToast('✅ 数据已清空', 'success');
+        showToast('数据已清空', 'success');
       } else {
         throw new Error(response?.error || '清空失败');
       }
     } catch (error) {
       console.error('Clear failed:', error);
-      showToast('❌ 清空失败：' + error.message, 'error');
+      showToast('清空失败：' + error.message, 'error');
     } finally {
       elements.clearData.disabled = false;
-      elements.clearData.textContent = '🗑️ 清空所有数据';
+      elements.clearData.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>清空所有数据';
     }
   });
 }

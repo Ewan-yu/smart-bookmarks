@@ -13,7 +13,7 @@
   <header class="flex items-center gap-3 px-5 py-0 flex-shrink-0" style="height:52px;background:#1a1a6e;box-shadow:0 1px 0 rgba(255,255,255,.06),0 2px 16px rgba(13,17,23,.22);" role="banner">
     <!-- Logo -->
     <div class="flex items-center gap-2 flex-shrink-0">
-      <span class="text-xl leading-none select-none" aria-hidden="true">🔖</span>
+      <span class="flex-shrink-0" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
       <h1 class="text-white font-semibold text-base tracking-wide whitespace-nowrap">Smart Bookmarks</h1>
     </div>
     <!-- 搜索框 -->
@@ -94,7 +94,7 @@
       <!-- 任务面板（内嵌左下角） -->
       <div id="taskPanel" class="task-panel collapsed" role="complementary" aria-label="任务面板">
         <div class="task-panel-header" id="taskPanelHeader">
-          <span class="task-panel-title">⚡ 任务</span>
+          <span class="task-panel-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>任务</span>
           <button id="taskPanelToggle" class="task-panel-btn" title="折叠/展开" aria-expanded="false" aria-controls="taskPanelBody">
             <svg id="taskPanelChevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
           </button>
@@ -124,7 +124,7 @@
         <div class="task-panel-body" id="taskPanelBody">
           <div id="analyzeProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
-              <span class="task-progress-label">🤖 AI 分析</span>
+              <span class="task-progress-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>AI 分析</span>
               <div class="flex items-center gap-2">
                 <span id="analyzeProgressCount" class="task-count-badge" aria-label="分析进度">0/0</span>
                 <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;" aria-label="取消分析">✕ 取消</button>
@@ -137,7 +137,7 @@
           </div>
           <div id="checkProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
-              <span class="task-progress-label">⚠️ 链接检测</span>
+              <span class="task-progress-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>链接检测</span>
               <div class="flex items-center gap-2">
                 <span id="checkProgressEta" class="text-xs text-slate-400" aria-label="预计剩余时间"></span>
                 <span id="checkProgressCount" class="task-count-badge" aria-label="检测进度">0/0</span>
@@ -186,8 +186,8 @@
   <!-- ===== 右键上下文菜单 ===== -->
   <div id="contextMenuEl" class="ctx-menu" style="display:none;" role="menu" aria-label="操作菜单">
     <!-- 左侧边栏专用菜单项 -->
-    <button class="ctx-item" data-action="addSubFolder" data-for-sidebar-only style="display:none;" role="menuitem" tabindex="-1">➕ 新建子文件夹</button>
-    <button class="ctx-item" data-action="renameFolder" data-for-sidebar-only data-for-folder style="display:none;" role="menuitem" tabindex="-1">✏️ 重命名</button>
+    <button class="ctx-item" data-action="addSubFolder" data-for-sidebar-only style="display:none;" role="menuitem" tabindex="-1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>新建子文件夹</button>
+    <button class="ctx-item" data-action="renameFolder" data-for-sidebar-only data-for-folder style="display:none;" role="menuitem" tabindex="-1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>重命名</button>
     <div class="ctx-separator" data-for-sidebar-only style="display:none;" role="separator"></div>
 
     <!-- 右侧区域专用菜单项 -->
@@ -231,7 +231,7 @@
         <div class="edit-field">
           <label class="edit-label" for="editSummary" style="display:flex;align-items:center;justify-content:space-between;">
             <span>概述</span>
-            <button id="editRegenerateBtn" class="edit-regen-btn" aria-label="重新生成概述">🔄 重新生成</button>
+            <button id="editRegenerateBtn" class="edit-regen-btn" aria-label="重新生成概述"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>重新生成</button>
           </label>
           <textarea id="editSummary" class="edit-textarea" rows="3" placeholder="对该收藏的简短描述..." aria-describedby="summary-hint"></textarea>
           <span id="summary-hint" class="sr-only">输入书签的简短描述</span>

@@ -129,10 +129,10 @@ class NavigationManager {
 
     // 固定导航项
     const navItems = [
-      { id: 'navAll', label: '全部收藏', icon: '📚', view: 'all', dataNav: 'all' },
-      { id: 'navRecent', label: '最近添加', icon: '🕐', view: 'recent', dataNav: 'recent' },
-      { id: 'navBroken', label: '失效链接', icon: '⚠️', view: 'broken', dataNav: 'broken' },
-      { id: 'navTags', label: '标签视图', icon: '🏷️', view: 'tags', dataNav: 'tags' }
+      { id: 'navAll', label: '全部收藏', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>', view: 'all', dataNav: 'all' },
+      { id: 'navRecent', label: '最近添加', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', view: 'recent', dataNav: 'recent' },
+      { id: 'navBroken', label: '失效链接', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>', view: 'broken', dataNav: 'broken' },
+      { id: 'navTags', label: '标签视图', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>', view: 'tags', dataNav: 'tags' }
     ];
 
     navContainer.innerHTML = navItems.map(item => `
@@ -200,7 +200,7 @@ class NavigationManager {
         <div class="sf-item" data-folder-id="${category.id}">
           <div class="sf-item-row ${isActive ? 'active' : ''}" style="padding-left: ${level * 16 + 8}px">
             ${hasChildren ? '<span class="sf-folder-toggle">▶</span>' : '<span class="sf-folder-spacer"></span>'}
-            <span class="sf-folder-icon">📁</span>
+            <span class="sf-folder-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             <span class="bm-folder-name">${escapeHtml(category.name)}</span>
             <span class="bm-count" style="font-size:11px;color:var(--c-text-muted);">(${bookmarkCount})</span>
           </div>

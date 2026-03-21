@@ -319,7 +319,7 @@ class FolderManager {
       <div class="confirm-dialog ai-merge-dialog-overlay">
         <div class="confirm-dialog merge-dialog">
           <div class="dialog-header">
-            <h2>🔀 合并建议</h2>
+            <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>合并建议</h2>
             <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
           </div>
           <div class="dialog-content">
@@ -388,7 +388,7 @@ class FolderManager {
               }).join('')}
             </div>
             <div style="padding: 12px; background: #fef3c7; border-radius: 6px; font-size: 12px; color: #92400e;">
-              ⚠️ 合并操作将永久删除源文件夹，请确认后再执行。源文件夹的子内容将移动到目标文件夹。
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>合并操作将永久删除源文件夹，请确认后再执行。源文件夹的子内容将移动到目标文件夹。
             </div>
           </div>
           <div class="dialog-footer" style="display: flex; justify-content: space-between; align-items: center;">

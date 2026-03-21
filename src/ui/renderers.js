@@ -112,7 +112,9 @@ class TreeRenderer {
       // 文件夹图标
       const icon = document.createElement('span');
       icon.className = 'tree-icon folder-icon';
-      icon.textContent = hasChildren ? '📁' : '📂';
+      icon.innerHTML = hasChildren
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>';
       content.appendChild(icon);
 
       // 文件夹名称和数量
@@ -142,16 +144,16 @@ class TreeRenderer {
 
       // 检查链接状态
       if (node.status === 'broken') {
-        icon.textContent = '⚠️';
+        icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
         icon.title = '链接失效';
       } else if (node.checkStatus === 'uncertain') {
-        icon.textContent = '❓';
+        icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
         icon.title = `WAF/反爬拦截，内容可能正常（${node.checkError || ''}）`;
       } else if (node.status === 'checked') {
-        icon.textContent = '✓';
+        icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
         icon.title = '链接有效';
       } else {
-        icon.textContent = '🔖';
+        icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
         icon.title = '未检测';
       }
 
@@ -440,7 +442,7 @@ class SearchResultsRenderer {
       const emptyState = document.createElement('div');
       emptyState.className = 'search-empty';
       emptyState.innerHTML = `
-        <div class="search-empty-icon">🔍</div>
+        <div class="search-empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
         <div class="search-empty-title">未找到相关结果</div>
         <div class="search-empty-desc">请尝试其他关键词</div>
       `;
@@ -504,7 +506,7 @@ class SearchResultsRenderer {
     if (result.categoryPath) {
       const path = document.createElement('div');
       path.className = 'search-result-path';
-      path.innerHTML = `<span class="path-icon">📁</span>${this.escapeHtml(result.categoryPath)}`;
+      path.innerHTML = `<span class="path-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>${this.escapeHtml(result.categoryPath)}`;
       content.appendChild(path);
     }
 
@@ -527,13 +529,13 @@ class SearchResultsRenderer {
     if (result.status === 'broken') {
       const statusIcon = document.createElement('span');
       statusIcon.className = 'search-result-status broken';
-      statusIcon.textContent = '⚠️';
+      statusIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
       statusIcon.title = '链接失效';
       item.appendChild(statusIcon);
     } else if (result.checkStatus === 'uncertain') {
       const statusIcon = document.createElement('span');
       statusIcon.className = 'search-result-status uncertain';
-      statusIcon.textContent = '❓';
+      statusIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
       statusIcon.title = `WAF/反爬拦截，内容可能正常（${result.checkError || ''}）`;
       item.appendChild(statusIcon);
     }

@@ -430,13 +430,13 @@ export function getBrokenAndUnknownLinks(results) {
  */
 export function formatResult(result) {
   const statusIcons = {
-    ok: '✅',
-    timeout: '⏱️',
-    error: '❌',
-    unknown: '❓'
+    ok: '[OK]',
+    timeout: '[timeout]',
+    error: '[error]',
+    unknown: '[unknown]'
   };
 
-  const icon = statusIcons[result.status] || '❓';
+  const icon = statusIcons[result.status] || '[?]';
   const message = result.error || `Status: ${result.statusCode || 'OK'}`;
 
   return `${icon} ${result.url}\n   ${message}`;
@@ -551,7 +551,7 @@ export async function createPendingCleanupCategory() {
     category = {
       id: 'pending-cleanup-' + Date.now(),
       name: '待清理',
-      icon: '🗑️',
+      icon: 'trash',
       description: '失效的收藏链接',
       createdAt: Date.now()
     };

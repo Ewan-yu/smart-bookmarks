@@ -50,7 +50,7 @@ export class SearchManager {
     container.innerHTML = '';
 
     if (this.elements.breadcrumb) {
-      this.elements.breadcrumb.innerHTML = `<span class="bc-item current">🔍 搜索：${escapeHtml(this.searchTerm)}</span>`;
+      this.elements.breadcrumb.innerHTML = `<span class="bc-item current"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>搜索：${escapeHtml(this.searchTerm)}</span>`;
     }
 
     if (this.elements.searchStats) {
@@ -60,7 +60,7 @@ export class SearchManager {
     if (this.elements.folderStats) this.elements.folderStats.textContent = '';
 
     if (results.length === 0) {
-      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>未找到相关结果</h3><p>请尝试其他关键词</p></div>`;
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h3>未找到相关结果</h3><p>请尝试其他关键词</p></div>`;
       return;
     }
 

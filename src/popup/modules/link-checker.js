@@ -246,7 +246,7 @@ class LinkCheckerManager {
         </div>
       ` : `
         <div class="empty-state">
-          <h3>✓ 所有链接都有效</h3>
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>所有链接都有效</h3>
           <p>没有发现失效链接</p>
         </div>
       `}
@@ -276,7 +276,7 @@ class LinkCheckerManager {
 
     // 使用 dialogManager 创建对话框
     const dialog = dialogManager.custom({
-      title: '⚠️ 链接检测结果',
+      title: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>链接检测结果',
       content: summaryHtml,
       buttons: buttons
     });
@@ -294,7 +294,9 @@ class LinkCheckerManager {
     const bookmark = bookmarkManager.getById(item.bookmarkId);
     if (!bookmark) return '';
 
-    const statusIcon = item.status === 'invalid' ? '❌' : '⚠️';
+    const statusIcon = item.status === 'invalid'
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger,#ef4444)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-warning,#f59e0b)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
     const statusText = item.status === 'invalid' ? '失效' : '不确定';
     const statusColor = item.status === 'invalid' ? 'var(--c-danger)' : 'var(--c-warning)';
 

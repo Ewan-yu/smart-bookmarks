@@ -473,7 +473,7 @@ class KeyboardNavigationManager {
 
     let html = `
       <div class="keyboard-shortcuts-help">
-        <h3 style="margin-bottom: 16px;">⌨️ 键盘快捷键</h3>
+        <h3 style="margin-bottom: 16px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg>键盘快捷键</h3>
         <div class="shortcuts-list">
     `;
 

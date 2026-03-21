@@ -21,7 +21,7 @@ export function showResumeDialog({ sessionTime, checkedCount, remaining, total, 
   overlay.innerHTML = `
     <div class="confirm-dialog">
       <div class="confirm-dialog-header">
-        <h3>⏸️ 上次检测未完成</h3>
+        <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>上次检测未完成</h3>
       </div>
       <div class="confirm-dialog-body">
         <p>上次检测（${sessionTime}）被中断。</p>
@@ -31,8 +31,8 @@ export function showResumeDialog({ sessionTime, checkedCount, remaining, total, 
         </p>
       </div>
       <div class="confirm-dialog-footer" style="display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn btn-secondary" id="resumeDialogFresh">🔄 重新全检</button>
-        <button class="btn btn-primary" id="resumeDialogResume">▶️ 继续上次（${remaining} 个）</button>
+        <button class="btn btn-secondary" id="resumeDialogFresh"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>重新全检</button>
+        <button class="btn btn-primary" id="resumeDialogResume"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>继续上次（${remaining} 个）</button>
       </div>
     </div>
   `;

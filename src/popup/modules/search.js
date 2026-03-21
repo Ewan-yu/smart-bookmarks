@@ -291,7 +291,7 @@ class SearchManager {
 
     suggestionsContainer.innerHTML = suggestions.map(suggestion => `
       <div class="suggestion-item" data-query="${escapeHtml(suggestion.query)}">
-        <span class="suggestion-icon">${suggestion.icon || '🔍'}</span>
+        <span class="suggestion-icon">${suggestion.icon || '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'}</span>
         <span class="suggestion-text">${escapeHtml(suggestion.text)}</span>
         ${suggestion.type ? `<span class="suggestion-type">${escapeHtml(suggestion.type)}</span>` : ''}
       </div>
@@ -327,7 +327,7 @@ class SearchManager {
         suggestions.push({
           query: tag,
           text: tag,
-          icon: '🏷️',
+          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
           type: '标签'
         });
       }
@@ -340,7 +340,7 @@ class SearchManager {
         suggestions.push({
           query: cat.name,
           text: cat.name,
-          icon: '📁',
+          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
           type: '分类'
         });
       }

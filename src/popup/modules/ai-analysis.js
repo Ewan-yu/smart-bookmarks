@@ -191,7 +191,7 @@ class AIAnalysisManager {
         </div>
         ${lastError ? `
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-border);">
-            <span style="color: var(--c-danger);">⚠️ ${escapeHtml(lastError)}</span>
+            <span style="color: var(--c-danger);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(lastError)}</span>
           </div>
         ` : ''}
       </div>
@@ -200,7 +200,7 @@ class AIAnalysisManager {
 
     // 使用 dialogManager 创建对话框
     const dialog = dialogManager.custom({
-      title: '📊 继续分析',
+      title: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>继续分析',
       content: sessionInfoHtml,
       buttons: [
         {
@@ -346,7 +346,7 @@ class AIAnalysisManager {
 
       <details class="analysis-categories-section" open>
         <summary class="analysis-categories-header">
-          📁 分类整理方案
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>分类整理方案
         </summary>
         <div class="analysis-categories-list">
           ${this._renderCategories(categories)}
@@ -356,7 +356,7 @@ class AIAnalysisManager {
       ${tags && tags.length > 0 ? `
         <details class="analysis-tags-section">
           <summary class="analysis-tags-header">
-            🏷️ 标签建议
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签建议
           </summary>
           <div class="analysis-tags-list">
             ${tags.map(tag => `
@@ -369,7 +369,7 @@ class AIAnalysisManager {
 
     // 使用 dialogManager 创建对话框
     const dialog = dialogManager.custom({
-      title: '🤖 AI 分析完成',
+      title: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:5px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>AI 分析完成',
       content: resultHtml,
       contentClass: 'analysis-dialog-content',
       dialogClass: 'analysis-dialog',
