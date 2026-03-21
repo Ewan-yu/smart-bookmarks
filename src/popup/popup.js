@@ -1796,32 +1796,51 @@ function showDeduplicateDialog(duplicates) {
         ${duplicates.bookmarks.length > 0 ? `
           <div style="margin-bottom: 20px;">
             <h3 style="font-size: 14px; font-weight: 600; color: var(--c-text); margin-bottom: 10px;">重复书签</h3>
-            <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 8px;">
-              ${duplicates.bookmarks.map((item, index) => `
-                <div class="dedup-item" data-type="bookmark" data-index="${index}" style="padding: 10px; border: 1px solid var(--c-border); border-radius: 6px; margin-bottom: 8px; background: var(--c-bg-alt);">
-                  <div style="display: flex; align-items: flex-start; gap: 10px;">
-                    <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-weight: 600; color: var(--c-success); font-size: 13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><path d="M20 6L9 17l-5-5"/></svg>保留</span>
-                        ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
-                      </div>
-                      <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 4px;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
-                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(getBookmarkCategoryPath(item.keep))}</div>
-                      ${item.remove.map(r => `
-                        <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
-                          <div style="display: flex; align-items: center; gap: 6px;">
-                            <span style="color: var(--c-danger);">✗</span>
-                            <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
-                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
-                          </div>
-                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(getBookmarkCategoryPath(r))}</div>
+            <div class="merge-suggestions-list">
+              ${duplicates.bookmarks.map((item, index) => {
+                const keepPath = getBookmarkCategoryPath(item.keep);
+                const keepParts = keepPath.split(' › ');
+                const keepPathDisplay = keepParts.map((part, i) => {
+                  const isLast = i === keepParts.length - 1;
+                  return `<span style="${isLast ? 'font-weight: 600; color: #10b981;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+                }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+                return `
+                  <label class="merge-suggestion-item dedup-item" data-type="bookmark" data-index="${index}" style="display: block; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px; width: 18px; height: 18px;" />
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--c-text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.keep.title)}</div>
+                        <div style="font-size: 11px; color: var(--c-muted); margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(truncateUrl(item.keep.url, 50))}</div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <span style="font-size: 11px; color: var(--c-text-2); font-weight: 600; text-transform: uppercase; white-space: nowrap; min-width: 40px;">保留:</span>
+                          <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px;">${keepPathDisplay}</div>
+                          ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">书签栏</span>' : ''}
                         </div>
-                      `).join('')}
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <div style="flex: 1; height: 1px; background: linear-gradient(to right, var(--c-border), transparent);"></div>
+                          <span style="font-weight: 600; font-size: 11px; padding: 2px 8px; background: var(--c-danger); color: white; border-radius: 4px; white-space: nowrap;">删除 ${item.remove.length} 项</span>
+                          <div style="flex: 1; height: 1px; background: linear-gradient(to left, var(--c-border), transparent);"></div>
+                        </div>
+                        ${item.remove.map(r => {
+                          const removePath = getBookmarkCategoryPath(r);
+                          const removeParts = removePath.split(' › ');
+                          const removePathDisplay = removeParts.map((part, i) => {
+                            const isLast = i === removeParts.length - 1;
+                            return `<span style="${isLast ? 'font-weight: 500; color: #ef4444;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+                          }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+                          return `
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 3px 0; opacity: 0.75;">
+                              <span style="font-size: 11px; color: #ef4444; font-weight: 600; white-space: nowrap; min-width: 40px;">删除:</span>
+                              <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px;">${removePathDisplay}</div>
+                              ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px; white-space: nowrap;">书签栏</span>' : ''}
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              `).join('')}
+                  </label>
+                `;
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -1829,33 +1848,52 @@ function showDeduplicateDialog(duplicates) {
         ${duplicates.categories.length > 0 ? `
           <div style="margin-bottom: 20px;">
             <h3 style="font-size: 14px; font-weight: 600; color: var(--c-text); margin-bottom: 10px;">重复目录</h3>
-            <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 8px;">
-              ${duplicates.categories.map((item, index) => `
-                <div class="dedup-item" data-type="category" data-index="${index}" style="padding: 10px; border: 1px solid var(--c-border); border-radius: 6px; margin-bottom: 8px; background: var(--c-bg-alt);">
-                  <div style="display: flex; align-items: flex-start; gap: 10px;">
-                    <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px;" />
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-weight: 600; color: var(--c-success); font-size: 13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:3px;"><path d="M20 6L9 17l-5-5"/></svg>保留</span>
-                        <span style="font-weight: 600; color: var(--c-text); font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:3px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${escapeHtml(item.keep.name)}</span>
-                        ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
-                      </div>
-                      <div style="font-size: 11px; color: var(--c-text-2); margin-bottom: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(buildCategoryPath(item.keep))}</div>
-                      <div style="font-size: 11px; color: var(--c-text-2);">删除 ${item.remove.length} 个重复目录：</div>
-                      ${item.remove.map(r => `
-                        <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
-                          <div style="display: flex; align-items: center; gap: 6px;">
-                            <span style="color: var(--c-danger);">✗</span>
-                            <span style="text-decoration: line-through;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${escapeHtml(r.name)}</span>
-                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
-                          </div>
-                          <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(buildCategoryPath(r))}</div>
+            <div class="merge-suggestions-list">
+              ${duplicates.categories.map((item, index) => {
+                const keepPath = buildCategoryPath(item.keep);
+                const keepParts = keepPath.split(' › ');
+                const keepPathDisplay = keepParts.map((part, i) => {
+                  const isLast = i === keepParts.length - 1;
+                  return `<span style="${isLast ? 'font-weight: 600; color: #10b981;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+                }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+                return `
+                  <label class="merge-suggestion-item dedup-item" data-type="category" data-index="${index}" style="display: block; padding: 14px; border: 1px solid var(--c-border); border-radius: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <input type="checkbox" checked style="flex-shrink: 0; margin-top: 2px; width: 18px; height: 18px;" />
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--c-text); margin-bottom: 8px;">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${escapeHtml(item.keep.name)}
                         </div>
-                      `).join('')}
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <span style="font-size: 11px; color: var(--c-text-2); font-weight: 600; text-transform: uppercase; white-space: nowrap; min-width: 40px;">保留:</span>
+                          <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px;">${keepPathDisplay}</div>
+                          ${isInBookmarksBar(item.keep) ? '<span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">书签栏</span>' : ''}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <div style="flex: 1; height: 1px; background: linear-gradient(to right, var(--c-border), transparent);"></div>
+                          <span style="font-weight: 600; font-size: 11px; padding: 2px 8px; background: var(--c-danger); color: white; border-radius: 4px; white-space: nowrap;">删除 ${item.remove.length} 项</span>
+                          <div style="flex: 1; height: 1px; background: linear-gradient(to left, var(--c-border), transparent);"></div>
+                        </div>
+                        ${item.remove.map(r => {
+                          const removePath = buildCategoryPath(r);
+                          const removeParts = removePath.split(' › ');
+                          const removePathDisplay = removeParts.map((part, i) => {
+                            const isLast = i === removeParts.length - 1;
+                            return `<span style="${isLast ? 'font-weight: 500; color: #ef4444;' : 'color: var(--c-text-2);'}">${escapeHtml(part)}</span>`;
+                          }).join('<span style="color: var(--c-text-2); margin: 0 4px;">›</span>');
+                          return `
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 3px 0; opacity: 0.75;">
+                              <span style="font-size: 11px; color: #ef4444; font-weight: 600; white-space: nowrap; min-width: 40px;">删除:</span>
+                              <div style="flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px;">${removePathDisplay}</div>
+                              ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px; white-space: nowrap;">书签栏</span>' : ''}
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              `).join('')}
+                  </label>
+                `;
+              }).join('')}
             </div>
           </div>
         ` : ''}

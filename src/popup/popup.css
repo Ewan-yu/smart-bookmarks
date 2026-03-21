@@ -950,11 +950,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   color: var(--c-text);
 }
 
-/* ===== 进度区域滚动条 ===== */
-#bookmarkList::-webkit-scrollbar { width: 5px; }
-#bookmarkList::-webkit-scrollbar-track { background: transparent; }
-#bookmarkList::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-#bookmarkList::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* ===== 进度区域滚动条（已由全局规则覆盖，保留注释） ===== */
 
 
 /* ========================================================
@@ -1459,64 +1455,18 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .footerStats { font-size: 12px; color: #94a3b8; }
 
 /* ===== 滚动条美化 ===== */
+/* 全局薄滚动条 — 覆盖所有溢出容器（含行内 style overflow） */
+*::-webkit-scrollbar { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(26,26,110,.15); border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(26,26,110,.30); }
+/* 主列表保持 5px，更易拖动 */
 #sidebarTree::-webkit-scrollbar,
 #bookmarkList::-webkit-scrollbar { width: 5px; }
-#sidebarTree::-webkit-scrollbar-track,
-#bookmarkList::-webkit-scrollbar-track { background: transparent; }
 #sidebarTree::-webkit-scrollbar-thumb,
-#bookmarkList::-webkit-scrollbar-thumb { background: rgba(26,26,110,.18); border-radius: var(--radius-full); }
+#bookmarkList::-webkit-scrollbar-thumb { background: rgba(26,26,110,.18); border-radius: 10px; }
 #sidebarTree::-webkit-scrollbar-thumb:hover,
 #bookmarkList::-webkit-scrollbar-thumb:hover { background: rgba(26,26,110,.32); }
-
-/* 全局薄滚动条 — 对话框/面板等所有溢出容器 */
-.dialog-content::-webkit-scrollbar,
-.analysis-dialog-content::-webkit-scrollbar,
-.analysis-bookmark-list::-webkit-scrollbar,
-.merge-suggestions-list::-webkit-scrollbar,
-.select-list::-webkit-scrollbar,
-.broken-bookmarks-list::-webkit-scrollbar,
-.modal-body::-webkit-scrollbar,
-.edit-dialog-body::-webkit-scrollbar,
-.details-content::-webkit-scrollbar,
-.debug-content::-webkit-scrollbar,
-.suggestion-dropdown::-webkit-scrollbar,
-pre::-webkit-scrollbar { width: 4px; height: 4px; }
-.dialog-content::-webkit-scrollbar-track,
-.analysis-dialog-content::-webkit-scrollbar-track,
-.analysis-bookmark-list::-webkit-scrollbar-track,
-.merge-suggestions-list::-webkit-scrollbar-track,
-.select-list::-webkit-scrollbar-track,
-.broken-bookmarks-list::-webkit-scrollbar-track,
-.modal-body::-webkit-scrollbar-track,
-.edit-dialog-body::-webkit-scrollbar-track,
-.details-content::-webkit-scrollbar-track,
-.debug-content::-webkit-scrollbar-track,
-.suggestion-dropdown::-webkit-scrollbar-track,
-pre::-webkit-scrollbar-track { background: transparent; }
-.dialog-content::-webkit-scrollbar-thumb,
-.analysis-dialog-content::-webkit-scrollbar-thumb,
-.analysis-bookmark-list::-webkit-scrollbar-thumb,
-.merge-suggestions-list::-webkit-scrollbar-thumb,
-.select-list::-webkit-scrollbar-thumb,
-.broken-bookmarks-list::-webkit-scrollbar-thumb,
-.modal-body::-webkit-scrollbar-thumb,
-.edit-dialog-body::-webkit-scrollbar-thumb,
-.details-content::-webkit-scrollbar-thumb,
-.debug-content::-webkit-scrollbar-thumb,
-.suggestion-dropdown::-webkit-scrollbar-thumb,
-pre::-webkit-scrollbar-thumb { background: rgba(26,26,110,.15); border-radius: var(--radius-full); }
-.dialog-content::-webkit-scrollbar-thumb:hover,
-.analysis-dialog-content::-webkit-scrollbar-thumb:hover,
-.analysis-bookmark-list::-webkit-scrollbar-thumb:hover,
-.merge-suggestions-list::-webkit-scrollbar-thumb:hover,
-.select-list::-webkit-scrollbar-thumb:hover,
-.broken-bookmarks-list::-webkit-scrollbar-thumb:hover,
-.modal-body::-webkit-scrollbar-thumb:hover,
-.edit-dialog-body::-webkit-scrollbar-thumb:hover,
-.details-content::-webkit-scrollbar-thumb:hover,
-.debug-content::-webkit-scrollbar-thumb:hover,
-.suggestion-dropdown::-webkit-scrollbar-thumb:hover,
-pre::-webkit-scrollbar-thumb:hover { background: rgba(26,26,110,.30); }
 
 /* ===== 拖拽样式 ===== */
 .bm-row[draggable="true"] {
