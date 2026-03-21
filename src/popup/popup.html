@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="tailwind.css">
   <link rel="stylesheet" href="popup.css">
 </head>
-<body class="bg-white text-slate-800 antialiased" style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;display:flex;flex-direction:column;">
+<body class="antialiased" style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--c-bg);color:var(--c-text);">
 
   <!-- ===== Header ===== -->
-  <header class="flex items-center gap-3 px-5 py-0 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md flex-shrink-0" style="height:52px;" role="banner">
+  <header class="flex items-center gap-3 px-5 py-0 flex-shrink-0" style="height:52px;background:#1a1a6e;box-shadow:0 1px 0 rgba(255,255,255,.06),0 2px 16px rgba(13,17,23,.22);" role="banner">
     <!-- Logo -->
     <div class="flex items-center gap-2 flex-shrink-0">
       <span class="text-xl leading-none select-none" aria-hidden="true">🔖</span>
@@ -30,16 +30,22 @@
         aria-describedby="search-hint" />
       <span id="search-hint" class="sr-only">输入关键词搜索书签、标签和描述</span>
       <div id="searchSuggestions"
-        class="search-suggestions absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
+        class="search-suggestions absolute top-full left-0 right-0 rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
         style="display: none;"
         role="listbox"
         aria-label="搜索建议"></div>
     </div>
     <!-- 右侧工具栏 -->
     <div class="flex items-center gap-1 flex-shrink-0" role="toolbar" aria-label="工具栏">
-      <button id="importBtn" class="header-btn" title="从 JSON 文件导入收藏" aria-label="从 JSON 文件导入收藏">📥</button>
-      <button id="exportBtn" class="header-btn" title="导出收藏（支持多种格式）" aria-label="导出收藏">📤</button>
-      <button id="settingsBtn" class="header-btn" title="设置" aria-label="打开设置">⚙️</button>
+      <button id="importBtn" class="header-btn" title="从 JSON 文件导入收藏" aria-label="从 JSON 文件导入收藏">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button id="exportBtn" class="header-btn" title="导出收藏（支持多种格式）" aria-label="导出收藏">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <button id="settingsBtn" class="header-btn" title="设置" aria-label="打开设置">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </div>
   </header>
 
@@ -47,25 +53,33 @@
   <div class="flex flex-1 min-h-0 overflow-hidden">
 
     <!-- ===== 左侧目录栏 ===== -->
-    <aside id="sidebar" class="flex-shrink-0 flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden select-none" style="width:260px;" role="navigation" aria-label="侧边栏导航">
+    <aside id="sidebar" class="flex-shrink-0 flex flex-col overflow-hidden select-none" style="width:260px;background:var(--c-surface-low);border-right:1px solid var(--c-border);" role="navigation" aria-label="侧边栏导航">
       <!-- 固定入口 -->
       <div class="flex-shrink-0 pt-2 pb-1 px-2" role="list">
         <button class="sidebar-nav-item active" id="navAll" data-nav="all" role="listitem" tabindex="0">
-          <span class="sidebar-nav-icon" aria-hidden="true">📚</span>
+          <span class="sidebar-nav-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </span>
           <span class="sidebar-nav-label">全部收藏</span>
           <span class="sidebar-nav-count" id="navAllCount" aria-label="收藏数量"></span>
         </button>
         <button class="sidebar-nav-item" id="navRecent" data-nav="recent" role="listitem" tabindex="0">
-          <span class="sidebar-nav-icon" aria-hidden="true">🕐</span>
+          <span class="sidebar-nav-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
           <span class="sidebar-nav-label">最近添加</span>
         </button>
         <button class="sidebar-nav-item" id="navBroken" data-nav="broken" role="listitem" tabindex="0">
-          <span class="sidebar-nav-icon" aria-hidden="true">⚠️</span>
+          <span class="sidebar-nav-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+          </span>
           <span class="sidebar-nav-label">失效链接</span>
           <span class="sidebar-nav-count broken" id="navBrokenCount" style="display:none;" aria-label="失效链接数量"></span>
         </button>
         <button class="sidebar-nav-item" id="navTags" data-nav="tags" role="listitem" tabindex="0">
-          <span class="sidebar-nav-icon" aria-hidden="true">🏷️</span>
+          <span class="sidebar-nav-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          </span>
           <span class="sidebar-nav-label">标签视图</span>
         </button>
       </div>
@@ -86,11 +100,26 @@
           </button>
         </div>
         <div class="task-panel-quick">
-          <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏" aria-label="AI 智能分析并分类收藏">🤖 <span>分析</span></button>
-          <button id="mergeSuggestBtn" class="task-quick-btn purple" title="合并建议 - 检测重复分类" aria-label="合并建议">🔀 <span>合并</span></button>
-          <button id="deduplicateBtn" class="task-quick-btn rose" title="去重 - 检测重复的书签和目录" aria-label="去重">🗑️ <span>去重</span></button>
-          <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析" aria-label="调试分析">🔬 <span>调试</span></button>
-          <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接" aria-label="检测失效链接">⚠️ <span>检测</span></button>
+          <button id="analyzeBtn" class="task-quick-btn indigo" title="AI 智能分析并分类收藏" aria-label="AI 智能分析并分类收藏">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/><path d="M19 3v4"/><path d="M21 5h-4"/></svg>
+            <span>分析</span>
+          </button>
+          <button id="mergeSuggestBtn" class="task-quick-btn purple" title="合并建议 - 检测重复分类" aria-label="合并建议">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h10"/><path d="M6 12h9"/><path d="M11 18h7"/><path d="M3 6l3 3-3 3"/></svg>
+            <span>合并</span>
+          </button>
+          <button id="deduplicateBtn" class="task-quick-btn rose" title="去重 - 检测重复的书签和目录" aria-label="去重">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>去重</span>
+          </button>
+          <button id="debugAnalyzeBtn" class="task-quick-btn emerald" title="调试分析" aria-label="调试分析">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            <span>调试</span>
+          </button>
+          <button id="checkBrokenBtn" class="task-quick-btn amber" title="检测失效链接" aria-label="检测失效链接">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c1.51 0 2.93.37 4.18 1.03"/><path d="M16 5l3-3 3 3"/><path d="M19 2v8"/></svg>
+            <span>检测</span>
+          </button>
         </div>
         <div class="task-panel-body" id="taskPanelBody">
           <div id="analyzeProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
@@ -123,7 +152,7 @@
         </div>
       </div>
       <!-- 底部状态栏 -->
-      <div class="flex-shrink-0 px-3 py-1.5 border-t border-slate-200 bg-slate-100/50">
+      <div class="flex-shrink-0 px-3 py-1.5" style="border-top:1px solid var(--c-border);background:rgba(242,244,246,.6);">
         <div id="sidebarStats" class="text-xs text-slate-400 text-center" role="status" aria-live="polite"></div>
       </div>
     </aside>
@@ -134,7 +163,7 @@
     <!-- ===== 右侧主区域 ===== -->
     <main class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white" role="main" aria-label="书签列表">
       <!-- 面包屑导航 -->
-      <div class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-100 bg-white" style="min-height:42px;" role="navigation" aria-label="面包屑导航">
+      <div class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5" style="min-height:42px;border-bottom:1px solid var(--c-border);background:var(--c-surface);" role="navigation" aria-label="面包屑导航">
         <nav id="breadcrumb" class="flex items-center gap-1 text-sm text-slate-500 flex-1 min-w-0 overflow-hidden" aria-label="当前位置"></nav>
         <div id="searchStats" class="text-xs text-slate-400 flex-shrink-0" style="display: none;" role="status" aria-live="polite"></div>
         <div id="folderStats" class="text-xs text-slate-400 flex-shrink-0" aria-live="polite"></div>

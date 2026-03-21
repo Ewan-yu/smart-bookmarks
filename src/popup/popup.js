@@ -977,7 +977,8 @@ function renderRecentView() {
  */
 function renderBrokenView() {
   if (elements.breadcrumb) {
-    elements.breadcrumb.innerHTML = '<span class="bc-item current">⚠️ 失效链接</span>';
+    elements.breadcrumb.innerHTML = `<span class="bc-item current">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>失效链接</span>`;
   }
 
   const broken = state.bookmarks.filter(b => b.status === 'broken');
@@ -992,13 +993,15 @@ function renderBrokenView() {
   // 添加批量删除按钮
   const header = document.createElement('div');
   header.className = 'broken-view-header';
-  header.style.cssText = 'padding: 12px 16px; background: #fef2f2; border-bottom: 1px solid #fecaca; display: flex; align-items: center; justify-content: space-between;';
   header.innerHTML = `
-    <div>
-      <span style="color: #991b1b; font-size: 13px;">发现 ${broken.length} 个失效链接</span>
-      ${uncertain.length > 0 ? `<span style="color: #f59e0b; font-size: 11px; margin-left: 12px;">（另有 ${uncertain.length} 个不确定的书签未被包含）</span>` : ''}
+    <div class="broken-view-info">
+      <span class="broken-view-count">发现 ${broken.length} 个失效链接</span>
+      ${uncertain.length > 0 ? `<span class="broken-view-uncertain">（另有 ${uncertain.length} 个不确定的书签未被包含）</span>` : ''}
     </div>
-    <button class="btn btn-primary" id="cleanupAllBrokenBtn" style="background: #dc2626; border-color: #dc2626; padding: 6px 12px; font-size: 13px;">🗑️ 一键清理全部失效</button>
+    <button class="btn btn-danger" id="cleanupAllBrokenBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      一键清理全部失效
+    </button>
   `;
   container.appendChild(header);
 
@@ -1022,7 +1025,7 @@ function renderBrokenView() {
  */
 function renderTagsView() {
   if (elements.breadcrumb) {
-    elements.breadcrumb.innerHTML = '<span class="bc-item current">🏷️ 标签视图</span>';
+    elements.breadcrumb.innerHTML = '<span class="bc-item current"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签视图</span>';
   }
 
   const container = elements.bookmarkList;
@@ -1052,7 +1055,7 @@ function renderTagsView() {
     chip.addEventListener('click', () => {
       // 显示该标签下的所有书签
       if (elements.breadcrumb) {
-        elements.breadcrumb.innerHTML = `<span class="bc-item" style="cursor:pointer;" id="bcTagBack">🏷️ 标签视图</span><span class="bc-sep">›</span><span class="bc-item current">${escapeHtml(tag)}</span>`;
+        elements.breadcrumb.innerHTML = `<span class="bc-item" style="cursor:pointer;" id="bcTagBack"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签视图</span><span class="bc-sep">›</span><span class="bc-item current">${escapeHtml(tag)}</span>`;
         document.getElementById('bcTagBack')?.addEventListener('click', () => navManager.setNavMode('tags'));
       }
       container.innerHTML = '';
@@ -1807,9 +1810,9 @@ function showDeduplicateDialog(duplicates) {
                       ${item.remove.map(r => `
                         <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
                           <div style="display: flex; align-items: center; gap: 6px;">
-                            <span style="color: #ef4444;">✗</span>
+                            <span style="color: var(--c-danger);">✗</span>
                             <span style="text-decoration: line-through;">${escapeHtml(r.title)}</span>
-                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                           </div>
                           <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(getBookmarkCategoryPath(r))}</div>
                         </div>
@@ -1841,9 +1844,9 @@ function showDeduplicateDialog(duplicates) {
                       ${item.remove.map(r => `
                         <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 12px; color: var(--c-muted);">
                           <div style="display: flex; align-items: center; gap: 6px;">
-                            <span style="color: #ef4444;">✗</span>
+                            <span style="color: var(--c-danger);">✗</span>
                             <span style="text-decoration: line-through;">📁 ${escapeHtml(r.name)}</span>
-                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
+                            ${isInBookmarksBar(r) ? '<span style="font-size: 10px; background: var(--c-danger-bg); color: var(--c-danger); padding: 2px 6px; border-radius: 4px;">书签栏</span>' : ''}
                           </div>
                           <div style="font-size: 10px; color: var(--c-text-2); margin-left: 20px;">📍 ${escapeHtml(buildCategoryPath(r))}</div>
                         </div>
@@ -2607,7 +2610,10 @@ function showBrokenLinksDetails(brokenLinks) {
   header.className = 'details-header';
   header.innerHTML = `
     <h3>失效链接详情 (${brokenLinks.length})</h3>
-    <button class="btn btn-primary" id="cleanupBrokenBtn">🗑️ 一键清理全部</button>
+    <button class="btn btn-danger" id="cleanupBrokenBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      一键清理全部
+    </button>
   `;
   detailsContainer.appendChild(header);
 
