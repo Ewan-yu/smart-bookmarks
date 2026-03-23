@@ -3,7 +3,7 @@
  * 负责侧边栏导航、面包屑导航和文件夹树的渲染和交互
  */
 
-import eventBus from '../utils/event-bus.js';
+import eventBus, { Events } from '../utils/event-bus.js';
 import { escapeHtml } from '../utils/helpers.js';
 import bookmarkManager from './bookmarks.js';
 
@@ -247,7 +247,8 @@ class NavigationManager {
         e.preventDefault();
         const folderId = item.dataset.folderId;
         // TODO: 显示文件夹右键菜单
-        console.log('Show folder context menu for:', folderId);
+        // 通过 eventBus 触发事件让 popup.js 处理
+        eventBus.emit(Events.FOLDER_CONTEXT_MENU, { folderId, x: e.clientX, y: e.clientY });
       });
     });
   }

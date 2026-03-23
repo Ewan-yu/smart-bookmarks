@@ -193,8 +193,6 @@ class ContextMenuManager {
    * @private
    */
   _renderMenu() {
-    console.log('[ContextMenu._renderMenu] 渲染菜单，menuItems 数量:', this.menuItems.length);
-
     if (!this.menuElement) return;
 
     let html = '';
@@ -222,7 +220,6 @@ class ContextMenuManager {
     }
 
     this.menuElement.innerHTML = html;
-    console.log('[ContextMenu._renderMenu] 菜单渲染完成');
   }
 
   /**

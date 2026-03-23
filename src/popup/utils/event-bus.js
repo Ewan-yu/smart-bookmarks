@@ -249,7 +249,10 @@ export const Events = {
   STATE_CHANGED: 'state:changed',
   ERROR_OCCURRED: 'error:occurred',
   VIEW_CHANGED: 'view:changed',
-  FOLDER_TREE_CHANGED: 'folder:tree:changed'
+  FOLDER_TREE_CHANGED: 'folder:tree:changed',
+
+  // 文件夹右键菜单事件
+  FOLDER_CONTEXT_MENU: 'folder:contextmenu'
 };
 
 export default eventBus;

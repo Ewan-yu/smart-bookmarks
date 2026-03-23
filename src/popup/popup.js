@@ -27,8 +27,6 @@ import { showResumeDialog as showCheckResumeDialog } from './modules/check-resum
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
 import { createSearchManager } from './modules/search-manager.js';
 
-console.log('Smart Bookmarks popup loaded');
-
 // DOM 元素引用
 const elements = {
   searchInput: document.getElementById('searchInput'),
@@ -254,12 +252,11 @@ function setupContextMenuHandler() {
 function setupBookmarkListeners() {
   // 监听书签加载事件
   eventBus.on(Events.BOOKMARKS_LOADED, ({ bookmarks, categories, tags }) => {
-    console.log('[setupBookmarkListeners] Bookmarks loaded:', bookmarks.length);
+    // 书签加载完成
   });
 
   // 监听书签添加事件
   eventBus.on(Events.BOOKMARK_ADDED, (bookmark) => {
-    console.log('[setupBookmarkListeners] Bookmark added:', bookmark);
     // 书签添加后刷新界面
     renderBookmarks();
     updateFooterStats();
@@ -267,7 +264,6 @@ function setupBookmarkListeners() {
 
   // 监听书签更新事件
   eventBus.on(Events.BOOKMARK_UPDATED, ({ id, updates }) => {
-    console.log('[setupBookmarkListeners] Bookmark updated:', id, updates);
     // 书签更新后刷新界面
     renderBookmarks();
     updateFooterStats();
@@ -275,7 +271,6 @@ function setupBookmarkListeners() {
 
   // 监听书签删除事件
   eventBus.on(Events.BOOKMARKS_DELETED, ({ ids, count }) => {
-    console.log('[setupBookmarkListeners] Bookmarks deleted:', ids, count);
     // 书签删除后刷新界面
     renderBookmarks();
     updateFooterStats();
@@ -290,7 +285,6 @@ function setupBookmarkListeners() {
 function setupNavigationListeners() {
   // 监听导航变更事件
   eventBus.on(Events.NAVIGATION_CHANGED, ({ mode, folderId }) => {
-    console.log('[Navigation] Mode changed:', mode, 'Folder:', folderId);
     // 可以在这里添加导航变更后的额外处理
     updateFooterStats();
   });
@@ -2201,12 +2195,6 @@ function finishAnalysisUI() {
 function showAnalysisConfirmDialog(analysisResult) {
   const { categories, tags, summary } = analysisResult;
 
-  console.log('[UI] 显示分析结果:', {
-    categoriesCount: categories.length,
-    tagsCount: tags.length,
-    categories: categories.map(c => ({ name: c.name, count: c.bookmarkIds.length, isNew: c.isNew }))
-  });
-
   // bookmarkId → 书签对象
   const bookmarkMap = new Map();
   state.bookmarks.forEach(bm => bookmarkMap.set(String(bm.id), bm));
@@ -2332,14 +2320,11 @@ function showAnalysisConfirmDialog(analysisResult) {
       confirmBtn.disabled = true;
       confirmBtn.textContent = '整理中...';
 
-      console.log('[应用分类] 开始应用分类...');
       const response = await chrome.runtime.sendMessage({
         type: 'APPLY_CATEGORIES',
         categories: analysisResult.categories,
         tags: analysisResult.tags || []
       });
-
-      console.log('[应用分类] 收到响应:', response);
 
       if (response.error) {
         throw new Error(response.error);
@@ -2352,7 +2337,6 @@ function showAnalysisConfirmDialog(analysisResult) {
       // 使用后端返回的所有分类（包括中间层级）
       if (response.categories) {
         state.categories = response.categories;
-        console.log(`[应用分类] 加载了 ${response.categories.length} 个分类`);
       }
 
       const tagCount = analysisResult.tags?.length || 0;
@@ -2361,10 +2345,8 @@ function showAnalysisConfirmDialog(analysisResult) {
 
       // 重新加载书签（确保书签关联正确）
       await loadBookmarks();
-      console.log('[应用分类] 书签重新加载完成');
 
       // 关闭对话框
-      console.log('[应用分类] 关闭对话框');
       closeDialog();
     } catch (error) {
       console.error('[应用分类] 失败:', error);
@@ -3215,8 +3197,6 @@ function showInsertPlaceholder(targetRow, clientY) {
   } else {
     targetRow.parentNode.insertBefore(placeholder, targetRow.nextSibling);
   }
-
-  console.log('Placeholder shown:', insertBefore ? 'before' : 'after', targetRow.dataset.id);
 }
 
 /**
