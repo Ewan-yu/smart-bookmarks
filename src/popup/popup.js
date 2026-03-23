@@ -2599,6 +2599,7 @@ function deleteBookmark(item) {
     message: `确定要删除"${item.title}"吗？此操作将同时从本地数据库和浏览器收藏夹中删除，无法撤销。`,
     confirmText: '删除',
     cancelText: '取消',
+    danger: true,
     onConfirm: async () => {
       try {
         const result = await bookmarkManager.delete(item.id);

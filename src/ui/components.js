@@ -371,6 +371,7 @@ class ConfirmDialog {
     this.message = options.message || '';
     this.confirmText = options.confirmText || '确认';
     this.cancelText = options.cancelText || '取消';
+    this.danger = options.danger || false;
     this.onConfirm = options.onConfirm || null;
     this.onCancel = options.onCancel || null;
     this.element = null;
@@ -405,7 +406,7 @@ class ConfirmDialog {
     cancelBtn.onclick = () => this.cancel();
 
     const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'dialog-btn dialog-btn-confirm';
+    confirmBtn.className = `dialog-btn ${this.danger ? 'dialog-btn-danger' : 'dialog-btn-confirm'}`;
     confirmBtn.textContent = this.confirmText;
     confirmBtn.onclick = () => this.confirm();
 

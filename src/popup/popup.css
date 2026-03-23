@@ -633,7 +633,22 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   border-color: transparent;
   box-shadow: 0 2px 6px rgba(26,26,110,.25);
 }
-.dialog-btn-confirm:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(26,26,110,.30); }
+.dialog-btn-confirm:hover {
+  background: linear-gradient(135deg, var(--c-primary-h) 0%, var(--c-primary) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26,26,110,.30);
+}
+.dialog-btn-danger {
+  background: var(--c-danger);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(201,57,58,.25);
+}
+.dialog-btn-danger:hover {
+  background: #b02d2e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(201,57,58,.30);
+}
 
 /* ===== AI 分析对话框 / 通用大模态 ===== */
 .confirm-dialog-overlay {
