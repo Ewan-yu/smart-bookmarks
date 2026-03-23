@@ -50,8 +50,7 @@ export function showDebugSelectDialog({ bookmarks, onAnalyze }) {
         <span id="debugSelectedCount" style="font-size: 12px; color: #64748b;">已选 3 个</span>
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-cancel" id="debugDialogCancel">取消</button>
-          <button class="btn btn-primary" id="debugDialogStart"
-                  style="background: var(--c-primary, #059669); border-color: var(--c-primary, #059669);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0H5m4 0h6m6-11v11m0 0h-4m4 0H15"/><circle cx="12" cy="19" r="3"/></svg>开始分析</button>
+          <button class="btn btn-primary" id="debugDialogStart"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0H5m4 0h6m6-11v11m0 0h-4m4 0H15"/><circle cx="12" cy="19" r="3"/></svg>开始分析</button>
         </div>
       </div>
     </div>
