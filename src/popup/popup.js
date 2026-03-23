@@ -2690,6 +2690,7 @@ function cleanupBrokenLinks(brokenLinks) {
     message: `确定要删除这 ${brokenLinks.length} 个失效链接吗？\n\n此操作将同时从本地数据库和浏览器收藏夹中删除，无法撤销。`,
     confirmText: '确认删除',
     cancelText: '取消',
+    danger: true,
     onConfirm: async () => {
       try {
         Toast.info('正在删除失效链接...');
