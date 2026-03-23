@@ -67,6 +67,19 @@ const elements = {
   searchStats: document.getElementById('searchStats'),
 };
 
+/**
+ * 安全更新 sidebar-tool-item 按钮文字，保留内部 SVG 图标不被覆盖。
+ * 若按钮包含 .sidebar-tool-label 子元素则只更新该 span；否则回退到直接更新 textContent。
+ * @param {HTMLElement|null} btn - 目标按钮元素
+ * @param {string} text - 要设置的文字
+ */
+function setBtnLabel(btn, text) {
+  if (!btn) return;
+  const label = btn.querySelector('.sidebar-tool-label');
+  if (label) label.textContent = text;
+  else btn.textContent = text;
+}
+
 // 应用状态
 const state = {
   bookmarks: [],
@@ -2129,7 +2142,7 @@ async function handleAnalyze() {
 async function startAnalysis(forceRestart) {
   state.isAnalyzing = true;
   elements.analyzeBtn.disabled = true;
-  elements.analyzeBtn.textContent = '分析中...';
+  setBtnLabel(elements.analyzeBtn, 'AI智能分类中...');
 
   // 展开任务面板并显示分析进度区
   if (elements.analyzeProgressSection) {
@@ -2175,7 +2188,7 @@ async function startAnalysis(forceRestart) {
 function finishAnalysisUI() {
   state.isAnalyzing = false;
   elements.analyzeBtn.disabled = false;
-  elements.analyzeBtn.textContent = '分析';
+  setBtnLabel(elements.analyzeBtn, 'AI智能分类');
 
   if (elements.analyzeProgressSection) {
     elements.analyzeProgressSection.style.display = 'none';
@@ -2186,7 +2199,13 @@ function finishAnalysisUI() {
     elements.cancelAnalyzeBtn.textContent = '✕ 取消分析';
     elements.cancelAnalyzeBtn.onclick = null;
   }
-  hideProgress();
+  if (taskPanelManager) taskPanelManager.hideProgress('analyze');
+  // 无其他任务运行时才折叠面板
+  if (!state.isChecking && elements.taskPanel) {
+    state.taskPanelExpanded = false;
+    elements.taskPanel.classList.remove('expanded');
+    elements.taskPanel.classList.add('collapsed');
+  }
 }
 
 /**
@@ -2376,7 +2395,7 @@ async function handleDebugAnalyze() {
     bookmarks: state.bookmarks,
     onAnalyze: async (selectedIds) => {
       elements.debugAnalyzeBtn.disabled = true;
-      elements.debugAnalyzeBtn.textContent = '分析中...';
+      setBtnLabel(elements.debugAnalyzeBtn, '分析中...');
       showProgress('调试分析中...', 0, 0);
 
       try {
@@ -2398,7 +2417,7 @@ async function handleDebugAnalyze() {
         Toast.error(`调试分析失败: ${error.message}`);
       } finally {
         elements.debugAnalyzeBtn.disabled = false;
-        elements.debugAnalyzeBtn.textContent = '调试';
+        setBtnLabel(elements.debugAnalyzeBtn, '调试');
       }
     }
   });
@@ -2496,7 +2515,7 @@ async function startBrokenLinkCheck(resume = false) {
   };
 
   elements.checkBrokenBtn.disabled = true;
-  elements.checkBrokenBtn.textContent = '检测中...';
+  setBtnLabel(elements.checkBrokenBtn, '失效检测中...');
 
   updateFooterStats();
 
@@ -2576,8 +2595,14 @@ async function startBrokenLinkCheck(resume = false) {
       state.isChecking = false;
       state.checkInitiatedLocally = false;
       elements.checkBrokenBtn.disabled = false;
-      elements.checkBrokenBtn.textContent = '检测';
-      hideProgress();
+      setBtnLabel(elements.checkBrokenBtn, '失效检测');
+      if (taskPanelManager) taskPanelManager.hideProgress('check');
+      // 无其他任务运行时才折叠面板
+      if (!state.isAnalyzing && elements.taskPanel) {
+        state.taskPanelExpanded = false;
+        elements.taskPanel.classList.remove('expanded');
+        elements.taskPanel.classList.add('collapsed');
+      }
     }
   }
 }
@@ -2858,7 +2883,7 @@ function listenToMessages() {
       state.isAnalyzing = false;
       if (elements.analyzeBtn) {
         elements.analyzeBtn.disabled = false;
-        elements.analyzeBtn.textContent = '分析';
+        setBtnLabel(elements.analyzeBtn, 'AI智能分类');
       }
       finishAnalysisUI();
       Toast.info('分析已取消，进度已保存，下次可继续');
@@ -2893,7 +2918,7 @@ async function restoreCheckingState() {
     };
 
     elements.checkBrokenBtn.disabled = true;
-    elements.checkBrokenBtn.textContent = '检测中...';
+    setBtnLabel(elements.checkBrokenBtn, '失效检测中...');
 
     if (elements.cancelCheckBtn) {
       elements.cancelCheckBtn.style.display = '';
@@ -2933,7 +2958,7 @@ function handleCheckDone(data) {
   state.isChecking = false;
   state.checkInitiatedLocally = false;
   elements.checkBrokenBtn.disabled = false;
-  elements.checkBrokenBtn.textContent = '检测';
+  setBtnLabel(elements.checkBrokenBtn, '失效检测');
 
   if (taskPanelManager) {
     taskPanelManager.handleCheckDone(data);

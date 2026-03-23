@@ -1019,6 +1019,40 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   margin: 4px 10px 6px;
 }
 
+/* ===== 侧边栏工具功能列表 ===== */
+.sidebar-tools-section {
+  flex-shrink: 0;
+  padding: 4px 8px 6px;
+}
+.sidebar-tools-header {
+  font-size: 10px; font-weight: 600;
+  color: var(--c-text-muted, var(--c-text-sub));
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 4px 5px;
+}
+.sidebar-tool-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 6px 10px;
+  border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-sm); text-align: left;
+  font-size: 12.5px; color: var(--c-text-sub);
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+  margin-bottom: 1px;
+}
+.sidebar-tool-item:disabled { opacity: .45; cursor: not-allowed; }
+.sidebar-tool-icon { flex-shrink: 0; width: 18px; display: flex; align-items: center; justify-content: center; }
+.sidebar-tool-label { flex: 1; }
+.sidebar-tool-item.indigo .sidebar-tool-icon { color: var(--c-primary); }
+.sidebar-tool-item.indigo:hover { color: var(--c-primary); background: rgba(26,26,110,.07); }
+.sidebar-tool-item.purple .sidebar-tool-icon { color: #7c3aed; }
+.sidebar-tool-item.purple:hover { color: #7c3aed; background: rgba(124,58,237,.07); }
+.sidebar-tool-item.rose .sidebar-tool-icon { color: var(--c-danger); }
+.sidebar-tool-item.rose:hover { color: var(--c-danger); background: var(--c-danger-bg); }
+.sidebar-tool-item.emerald .sidebar-tool-icon { color: var(--c-success); }
+.sidebar-tool-item.emerald:hover { color: var(--c-success); background: var(--c-success-bg); }
+.sidebar-tool-item.amber .sidebar-tool-icon { color: var(--c-warning); }
+.sidebar-tool-item.amber:hover { color: var(--c-warning); background: var(--c-warning-bg); }
+
 /* ===== 侧栏文件夹树节点 ===== */
 .sf-node {
   list-style: none; padding: 0; margin: 0;

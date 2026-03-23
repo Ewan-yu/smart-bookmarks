@@ -1189,7 +1189,7 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
  */
 function buildCategoryPathMap(allCategories) {
   const categoryMap = new Map(allCategories.map(c => [c.id, c]));
-  const ROOT_FOLDERS = new Set(['书笾栏', '其他书笾', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
   const pathMap = new Map();
 
   for (const cat of allCategories) {
