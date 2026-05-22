@@ -35,8 +35,8 @@
 
 ### P1 - 重要优化
 
-- [ ] **deleteBookmark 删除 API**：`popup.js` `deleteBookmark()` 的 onConfirm 回调中 `// TODO: 调用删除 API` 尚未实现，点击删除实际无效
-- [ ] **handleImport 导入落盘**：`popup.js` `handleImport()` 读取文件后 `// TODO: 导入数据到数据库` 尚未实现，导入功能无效
+- [x] **deleteBookmark 删除 API**：~~`popup.js` `deleteBookmark()` 的 onConfirm 回调中 `// TODO: 调用删除 API` 尚未实现~~ → 已修复，调用 `bookmarkManager.delete()` 完成删除 ✅
+- [x] **handleImport 导入落盘**：~~`popup.js` `handleImport()` 读取文件后 `// TODO: 导入数据到数据库` 尚未实现~~ → 已修复，通过 `IMPORT_BOOKMARKS` 消息完整实现导入功能 ✅
 - [x] **GET_BOOKMARKS tags 字段**：~~`background.js` `handleGetBookmarks()` 返回 `tags: []` 为硬编码~~ → 已修复，从 DB 查询实际标签 ✅
 - [ ] **失效链接—一键清理流程**：点击"待清理"分类后的批量删除交互待验证
 - [ ] **uncertain 提示优化**：在书签详情面板中显示 uncertain 的具体原因和"手动验证"按钮

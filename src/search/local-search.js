@@ -4,6 +4,8 @@
  * 支持关键词匹配、标签匹配、高级搜索语法
  */
 
+import { escapeHtml } from '../utils/helpers.js';
+
 /**
  * 高级搜索语法解析器
  * 支持的语法：
@@ -332,16 +334,6 @@ export function highlightMatches(text, matches = []) {
   result += escapeHtml(text.substring(lastIndex));
 
   return result;
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 /**

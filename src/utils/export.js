@@ -1,6 +1,8 @@
 // Smart Bookmarks - 数据导出工具
 // 支持导出为 JSON 和 HTML 格式
 
+import { escapeHtml } from './helpers.js';
+
 /**
  * 导出选项
  */
@@ -381,22 +383,6 @@ function buildCategoryTree(categories) {
   }
 
   return rootCategories;
-}
-
-/**
- * HTML 转义
- * @param {string} text - 要转义的文本
- * @returns {string}
- */
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 /**

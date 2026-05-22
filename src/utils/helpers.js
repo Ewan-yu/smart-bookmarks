@@ -1,6 +1,24 @@
 // Smart Bookmarks - 通用工具函数
 
 /**
+ * 转义 HTML 特殊字符，防止 XSS
+ * @param {string} str - 要转义的字符串
+ * @returns {string} 转义后的字符串
+ */
+export function escapeHtml(str) {
+  if (typeof str !== 'string') return str;
+  const htmlEntities = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;'
+  };
+  return str.replace(/[&<>"'/]/g, char => htmlEntities[char]);
+}
+
+/**
  * 生成唯一 ID
  */
 export function generateId() {
@@ -108,12 +126,21 @@ export function truncateText(text, maxLength = 100, suffix = '...') {
 
 /**
  * 高亮关键词
+ * @param {string} text - 原文本
+ * @param {string[]} keywords - 要高亮的关键词列表
+ * @returns {string} 高亮后的 HTML 字符串
  */
 export function highlightKeywords(text, keywords) {
-  if (!keywords || keywords.length === 0) return text;
+  if (!text || !keywords || keywords.length === 0) return text;
 
-  const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
-  return text.replace(regex, '<mark>$1</mark>');
+  // 先转义 HTML，防止 XSS
+  const escapedText = escapeHtml(text);
+
+  // 转义关键词中的正则特殊字符
+  const escapedKeywords = keywords.map(kw => escapeHtml(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+  const regex = new RegExp(`(${escapedKeywords.join('|')})`, 'gi');
+  return escapedText.replace(regex, '<mark>$1</mark>');
 }
 
 /**

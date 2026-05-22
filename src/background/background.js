@@ -19,6 +19,7 @@ import {
 import { checkBookmarks, batchMoveToPendingCleanup } from '../utils/link-checker.js';
 import { batchExtractSummaries, enrichBookmarks } from '../utils/page-summarizer.js';
 import { analyzeBookmarks, analyzeBookmarksDebug } from '../api/openai.js';
+import { syncToBrowser } from '../utils/bookmark-sync.js';
 
 console.log('Smart Bookmarks background service worker loaded');
 
@@ -749,12 +750,59 @@ async function handleGetCategories(request, sendResponse) {
 
 /**
  * 同步到浏览器收藏
+ * 将本地数据库中的书签同步到浏览器书签 API
  */
 async function handleSyncBookmarks(request, sendResponse) {
   try {
-    // TODO: 将本地数据同步到浏览器 bookmarks API
-    sendResponse({ success: true });
+    await initDatabase();
+
+    // 获取本地所有书签
+    const localBookmarks = await getAllBookmarks();
+
+    if (!localBookmarks || localBookmarks.length === 0) {
+      sendResponse({
+        success: true,
+        result: {
+          added: 0,
+          updated: 0,
+          deleted: 0,
+          skipped: 0,
+          failed: 0,
+          errors: [],
+          message: '没有需要同步的书签'
+        }
+      });
+      return;
+    }
+
+    // 同步选项
+    const options = {
+      createFolders: true,
+      updateExisting: true,
+      preserveFolderStructure: true,
+      onProgress: (progress) => {
+        console.log(`[Sync] ${progress.message}`);
+      }
+    };
+
+    // 调用同步函数
+    const result = await syncToBrowser(localBookmarks, options);
+
+    // 记录同步日志
+    await addSyncLog({
+      type: 'sync_to_browser',
+      timestamp: Date.now(),
+      result: result.toJSON()
+    });
+
+    console.log(`[Sync] 同步完成: 新增 ${result.added}, 更新 ${result.updated}, 跳过 ${result.skipped}, 失败 ${result.failed}`);
+
+    sendResponse({
+      success: true,
+      result: result.toJSON()
+    });
   } catch (error) {
+    console.error('[Sync] 同步失败:', error);
     sendResponse({ error: error.message });
   }
 }
@@ -2696,27 +2744,61 @@ async function handleMergeFolders(request, sendResponse) {
 }
 
 /**
- * 获取文件夹的所有后代（递归）
+ * 获取文件夹的所有后代（迭代版本，使用缓存避免重复查询）
  * @param {string} folderId - 文件夹 ID
  * @returns {Array} 所有后代项（书签和子文件夹）
  */
 async function getAllDescendants(folderId) {
-  const allDescendants = [];
-
-  // 获取直接子书签
+  // 一次性获取所有数据，避免重复查询
   const allBookmarks = await getAllBookmarks();
-  const childBookmarks = allBookmarks.filter(bm => bm.parentCategoryId === folderId);
-  allDescendants.push(...childBookmarks);
-
-  // 获取直接子文件夹
   const allCategories = await getAllCategories();
-  const childFolders = allCategories.filter(cat => cat.parentId === folderId);
-  allDescendants.push(...childFolders);
 
-  // 递归获取子文件夹的后代
-  for (const folder of childFolders) {
-    const subDescendants = await getAllDescendants(folder.id);
-    allDescendants.push(...subDescendants);
+  // 构建索引：parentId -> children
+  const bookmarksByParent = new Map();
+  const categoriesByParent = new Map();
+
+  for (const bookmark of allBookmarks) {
+    const parentId = bookmark.parentCategoryId;
+    if (!bookmarksByParent.has(parentId)) {
+      bookmarksByParent.set(parentId, []);
+    }
+    bookmarksByParent.get(parentId).push(bookmark);
+  }
+
+  for (const category of allCategories) {
+    const parentId = category.parentId;
+    if (!categoriesByParent.has(parentId)) {
+      categoriesByParent.set(parentId, []);
+    }
+    categoriesByParent.get(parentId).push(category);
+  }
+
+  // 迭代获取所有后代
+  const allDescendants = [];
+  const queue = [folderId];
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    const currentFolderId = queue.shift();
+
+    // 防止循环引用
+    if (visited.has(currentFolderId)) {
+      continue;
+    }
+    visited.add(currentFolderId);
+
+    // 获取直接子书签
+    const childBookmarks = bookmarksByParent.get(currentFolderId) || [];
+    allDescendants.push(...childBookmarks);
+
+    // 获取直接子文件夹
+    const childFolders = categoriesByParent.get(currentFolderId) || [];
+    allDescendants.push(...childFolders);
+
+    // 将子文件夹加入队列
+    for (const folder of childFolders) {
+      queue.push(folder.id);
+    }
   }
 
   return allDescendants;

@@ -1,6 +1,8 @@
 // Smart Bookmarks - 书签同步工具
 // 用于与浏览器原生书签 API 同步
 
+import { escapeHtml } from './helpers.js';
+
 /**
  * 同步结果类
  */
@@ -659,20 +661,4 @@ function groupByCategory(bookmarks) {
   }
 
   return grouped;
-}
-
-/**
- * HTML 转义
- * @param {string} text - 要转义的文本
- * @returns {string}
- */
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
 }
