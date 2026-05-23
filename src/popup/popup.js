@@ -136,6 +136,13 @@ function init() {
   contextMenuManager.init();
   setupContextMenuHandler();
 
+  // 初始化搜索管理器
+  searchManager = createSearchManager({
+    elements: elements,
+    createBookmarkRow: createBookmarkRow,
+    onRender: renderBookmarks
+  });
+
   // 初始化导航管理器
   navManager = new NavigationManager(state, elements, {
     renderBookmarks,
@@ -154,13 +161,6 @@ function init() {
 
   // 初始化书签事件监听器
   setupBookmarkListeners();
-
-  // 初始化搜索管理器
-  searchManager = createSearchManager({
-    elements: elements,
-    createBookmarkRow: createBookmarkRow,
-    onRender: renderBookmarks
-  });
 
   loadBookmarks();
   restoreCheckingState();
@@ -1349,14 +1349,15 @@ function bindEvents() {
 
   // 清除搜索
   elements.clearSearchBtn.addEventListener('click', () => {
-    elements.clearSearchBtn.style.display = 'none';
+    state.searchTerm = '';
     searchManager.clear();
   });
 
   // 搜索框 Escape 键清除
   elements.searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && elements.searchInput.value) {
-      elements.clearSearchBtn.style.display = 'none';
+      e.stopPropagation();
+      state.searchTerm = '';
       searchManager.clear();
       elements.searchInput.blur();
     }

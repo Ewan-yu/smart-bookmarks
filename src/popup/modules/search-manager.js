@@ -194,6 +194,9 @@ export class SearchManager {
     if (this.elements.searchInput) {
       this.elements.searchInput.value = '';
     }
+    if (this.elements.clearSearchBtn) {
+      this.elements.clearSearchBtn.style.display = 'none';
+    }
     if (this.elements.searchStats) {
       this.elements.searchStats.style.display = 'none';
     }
