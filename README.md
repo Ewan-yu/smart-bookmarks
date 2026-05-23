@@ -12,12 +12,13 @@
 - **🏷️ 多标签管理** - 一个收藏可归属多个分类
 
 ### 技术亮点
-- **模块化架构** - 基于事件驱动的松耦合模块设计
+- **模块化架构** - 基于事件驱动的松耦合模块设计（20个独立模块）
 - **响应式状态管理** - 集中式状态管理，自动通知UI更新
 - **本地数据存储** - IndexedDB 持久化，隐私安全
 - **OpenAI 兼容 API** - 支持自定义 AI 服务提供商
 - **渐进式网页信息采集** - 智能采集网页元数据
 - **无服务器架构** - 完全本地化，无需云端服务
+- **Manifest V3** - 支持 Chrome/Edge 最新扩展标准
 
 ## 安装方法
 
@@ -85,8 +86,8 @@ smart-bookmarks/
     │   └── collector.js    # 网页信息采集
     ├── popup/              # 主界面（全屏标签页）
     │   ├── popup.html      # 主界面HTML
-    │   ├── popup.js        # 应用入口，模块初始化（3485行，已模块化）
-    │   ├── modules/        # 业务模块（21个）
+    │   ├── popup.js        # 应用入口，模块初始化（3722行，已模块化）
+    │   ├── modules/        # 业务模块（20个）
     │   │   ├── # 状态管理
     │   │   ├── state.js           # 集中式状态管理
     │   │   ├── # 核心业务（已集成）
@@ -106,6 +107,8 @@ smart-bookmarks/
     │   │   ├── navigation-manager.js    # 导航管理（450行）
     │   │   ├── task-panel-manager.js    # 任务面板管理（331行）
     │   │   ├── folder-dialog-manager.js # 文件夹对话框（250行）
+    │   │   ├── context-menu.js          # 右键菜单管理（553行）
+    │   │   ├── debug-dialog.js          # 调试对话框（281行）
     │   │   ├── # 辅助模块
     │   │   ├── folder-manager.js  # 文件夹树管理
     │   │   ├── base-task-manager.js # 任务管理基类
@@ -153,28 +156,28 @@ smart-bookmarks/
 
 | 模块 | 文件 | 行数 | 状态 | 职责 |
 |------|------|------|------|------|
-| **状态管理** | `state.js` | 396 | 待集成 | 集中管理应用状态，提供响应式更新 |
+| **状态管理** | `state.js` | 396 | ✅ 已集成 | 集中管理应用状态，提供响应式更新 |
 | **核心业务** | | | | |
 | 书签管理 | `bookmarks.js` | 363 | ✅ 已集成 | 书签CRUD操作、加载和统计 |
 | 搜索管理器 | `search-manager.js` | 210 | ✅ 已集成 | 搜索输入、结果展示、历史记录 |
-| AI 分析 | `ai-analysis.js` | 501 | 独立 | AI分类分析、进度跟踪、结果应用 |
-| 链接检测 | `link-checker.js` | 387 | 独立 | 失效链接检测、断点续检 |
-| 导入导出 | `import-export.js` | 300 | 独立 | 浏览器书签同步、数据导入导出 |
+| AI 分析 | `ai-analysis.js` | 501 | ✅ 已集成 | AI分类分析、进度跟踪、结果应用 |
+| 链接检测 | `link-checker.js` | 400 | ✅ 已集成 | 失效链接检测、断点续检 |
+| 导入导出 | `import-export.js` | 300 | ✅ 已集成 | 浏览器书签同步、数据导入导出 |
 | **交互模块** | | | | |
 | 键盘快捷键 | `keyboard.js` | 528 | ✅ 已集成 | 全局快捷键 + 键盘导航 |
-| 右键菜单 | `context-menu.js` | 556 | ✅ 已集成 | 右键菜单显示和操作 |
-| 拖拽排序 | `drag-drop.js` | 684 | 独立 | 书签拖拽移动、排序 |
-| 对话框管理 | `dialog.js` | 795 | 独立 | 对话框基类和通用对话框 |
+| 右键菜单 | `context-menu.js` | 553 | ✅ 已集成 | 右键菜单显示和操作 |
+| 拖拽排序 | `drag-drop.js` | 684 | ✅ 已集成 | 书签拖拽移动、排序 |
+| 对话框管理 | `dialog.js` | 795 | ✅ 已集成 | 对话框基类和通用对话框 |
 | **UI 管理模块**（第二轮重构新增）| | | | |
 | 导航管理器 | `navigation-manager.js` | 450 | ✅ 已集成 | 侧边栏导航、面包屑、文件夹选择 |
 | 任务面板管理 | `task-panel-manager.js` | 331 | ✅ 已集成 | 任务面板、进度显示、ETA计算 |
 | 文件夹对话框 | `folder-dialog-manager.js` | 250 | ✅ 已集成 | 文件夹增删改查对话框 |
 | **辅助模块** | | | | |
-| 文件夹管理 | `folder-manager.js` | 549 | 独立 | 文件夹CRUD、树结构维护 |
-| 任务管理基类 | `base-task-manager.js` | 283 | 独立 | 长任务管理基类 |
+| 文件夹管理 | `folder-manager.js` | 549 | ✅ 已集成 | 文件夹CRUD、树结构维护 |
+| 任务管理基类 | `base-task-manager.js` | 283 | ✅ 已集成 | 长任务管理基类 |
 | 分析恢复对话框 | `analysis-resume.js` | 84 | ✅ 已集成 | AI分析恢复对话框 |
 | 检测恢复对话框 | `check-resume.js` | 52 | ✅ 已集成 | 链接检测恢复对话框 |
-| 调试对话框 | `debug-dialog.js` | 282 | ✅ 已集成 | 调试工具对话框 |
+| 调试对话框 | `debug-dialog.js` | 281 | ✅ 已集成 | 调试工具对话框 |
 
 ### 通信机制
 
@@ -342,20 +345,25 @@ git push
   - [x] Phase 4.2: 核心模块重构
   - [x] Phase 4.3: 功能模块提取
   - [x] Phase 4.4: UI 模块提取
-- [x] **Phase 5: 模块化重构（第二轮）** ✨ 新完成
-  - [x] Phase 5.1: 提取 NavigationManager（450行，减少220行）
-  - [x] Phase 5.2: 提取 TaskPanelManager（331行，减少65行）
-  - [x] Phase 5.3: 提取 FolderDialogManager（250行，减少112行）
+- [x] **Phase 5: 模块化重构（第二轮）**
+  - [x] Phase 5.1: 提取 NavigationManager（450行）
+  - [x] Phase 5.2: 提取 TaskPanelManager（331行）
+  - [x] Phase 5.3: 提取 FolderDialogManager（250行）
   - **成果**: popup.js 从 3882 行减少到 3485 行（-10.2%）
-- [ ] Phase 6: 测试和优化
-  - [ ] Phase 6.1: 完整回归测试
-  - [ ] Phase 6.2: 性能测试和优化
-  - [ ] Phase 6.3: Bug 修复和代码审查
-  - [ ] Phase 6.4: 移除旧函数转发器
-- [ ] Phase 7: 未来功能
-  - [ ] AI 语义搜索
+- [x] **Phase 6: 功能完善和修复** ✅ 已完成
+  - [x] Phase 6.1: AI 分类优化重构
+  - [x] Phase 6.2: 核心功能实现（deleteBookmark、handleImport）
+  - [x] Phase 6.3: UI 优化和 Bug 修复
+  - [x] Phase 6.4: 右键菜单模块完善
+  - [x] Phase 6.5: 调试对话框集成
+- [ ] Phase 7: 测试和发布
+  - [ ] Phase 7.1: 完整回归测试
+  - [ ] Phase 7.2: 性能测试和优化
+  - [ ] Phase 7.3: Chrome Web Store 发布准备
+- [ ] Phase 8: 未来功能
+  - [ ] Firefox 兼容支持
   - [ ] 定期自动检测
-  - [ ] 分类/标签管理增强
+  - [ ] 深色模式
   - [ ] 云端同步（可选）
 
 ## 重构历史
@@ -407,6 +415,22 @@ git push
 - `d6bc2d3` - Phase 1: NavigationManager
 - `bfd00b7` - Phase 2: TaskPanelManager
 - `db3d687` - Phase 3: FolderDialogManager
+
+### 第三轮功能完善（2026年3月-5月）
+
+**目标**：完善核心功能，修复 Bug，提升用户体验
+
+**已完成**：
+- AI 分类提示词优化（从 550 行精简至 200 行）
+- 核心功能实现（deleteBookmark、handleImport、SYNC_BOOKMARKS）
+- 右键菜单模块完善
+- 调试对话框集成
+- UI 样式优化和 Bug 修复
+
+**当前状态**：
+- popup.js：3722 行
+- 所有 20 个模块已集成
+- 总体完成度：约 93%
 
 ## 贡献指南
 

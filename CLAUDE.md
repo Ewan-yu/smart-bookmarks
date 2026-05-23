@@ -24,21 +24,26 @@ npm run dev
 src/
   background/background.js   # Service Worker，处理消息、AI分析、链接检测
   popup/
-    popup.js                 # 主界面入口（3678 行，持续重构中）
-    modules/                 # 功能模块
+    popup.js                 # 主界面入口（3722 行，已模块化）
+    modules/                 # 功能模块（20个）
+      state.js               # 状态管理
+      bookmarks.js           # 书签操作
+      search-manager.js      # 搜索管理器
+      ai-analysis.js         # AI 分析
+      link-checker.js        # 链接检测
+      import-export.js       # 导入导出
       keyboard.js            # 全局快捷键 + 键盘导航
       context-menu.js        # 右键菜单管理
-      dialog.js              # 对话框管理
       drag-drop.js           # 拖拽排序
-      bookmarks.js           # 书签操作
-      folder-manager.js      # 文件夹管理
-      link-checker.js        # 链接检测
-      ai-analysis.js         # AI 分析
-      search-manager.js      # 搜索管理器
+      dialog.js              # 对话框管理
       navigation-manager.js  # 导航管理器
       task-panel-manager.js  # 任务面板管理
       folder-dialog-manager.js # 文件夹对话框管理
-      state.js               # 状态管理
+      folder-manager.js      # 文件夹管理
+      base-task-manager.js   # 任务管理基类
+      analysis-resume.js     # AI 分析恢复对话框
+      check-resume.js        # 链接检测恢复对话框
+      debug-dialog.js        # 调试工具对话框
     utils/
       event-bus.js           # 事件总线（模块间通信）
       helpers.js             # 工具函数
@@ -85,6 +90,12 @@ src/
 | navigation-manager.js | 侧边栏导航、面包屑 | ✅ 已集成 |
 | task-panel-manager.js | 任务面板、进度显示 | ✅ 已集成 |
 | folder-dialog-manager.js | 文件夹增删改查对话框 | ✅ 已集成 |
+| folder-manager.js | 文件夹 CRUD 操作 | ✅ 已集成 |
+| ai-analysis.js | AI 分类分析 | ✅ 已集成 |
+| link-checker.js | 失效链接检测 | ✅ 已集成 |
+| drag-drop.js | 拖拽排序 | ✅ 已集成 |
+| dialog.js | 对话框管理 | ✅ 已集成 |
+| state.js | 状态管理 | ✅ 已集成 |
 | analysis-resume.js | AI 分析恢复对话框 | ✅ 已集成 |
 | check-resume.js | 链接检测恢复对话框 | ✅ 已集成 |
 | debug-dialog.js | 调试工具对话框 | ✅ 已集成 |
@@ -228,10 +239,11 @@ import './src/popup/test-modules.js';
    ```
 
 ### 关键待办（P0 - 阻塞发布）
-- **SYNC_BOOKMARKS 实现**：`background.js` 中 `handleSyncBookmarks()` 函数体为空
-- **deleteBookmark 删除 API**：`popup.js` 中删除书签功能实际无效
-- **handleImport 导入落盘**：`popup.js` 中导入功能无效
 - **浏览器加载测试**：在 Chrome/Edge 上完整走一遍核心流程确认无 JS 报错
+- **已修复**：
+  - ~~SYNC_BOOKMARKS 实现~~ → 已实现
+  - ~~deleteBookmark 删除 API~~ → 已实现
+  - ~~handleImport 导入落盘~~ → 已实现
 
 详细信息见 `docs/TODO.md`
 
