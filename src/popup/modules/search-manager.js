@@ -197,6 +197,7 @@ export class SearchManager {
     if (this.elements.searchStats) {
       this.elements.searchStats.style.display = 'none';
     }
+    this.onRender();
   }
 }
 

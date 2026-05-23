@@ -30,6 +30,7 @@ import { createSearchManager } from './modules/search-manager.js';
 // DOM 元素引用
 const elements = {
   searchInput: document.getElementById('searchInput'),
+  clearSearchBtn: document.getElementById('clearSearchBtn'),
   analyzeBtn: document.getElementById('analyzeBtn'),
   mergeSuggestBtn: document.getElementById('mergeSuggestBtn'),
   deduplicateBtn: document.getElementById('deduplicateBtn'),
@@ -1336,11 +1337,29 @@ function bindEvents() {
   // 搜索（debounce 150ms）
   let searchDebounce = null;
   elements.searchInput.addEventListener('input', (e) => {
+    // 显示/隐藏清除按钮
+    elements.clearSearchBtn.style.display = e.target.value ? 'flex' : 'none';
+
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => {
       state.searchTerm = e.target.value;
       searchManager.search(e.target.value, state.bookmarks);
     }, 150);
+  });
+
+  // 清除搜索
+  elements.clearSearchBtn.addEventListener('click', () => {
+    elements.clearSearchBtn.style.display = 'none';
+    searchManager.clear();
+  });
+
+  // 搜索框 Escape 键清除
+  elements.searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && elements.searchInput.value) {
+      elements.clearSearchBtn.style.display = 'none';
+      searchManager.clear();
+      elements.searchInput.blur();
+    }
   });
 
   // 左侧固定导航项

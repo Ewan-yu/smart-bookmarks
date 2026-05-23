@@ -23,11 +23,14 @@
       </div>
       <label for="searchInput" class="sr-only">搜索收藏</label>
       <input type="text" id="searchInput"
-        class="w-full pl-9 pr-4 py-2 bg-white/15 border border-white/30 rounded-xl text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition-all duration-200"
+        class="w-full pl-9 pr-9 py-2 bg-white/15 border border-white/30 rounded-xl text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition-all duration-200"
         placeholder="搜索任意收藏内容，支持全文搜索"
         autocomplete="off"
         aria-label="搜索收藏"
         aria-describedby="search-hint" />
+      <button id="clearSearchBtn" class="absolute inset-y-0 right-3 flex items-center text-white/60 hover:text-white transition-colors" style="display: none;" title="清除搜索" aria-label="清除搜索">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <span id="search-hint" class="sr-only">输入关键词搜索书签、标签和描述</span>
       <div id="searchSuggestions"
         class="search-suggestions absolute top-full left-0 right-0 rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
