@@ -26,6 +26,7 @@ import { showAnalysisResumeDialog } from './modules/analysis-resume.js';
 import { showResumeDialog as showCheckResumeDialog } from './modules/check-resume.js';
 import { showDebugSelectDialog, showDebugResultDialog } from './modules/debug-dialog.js';
 import { createSearchManager } from './modules/search-manager.js';
+import { TagView } from './modules/tag-view.js';
 
 // DOM 元素引用
 const elements = {
@@ -117,6 +118,7 @@ let searchManager = null;
 let navManager = null;
 let taskPanelManager = null;
 let folderDialogManager = null;
+let tagView = null;
 
 // 初始化
 function init() {
@@ -151,6 +153,15 @@ function init() {
     searchManager
   });
   setupNavigationListeners();
+
+  // 初始化标签视图模块
+  tagView = new TagView({
+    container: elements.bookmarkList,
+    breadcrumbs: elements.breadcrumb,
+    folderStats: elements.folderStats,
+    createBookmarkRow,
+    navManager
+  });
 
   // 初始化任务面板管理器
   taskPanelManager = new TaskPanelManager(state, elements);
@@ -658,7 +669,7 @@ function renderBookmarks() {
       renderBrokenView();
       break;
     case 'tags':
-      renderTagsView();
+      tagView.render(state.bookmarks);
       break;
     case 'folder':
       if (navManager) navManager.navigateToFolder(state.currentFolderId);
@@ -1027,58 +1038,6 @@ function renderBrokenView() {
       cleanupBrokenLinks(broken);
     });
   }
-}
-
-/**
- * 渲染标签视图
- */
-function renderTagsView() {
-  if (elements.breadcrumb) {
-    elements.breadcrumb.innerHTML = '<span class="bc-item current"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签视图</span>';
-  }
-
-  const container = elements.bookmarkList;
-  container.innerHTML = '';
-
-  // 统计所有标签
-  const tagMap = new Map();
-  state.bookmarks.forEach(bm => {
-    (bm.tags || []).forEach(tag => {
-      if (!tagMap.has(tag)) tagMap.set(tag, []);
-      tagMap.get(tag).push(bm);
-    });
-  });
-
-  if (tagMap.size === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--c-muted)"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><h3>暂无标签</h3><p>为收藏添加标签以便更好地组织</p></div>`;
-    return;
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'tags-grid';
-
-  [...tagMap.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([tag, bms]) => {
-    const chip = document.createElement('button');
-    chip.className = 'tag-chip';
-    chip.innerHTML = `<span>${escapeHtml(tag)}</span><span class="tag-chip-count">${bms.length}</span>`;
-    chip.addEventListener('click', () => {
-      // 显示该标签下的所有书签
-      if (elements.breadcrumb) {
-        elements.breadcrumb.innerHTML = `<span class="bc-item" style="cursor:pointer;" id="bcTagBack"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签视图</span><span class="bc-sep">›</span><span class="bc-item current">${escapeHtml(tag)}</span>`;
-        document.getElementById('bcTagBack')?.addEventListener('click', () => navManager.setNavMode('tags'));
-      }
-      container.innerHTML = '';
-      const list = document.createElement('div');
-      list.className = 'bm-list';
-      bms.forEach(bm => list.appendChild(createBookmarkRow(bm)));
-      container.appendChild(list);
-      if (elements.folderStats) elements.folderStats.textContent = `${bms.length} 项`;
-    });
-    grid.appendChild(chip);
-  });
-
-  container.appendChild(grid);
-  if (elements.folderStats) elements.folderStats.textContent = `${tagMap.size} 个标签`;
 }
 
 /**

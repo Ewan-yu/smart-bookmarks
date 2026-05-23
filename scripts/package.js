@@ -42,7 +42,6 @@ const EXCLUDE_PATTERNS = [
   '.gitignore',
   'package.json',
   'package-lock.json',
-  'tailwind.config.js',
   'clear_data.js',
 ];
 

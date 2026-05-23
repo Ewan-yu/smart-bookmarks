@@ -1,0 +1,374 @@
+/* ================================================================
+   Tag Starfield — 标签星空视图
+   独立模块样式，不依赖 popup.css 中的标签样式
+   ================================================================ */
+
+/* ===== 统计栏 ===== */
+.tv-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: var(--c-surface-low, #f2f4f6);
+  font-size: 12px;
+  color: var(--c-muted, #718096);
+  flex-shrink: 0;
+}
+
+.tv-stats-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tv-stats-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tv-stats-value {
+  font-weight: 600;
+  color: var(--c-text-sub, #4a5568);
+}
+
+.tv-stats-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--c-border, rgba(0,0,0,.08));
+}
+
+.tv-stats-filter {
+  color: var(--c-secondary, #006591);
+  font-weight: 500;
+}
+
+/* ===== 工具栏（搜索 + 排序） ===== */
+.tv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  flex-shrink: 0;
+}
+
+.tv-search {
+  flex: 1;
+  position: relative;
+}
+
+.tv-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-muted, #718096);
+  pointer-events: none;
+  display: flex;
+}
+
+.tv-search-input {
+  width: 100%;
+  padding: 7px 10px 7px 32px;
+  border: 1.5px solid var(--c-border, rgba(0,0,0,.08));
+  border-radius: var(--radius-md, 10px);
+  font-size: 13px;
+  color: var(--c-text, #0d1117);
+  background: var(--c-surface, #fff);
+  transition: border-color var(--duration-fast, 140ms) ease, box-shadow var(--duration-fast, 140ms) ease;
+  font-family: inherit;
+}
+
+.tv-search-input::placeholder {
+  color: var(--c-muted, #718096);
+}
+
+.tv-search-input:focus {
+  outline: none;
+  border-color: var(--c-secondary, #006591);
+  box-shadow: 0 0 0 3px rgba(0, 101, 145, .1);
+}
+
+.tv-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--c-muted, #718096);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  border-radius: 50%;
+  transition: color var(--duration-fast, 140ms) ease, background var(--duration-fast, 140ms) ease;
+}
+
+.tv-search-clear:hover {
+  color: var(--c-text, #0d1117);
+  background: var(--c-surface-high, #e0e3e5);
+}
+
+/* ===== 排序控件 ===== */
+.tv-sort-group {
+  display: flex;
+  gap: 2px;
+  background: var(--c-surface-low, #f2f4f6);
+  border-radius: var(--radius-sm, 6px);
+  padding: 2px;
+}
+
+.tv-sort-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-muted, #718096);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs, 4px);
+  cursor: pointer;
+  transition: all var(--duration-fast, 140ms) ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.tv-sort-btn:hover {
+  color: var(--c-text, #0d1117);
+}
+
+.tv-sort-btn.active {
+  background: var(--c-surface, #fff);
+  color: var(--c-primary, #000058);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+/* ===== 标签云容器 ===== */
+.tv-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 10px 12px;
+  padding: 16px 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== 标签元素（5 档尺寸） ===== */
+.tv-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-border, rgba(0,0,0,.08));
+  cursor: pointer;
+  transition: all var(--duration-base, 220ms) var(--ease-out-quart, cubic-bezier(0.25,1,0.5,1));
+  opacity: 0;
+  transform: translateY(8px);
+  position: relative;
+  font-family: inherit;
+}
+
+.tv-tag.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 档位：size-xs — 1 个书签 */
+.tv-tag.size-xs {
+  font-size: 12px;
+  color: var(--c-muted, #718096);
+  padding: 3px 10px;
+}
+
+/* 档位：size-sm — 2-4 个 */
+.tv-tag.size-sm {
+  font-size: 13px;
+  color: var(--c-text-sub, #4a5568);
+}
+
+/* 档位：size-md — 5-14 个 */
+.tv-tag.size-md {
+  font-size: 15px;
+  color: var(--c-text, #0d1117);
+  font-weight: 500;
+  padding: 6px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+
+/* 档位：size-lg — 15-49 个 */
+.tv-tag.size-lg {
+  font-size: 18px;
+  color: var(--c-primary, #000058);
+  font-weight: 600;
+  padding: 7px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  border-color: rgba(var(--c-primary-rgb, 0,0,88), .12);
+}
+
+/* 档位：size-xl — 50+ 个 */
+.tv-tag.size-xl {
+  font-size: 22px;
+  color: var(--c-primary, #000058);
+  font-weight: 700;
+  padding: 8px 20px;
+  box-shadow: 0 4px 16px rgba(var(--c-primary-rgb, 0,0,88), .12);
+  border-color: rgba(var(--c-primary-rgb, 0,0,88), .18);
+  background: linear-gradient(135deg, var(--c-surface, #fff) 0%, rgba(var(--c-primary-rgb, 0,0,88), .04) 100%);
+  letter-spacing: -0.02em;
+}
+
+/* hover 通用 */
+.tv-tag:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,.10);
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(var(--c-primary-rgb, 0,0,88), .20);
+}
+
+.tv-tag.size-xl:hover {
+  box-shadow: 0 6px 24px rgba(var(--c-primary-rgb, 0,0,88), .18);
+}
+
+/* 计数徽标 */
+.tv-tag-count {
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(var(--c-primary-rgb, 0,0,88), .10);
+  color: var(--c-primary, #000058);
+  padding: 1px 6px;
+  border-radius: var(--radius-full, 9999px);
+  min-width: 16px;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.tv-tag.size-xs .tv-tag-count {
+  font-size: 9px;
+  padding: 0 5px;
+}
+
+.tv-tag.size-xl .tv-tag-count {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: rgba(var(--c-primary-rgb, 0,0,88), .15);
+}
+
+/* ===== 巨星标签微光动效 ===== */
+@keyframes tv-glow {
+  0%, 100% { box-shadow: 0 4px 16px rgba(var(--c-primary-rgb, 0,0,88), .12); }
+  50%      { box-shadow: 0 4px 20px rgba(var(--c-primary-rgb, 0,0,88), .22), 0 0 12px rgba(var(--c-primary-rgb, 0,0,88), .08); }
+}
+
+.tv-tag.size-xl:hover {
+  animation: tv-glow 1.5s ease-in-out infinite;
+}
+
+.tv-tag.size-xl .tv-glow-star {
+  font-size: 14px;
+  animation: tv-sparkle 2s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes tv-sparkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50%      { opacity: 1; transform: scale(1.2); }
+}
+
+/* ===== 入场动画 ===== */
+@keyframes tv-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tv-tag.animate-in {
+  animation: tv-fade-in var(--duration-base, 220ms) var(--ease-out-quart, cubic-bezier(0.25,1,0.5,1)) forwards;
+}
+
+/* ===== 星座连线彩蛋 ===== */
+@keyframes tv-constellation-line {
+  0%   { opacity: 0; transform: scaleX(0); }
+  50%  { opacity: 0.6; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+.tv-constellation-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.tv-constellation-line {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--c-primary-rgb, 0,0,88), .3), transparent);
+  transform-origin: left center;
+  animation: tv-constellation-line 2s ease-out forwards;
+}
+
+/* ===== 空状态 ===== */
+.tv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  color: var(--c-muted, #718096);
+  text-align: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.tv-empty-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+
+.tv-empty h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text, #0d1117);
+  margin: 0;
+}
+
+.tv-empty p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ===== 无匹配状态 ===== */
+.tv-no-match {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--c-muted, #718096);
+  text-align: center;
+  gap: 6px;
+}
+
+.tv-no-match p {
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ===== 标签详情视图（点击标签后的书签列表） ===== */
+.tv-detail-list {
+  padding: 4px 0;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}

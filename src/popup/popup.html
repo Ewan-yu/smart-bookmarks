@@ -4,42 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Bookmarks</title>
-  <link rel="stylesheet" href="tailwind.css">
   <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="tag-view.css">
 </head>
-<body class="antialiased" style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--c-bg);color:var(--c-text);">
+<body>
 
   <!-- ===== Header ===== -->
-  <header class="flex items-center gap-3 px-5 py-0 flex-shrink-0" style="height:52px;background:#1a1a6e;box-shadow:0 1px 0 rgba(255,255,255,.06),0 2px 16px rgba(13,17,23,.22);" role="banner">
+  <header class="layout-header" role="banner">
     <!-- Logo -->
-    <div class="flex items-center gap-2 flex-shrink-0">
-      <span class="flex-shrink-0" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
-      <h1 class="text-white font-semibold text-base tracking-wide whitespace-nowrap">Smart Bookmarks</h1>
+    <div class="row no-shrink gap-2">
+      <span class="no-shrink" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+      <h1 class="text-white font-semibold text-base tracking-wide whitespace-nowrap" style="margin:0;">Smart Bookmarks</h1>
     </div>
     <!-- 搜索框 -->
     <div class="flex-1 max-w-2xl mx-4 relative">
-      <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none" aria-hidden="true">
-        <svg class="w-4 h-4 text-white/60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <div class="absolute inset-y-0 left-3 row pointer-events-none" aria-hidden="true">
+        <svg class="text-white-60" style="width:16px;height:16px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </div>
       <label for="searchInput" class="sr-only">搜索收藏</label>
       <input type="text" id="searchInput"
-        class="w-full pl-9 pr-9 py-2 bg-white/15 border border-white/30 rounded-xl text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition-all duration-200"
+        class="header-search-input"
         placeholder="搜索任意收藏内容，支持全文搜索"
         autocomplete="off"
         aria-label="搜索收藏"
         aria-describedby="search-hint" />
-      <button id="clearSearchBtn" class="flex items-center text-white/60 hover:text-white transition-colors" style="display: none; position: absolute; top: 0; bottom: 0; right: 4px;" title="清除搜索" aria-label="清除搜索">
+      <button id="clearSearchBtn" class="header-search-clear" style="display: none;" title="清除搜索" aria-label="清除搜索">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <span id="search-hint" class="sr-only">输入关键词搜索书签、标签和描述</span>
       <div id="searchSuggestions"
-        class="search-suggestions absolute top-full left-0 right-0 rounded-xl shadow-xl z-50 mt-1 overflow-hidden"
+        class="search-suggestions"
         style="display: none;"
         role="listbox"
         aria-label="搜索建议"></div>
     </div>
     <!-- 右侧工具栏 -->
-    <div class="flex items-center gap-1 flex-shrink-0" role="toolbar" aria-label="工具栏">
+    <div class="row no-shrink gap-1" role="toolbar" aria-label="工具栏">
       <button id="importBtn" class="header-btn" title="从 JSON 文件导入收藏" aria-label="从 JSON 文件导入收藏">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
@@ -53,12 +53,12 @@
   </header>
 
   <!-- ===== 主体区域（左+右两列） ===== -->
-  <div class="flex flex-1 min-h-0 overflow-hidden">
+  <div class="layout-body">
 
     <!-- ===== 左侧目录栏 ===== -->
-    <aside id="sidebar" class="flex-shrink-0 flex flex-col overflow-hidden select-none" style="width:260px;background:var(--c-surface-low);border-right:1px solid var(--c-border);" role="navigation" aria-label="侧边栏导航">
+    <aside id="sidebar" class="layout-sidebar" role="navigation" aria-label="侧边栏导航">
       <!-- 固定入口 -->
-      <div class="flex-shrink-0 pt-2 pb-1 px-2" role="list">
+      <div class="no-shrink pt-2 pb-1 px-2" role="list">
         <button class="sidebar-nav-item active" id="navAll" data-nav="all" role="listitem" tabindex="0">
           <span class="sidebar-nav-icon" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -124,8 +124,8 @@
       <div class="sidebar-divider" role="separator" aria-hidden="true"></div>
       <!-- 文件夹树（可滚动） -->
       <div class="flex-1 overflow-y-auto py-1 px-2" id="sidebarTree" role="tree" aria-label="文件夹树">
-        <div class="flex items-center gap-1 px-2 py-1 mb-1">
-          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">收藏夹</span>
+        <div class="row gap-1 px-2 py-1 mb-1">
+          <span class="section-label">收藏夹</span>
         </div>
         <div id="sidebarTreeContent" class="text-sm" role="group" aria-label="收藏夹列表"></div>
       </div>
@@ -142,7 +142,7 @@
           <div id="analyzeProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
               <span class="task-progress-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>AI 分析</span>
-              <div class="flex items-center gap-2">
+              <div class="row gap-2">
                 <span id="analyzeProgressCount" class="task-count-badge" aria-label="分析进度">0/0</span>
                 <button id="cancelAnalyzeBtn" class="task-cancel-btn" style="display:none;" aria-label="取消分析">✕ 取消</button>
               </div>
@@ -155,8 +155,8 @@
           <div id="checkProgressSection" class="task-progress-section" style="display:none;" role="status" aria-live="polite">
             <div class="task-progress-header">
               <span class="task-progress-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>链接检测</span>
-              <div class="flex items-center gap-2">
-                <span id="checkProgressEta" class="text-xs text-slate-400" aria-label="预计剩余时间"></span>
+              <div class="row gap-2">
+                <span id="checkProgressEta" class="text-xs text-muted" aria-label="预计剩余时间"></span>
                 <span id="checkProgressCount" class="task-count-badge" aria-label="检测进度">0/0</span>
                 <button id="cancelCheckBtn" class="task-cancel-btn" style="display:none;" aria-label="取消检测">✕ 取消</button>
               </div>
@@ -168,37 +168,35 @@
           </div>
         </div>
       </div>
-      <!-- 底部状态栏 -->
-      <div class="flex-shrink-0 px-3 py-1.5" style="border-top:1px solid var(--c-border);background:rgba(242,244,246,.6);">
-        <div id="sidebarStats" class="text-xs text-slate-400 text-center" role="status" aria-live="polite"></div>
+      <!-- 底部状态栏（tonal separation — no border） -->
+      <div class="no-shrink px-3 py-1-5" style="background:rgba(242,244,246,.6);">
+        <div id="sidebarStats" class="text-xs text-muted text-center" role="status" aria-live="polite"></div>
       </div>
     </aside>
 
     <!-- ===== 可拖拽分割线 ===== -->
-    <div id="sidebarResizer" class="sidebar-resizer flex-shrink-0" role="separator" aria-orientation="vertical" aria-label="调整侧边栏宽度"></div>
+    <div id="sidebarResizer" class="sidebar-resizer no-shrink" role="separator" aria-orientation="vertical" aria-label="调整侧边栏宽度"></div>
 
     <!-- ===== 右侧主区域 ===== -->
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white" role="main" aria-label="书签列表">
-      <!-- 面包屑导航 -->
-      <div class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5" style="min-height:42px;border-bottom:1px solid var(--c-border);background:var(--c-surface);" role="navigation" aria-label="面包屑导航">
-        <nav id="breadcrumb" class="flex items-center gap-1 text-sm text-slate-500 flex-1 min-w-0 overflow-hidden" aria-label="当前位置"></nav>
-        <div id="searchStats" class="text-xs text-slate-400 flex-shrink-0" style="display: none;" role="status" aria-live="polite"></div>
-        <div id="folderStats" class="text-xs text-slate-400 flex-shrink-0" aria-live="polite"></div>
+    <main class="layout-main" role="main" aria-label="书签列表">
+      <!-- 面包屑导航（tonal separation — no border） -->
+      <div class="no-shrink row gap-2 px-5 py-2-5" style="min-height:42px;background:var(--c-surface);" role="navigation" aria-label="面包屑导航">
+        <nav id="breadcrumb" class="row gap-1 text-sm text-sub flex-1 min-w-0 overflow-hidden" aria-label="当前位置"></nav>
+        <div id="searchStats" class="text-xs text-muted no-shrink" style="display: none;" role="status" aria-live="polite"></div>
+        <div id="folderStats" class="text-xs text-muted no-shrink" aria-live="polite"></div>
       </div>
       <!-- 内容列表 -->
       <div class="flex-1 min-h-0 overflow-y-auto" id="bookmarkList" role="region" aria-label="书签内容" aria-live="polite">
-        <div class="flex flex-col items-center justify-center h-full gap-3 text-slate-400 py-16">
-          <svg class="w-7 h-7 animate-spin text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <div class="loading-state">
+          <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="spinner-track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="spinner-fill" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span class="text-sm">正在加载收藏...</span>
+          <span class="text-sm text-muted">正在加载收藏...</span>
         </div>
       </div>
     </main>
   </div>
-
-  <!-- 任务面板已移至左侧 sidebar 底部 -->
 
   <!-- ===== 右键上下文菜单 ===== -->
   <div id="contextMenuEl" class="ctx-menu" style="display:none;" role="menu" aria-label="操作菜单">

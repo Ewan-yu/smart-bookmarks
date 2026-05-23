@@ -168,7 +168,7 @@ class NavigationManager {
     const rootCategories = categories.filter(c => !c.parentId);
 
     if (rootCategories.length === 0) {
-      treeContainer.innerHTML = '<p class="text-sm text-slate-400 px-2 py-1">暂无文件夹</p>';
+      treeContainer.innerHTML = '<p class="text-sm text-muted px-2 py-1">暂无文件夹</p>';
       return;
     }
 
