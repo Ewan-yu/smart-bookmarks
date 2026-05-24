@@ -1247,7 +1247,7 @@ async function handleAIAnalyzeDebug(request, sendResponse) {
  */
 function buildCategoryPathMap(allCategories) {
   const categoryMap = new Map(allCategories.map(c => [c.id, c]));
-  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks', '收藏夹', 'Favorites', '导航栏']);
   const pathMap = new Map();
 
   for (const cat of allCategories) {
@@ -1281,43 +1281,28 @@ async function handleApplyCategories(request, sendResponse) {
     // 获取浏览器书签栏根目录ID（用于新建分类的父目录）
     const getBookmarksBarId = async () => {
       const tree = await chrome.bookmarks.getTree();
+      const rootChildren = tree[0]?.children || [];
 
-      // 🔒 安全的查找逻辑：只找根节点下的"书签栏"
-      function findBookmarksBar(nodes) {
-        for (const node of nodes) {
-          // Chrome的根节点ID是'0'（虚拟节点），书签栏的parentId应该是'0'
-          // 注意：parentId可能是'0'（字符串）或 undefined（某些情况下）
-          const isRootFolder = !node.parentId || node.parentId === '0' || node.parentId === 0;
-          const isBookmarksBar = (node.title === '书签栏' || node.title === 'Bookmarks Bar' || node.title === 'Bookmarks');
-
-          if (isRootFolder && isBookmarksBar) {
-            console.log(`[应用分类] 找到书签栏根节点: ${node.title} (ID: ${node.id}, parentId: ${node.parentId})`);
-            return node.id;
-          }
-
-          // 递归搜索子节点
-          if (node.children) {
-            const found = findBookmarksBar(node.children);
-            if (found) return found;
-          }
-        }
-        return null;
-      }
-
-      const barId = findBookmarksBar(tree);
-
-      if (!barId) {
-        console.error('[应用分类] ❌ 无法找到"书签栏"根目录！将使用根节点的第一个子节点。');
-        // 降级方案：使用根节点的第一个子节点
-        const rootChildren = tree[0].children;
-        if (rootChildren && rootChildren.length > 0) {
-          const fallbackId = rootChildren[0].id;
-          console.warn(`[应用分类] ⚠️ 降级使用: ${rootChildren[0].title} (ID: ${fallbackId})`);
-          return fallbackId;
+      // 🔒 通用查找逻辑：根节点（parentId='0'）下的第一个文件夹就是书签栏
+      // 不依赖特定名称，兼容所有浏览器（Chrome/Edge/Tabbit等）
+      for (const node of rootChildren) {
+        const isRootChild = node.parentId === '0' || node.parentId === 0;
+        if (isRootChild && node.children) {
+          console.log(`[应用分类] 检测到书签栏: "${node.title}" (ID: ${node.id}, parentId: ${node.parentId})`);
+          return node.id;
         }
       }
 
-      return barId;
+      // 降级：使用第一个有 children 的节点
+      for (const node of rootChildren) {
+        if (node.children) {
+          console.warn(`[应用分类] 降级使用: "${node.title}" (ID: ${node.id})`);
+          return node.id;
+        }
+      }
+
+      console.error('[应用分类] ❌ 无法找到书签栏根目录');
+      return null;
     };
 
     const bookmarksBarId = await getBookmarksBarId();
@@ -1389,7 +1374,7 @@ async function handleApplyCategories(request, sendResponse) {
       }
 
       // 🔒 安全检查：禁止创建带浏览器根目录前缀的分类
-      const ROOT_FOLDER_PREFIXES = ['书签栏/', '其他书签/', 'Bookmarks Bar/', 'Other Bookmarks/'];
+      const ROOT_FOLDER_PREFIXES = ['书签栏/', '其他书签/', 'Bookmarks Bar/', 'Other Bookmarks/', '收藏夹/', 'Favorites/', '导航栏/'];
       const hasInvalidPrefix = ROOT_FOLDER_PREFIXES.some(prefix => cat.name.startsWith(prefix));
 
       if (hasInvalidPrefix) {
@@ -1399,7 +1384,7 @@ async function handleApplyCategories(request, sendResponse) {
       }
 
       // 🔒 额外检查：禁止与浏览器根目录同名
-      const ROOT_FOLDER_NAMES = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks']);
+      const ROOT_FOLDER_NAMES = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', 'Bookmarks', '收藏夹', 'Favorites', '导航栏']);
       if (ROOT_FOLDER_NAMES.has(cat.name)) {
         console.error(`[应用分类] ❌ 分类名称与浏览器根目录同名: ${cat.name}`);
         console.error(`[应用分类] 这会造成混乱！跳过此分类。`);
@@ -1486,10 +1471,7 @@ async function handleApplyCategories(request, sendResponse) {
                   // 方法：递归向上查找，直到到达书签栏或根节点
                   const isUnderBookmarksBar = await (async () => {
                     // 特殊情况：parentInfo 本身就是书签栏
-                    if (parentInfo.id === bookmarksBarId ||
-                        parentInfo.title === '书签栏' ||
-                        parentInfo.title === 'Bookmarks Bar' ||
-                        parentInfo.title === 'Bookmarks') {
+                    if (parentInfo.id === bookmarksBarId) {
                       return true;
                     }
 
@@ -1502,25 +1484,16 @@ async function handleApplyCategories(request, sendResponse) {
                         return true;
                       }
 
+                      // 如果到达根节点（parentId 为 '0'），说明不在书签栏下
+                      if (currentId === '0' || currentId === 0) {
+                        return false;
+                      }
+
                       // 获取上一级节点
                       try {
                         const upperNode = await chrome.bookmarks.get(currentId);
                         if (!upperNode || upperNode.length === 0) break;
-
-                        const upper = upperNode[0];
-
-                        // 如果是书签栏（通过标题匹配）
-                        if (upper.title === '书签栏' || upper.title === 'Bookmarks Bar' || upper.title === 'Bookmarks') {
-                          return true;
-                        }
-
-                        // 如果到达根节点（parentId 为 '0'），检查是否是书签栏
-                        if (upper.parentId === '0' || upper.parentId === 0) {
-                          // 根节点的直接子节点，检查标题
-                          return (upper.title === '书签栏' || upper.title === 'Bookmarks Bar' || upper.title === 'Bookmarks');
-                        }
-
-                        currentId = upper.parentId;
+                        currentId = upperNode[0].parentId;
                       } catch (e) {
                         break;
                       }
@@ -1665,7 +1638,9 @@ async function handleApplyCategories(request, sendResponse) {
               const isValidLocation = (node.parentId === bookmarksBarId ||
                                       node.title === '书签栏' ||
                                       node.title === 'Bookmarks Bar' ||
-                                      node.title === 'Bookmarks');
+                                      node.title === 'Bookmarks' ||
+                                      node.title === '收藏夹' ||
+                                      node.title === 'Favorites');
 
               if (!isValidLocation) {
                 console.warn(`[应用分类] ⚠️ 现有分类 ${cat.name} 不在书签栏下！`);
@@ -2518,7 +2493,7 @@ async function handleBatchDelete(request, sendResponse) {
               // 这样可以避免：书签栏 -> 已导入 -> 书签栏 -> oracle
               // 变成：书签栏 -> 书签栏 -> oracle (一级目录)
               // 而是：书签栏 -> oracle
-              if ((childCat.name === '书签栏' || childCat.name === '其他书签') &&
+              if ((childCat.name === '书签栏' || childCat.name === '其他书签' || childCat.name === '收藏夹' || childCat.name === 'Favorites') &&
                   targetParentId === 'cat_1') {
                 console.log(`[BATCH_DELETE] Found root-level folder name "${childCat.name}", flattening its content`);
                 // 将这个子目录的内容直接移动到 cat_1

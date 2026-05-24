@@ -454,6 +454,8 @@ class CategoryMerger {
   static NATIVE_ROOT_FOLDERS = [
     '书签栏', 'Bookmarks Bar',
     '其他书签', 'Other Bookmarks',
+    '收藏夹', 'Favorites',
+    '导航栏',
     '移动书签', 'Mobile Bookmarks'
   ];
 
@@ -474,7 +476,9 @@ class CategoryMerger {
   isInBookmarksBar(path) {
     if (!path || path.length === 0) return false;
     const root = path[0];
-    return root === '书签栏' || root === 'Bookmarks Bar';
+    return root === '书签栏' || root === 'Bookmarks Bar' ||
+           root === '收藏夹' || root === 'Favorites' ||
+           root === '导航栏';
   }
 
   /**

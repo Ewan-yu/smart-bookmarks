@@ -269,3 +269,60 @@ export function showNotification(message, type = 'basic') {
     message
   });
 }
+
+// ==================== 根目录检测 ====================
+
+/**
+ * 已知的浏览器根目录名称（中英文）
+ * 用于识别系统原生的根文件夹
+ */
+const KNOWN_ROOT_NAMES = new Set([
+  // Chrome
+  '书签栏', 'Bookmarks Bar', 'Bookmarks',
+  '其他书签', 'Other Bookmarks',
+  // Edge
+  '收藏夹', 'Favorites',
+  // 移动端
+  '移动书签', 'Mobile Bookmarks'
+]);
+
+/**
+ * 检查一个名称是否是浏览器原生根目录
+ * @param {string} name - 文件夹名称
+ * @returns {boolean}
+ */
+export function isNativeRootFolder(name) {
+  if (!name) return false;
+  return KNOWN_ROOT_NAMES.has(name);
+}
+
+/**
+ * 动态获取当前浏览器的书签栏根目录信息
+ * 通过 chrome.bookmarks.getTree() 实际检测，不依赖硬编码名称
+ * 逻辑：根节点（parentId='0'）下的第一个文件夹就是书签栏
+ * @returns {Promise<{id: string, title: string} | null>}
+ */
+export async function detectBookmarksBar() {
+  try {
+    const tree = await chrome.bookmarks.getTree();
+    const rootChildren = tree[0]?.children || [];
+
+    // 查找根节点下的第一个文件夹（不管叫什么名字）
+    for (const node of rootChildren) {
+      const isRootChild = node.parentId === '0' || node.parentId === 0;
+      if (isRootChild && node.children) {
+        return { id: node.id, title: node.title };
+      }
+    }
+
+    // 降级：使用第一个有 children 的节点
+    for (const node of rootChildren) {
+      if (node.children) {
+        return { id: node.id, title: node.title };
+      }
+    }
+  } catch (error) {
+    console.error('[helpers] detectBookmarksBar failed:', error);
+  }
+  return null;
+}

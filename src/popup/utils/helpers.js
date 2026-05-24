@@ -403,7 +403,11 @@ export function isInBookmarksBar(item) {
 
   // 检查是否有路径信息
   if (item.path && item.path.length > 0) {
-    return item.path[0] === '书签栏' || item.path[0] === 'Bookmarks Bar';
+    const rootName = item.path[0];
+    // 兼容所有浏览器的书签栏名称
+    return rootName === '书签栏' || rootName === 'Bookmarks Bar' ||
+           rootName === '收藏夹' || rootName === 'Favorites' ||
+           rootName === '导航栏';
   }
 
   return false;

@@ -2188,111 +2188,220 @@ function finishAnalysisUI() {
 }
 
 /**
- * 显示分析结果确认对话框（聚焦整理方案）
+ * 显示分析结果确认对话框（左右分栏交互式）
  */
 function showAnalysisConfirmDialog(analysisResult) {
-  const { categories, tags, summary } = analysisResult;
+  const { categories, tags, summary, conflicts } = analysisResult;
 
   // bookmarkId → 书签对象
   const bookmarkMap = new Map();
   state.bookmarks.forEach(bm => bookmarkMap.set(String(bm.id), bm));
 
-  const newCatCount = summary.newCategories.length;
   const uniqueTagNames = [...new Set(tags.map(t => t.name))];
+  const newCatCount = categories.filter(c => c.isNew).length;
 
   // 分类按书签数量降序排列
   const sortedCats = [...categories].sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
-  const maxCount = sortedCats[0]?.bookmarkIds.length || 1;
 
-  // 生成分类列表 HTML
-  const catRows = sortedCats.map(cat => {
-    const progressWidth = Math.round((cat.bookmarkIds.length / maxCount) * 100);
-    const badgeClass = cat.isNew ? 'new' : 'existing';
-    const badgeText = cat.isNew ? '新增' : '已有';
+  // ── 对话框内部状态 ──
+  const dialogState = {
+    categories: sortedCats.map(cat => ({
+      ...cat,
+      enabled: true,
+      bookmarks: cat.bookmarkIds
+        .map(id => bookmarkMap.get(String(id)))
+        .filter(Boolean)
+        .map(bm => ({ ...bm, enabled: true }))
+    })),
+    conflicts: (conflicts || []).map(c => ({ ...c, resolved: false, action: 'merge' })),
+    searchQuery: '',
+    selectedCatIndex: 0
+  };
 
-    const bookmarkItems = cat.bookmarkIds
-      .map(id => bookmarkMap.get(String(id)))
-      .filter(Boolean)
-      .map(bm => `
-        <div class="analysis-bookmark-item">
-          <div class="analysis-bookmark-title">${escapeHtml(bm.title)}</div>
-          <div class="analysis-bookmark-url">${escapeHtml(bm.url)}</div>
-        </div>
-      `).join('');
+  // ── 生成左侧分类列表 HTML ──
+  function renderCatList() {
+    return dialogState.categories.map((cat, idx) => {
+      const badgeClass = cat.isNew ? 'new' : 'existing';
+      const badgeText = cat.isNew ? '新增' : '已有';
+      const activeClass = idx === dialogState.selectedCatIndex ? ' active' : '';
+      const disabledClass = cat.enabled ? '' : ' disabled';
+      const enabledCount = cat.bookmarks.filter(b => b.enabled).length;
+      const totalCount = cat.bookmarks.length;
 
-    return `
-      <details class="analysis-category-item">
-        <summary class="analysis-category-header">
-          <span class="analysis-category-badge ${badgeClass}">${badgeText}</span>
-          <span class="analysis-category-name">${escapeHtml(cat.name)}</span>
-          <span class="analysis-category-count">${cat.bookmarkIds.length} 个</span>
-          <div class="analysis-category-progress">
-            <div class="analysis-category-progress-fill" style="width: ${progressWidth}%"></div>
+      // 检查是否有冲突
+      const conflict = dialogState.conflicts.find(c => {
+        const aiCatLower = c.aiCategory.toLowerCase();
+        const catLower = cat.name.toLowerCase();
+        return aiCatLower === catLower || cat.name.includes(c.aiCategory);
+      });
+      const conflictHint = conflict && conflict.suggestedMerge
+        ? `→ ${escapeHtml(conflict.suggestedMerge)}`
+        : '';
+
+      // 已应用标记
+      const appliedClass = cat.applied ? ' applied' : '';
+      const applyBtnHtml = cat.applied
+        ? `<span class="cat-applied-tag">✓ 已应用</span>`
+        : `<button class="cat-apply-btn" data-idx="${idx}" title="应用此分类">应用</button>`;
+
+      return `
+        <div class="cat-item${activeClass}${disabledClass}${appliedClass}" data-idx="${idx}">
+          <div class="cat-item-left">
+            <input type="checkbox" class="cat-checkbox" data-idx="${idx}" ${cat.enabled ? 'checked' : ''}>
+            <span class="analysis-category-badge ${badgeClass}">${badgeText}</span>
+            <span class="cat-item-name">${escapeHtml(cat.name)}</span>
           </div>
-        </summary>
-        <div class="analysis-bookmark-list">
-          ${bookmarkItems || '<div class="analysis-empty-state">暂无书签</div>'}
+          ${conflictHint ? `<div class="cat-conflict-hint" title="${escapeHtml(conflict?.reason || '')}">${conflictHint}</div>` : ''}
+          <div class="cat-item-right">
+            <span class="cat-item-count">${enabledCount}/${totalCount}</span>
+            ${applyBtnHtml}
+          </div>
         </div>
-      </details>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  }
 
-  // 生成标签部分 HTML
-  const tagsSection = uniqueTagNames.length > 0 ? `
-    <div class="analysis-tags-section">
-      <details>
-        <summary class="analysis-tags-header">
-          <span class="analysis-tags-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>标签建议</span>
-          <span class="analysis-tags-count">${uniqueTagNames.length} 个</span>
-        </summary>
-        <div class="analysis-tags-list">
-          ${uniqueTagNames.map(name => `
-            <span class="analysis-tag-item">${escapeHtml(name)}</span>
-          `).join('')}
+  // ── 生成右侧书签列表 HTML ──
+  function renderBookmarkList() {
+    const cat = dialogState.categories[dialogState.selectedCatIndex];
+    if (!cat) return '<div class="analysis-empty-state">选择左侧分类查看书签</div>';
+
+    let filteredBookmarks = cat.bookmarks;
+    if (dialogState.searchQuery) {
+      const q = dialogState.searchQuery.toLowerCase();
+      filteredBookmarks = cat.bookmarks.filter(bm =>
+        bm.title.toLowerCase().includes(q) ||
+        bm.url.toLowerCase().includes(q)
+      );
+    }
+
+    if (filteredBookmarks.length === 0) {
+      return '<div class="analysis-empty-state">无匹配书签</div>';
+    }
+
+    return filteredBookmarks.map(bm => `
+      <label class="bm-item${bm.enabled ? '' : ' disabled'}">
+        <input type="checkbox" class="bm-checkbox" data-id="${bm.id}" ${bm.enabled ? 'checked' : ''}>
+        <div class="bm-info">
+          <div class="bm-title">${escapeHtml(bm.title)}</div>
+          <div class="bm-url">${escapeHtml(bm.url)}</div>
         </div>
-      </details>
-    </div>
-  ` : '';
+      </label>
+    `).join('');
+  }
 
-  // 生成对话框 HTML
+  // ── 更新统计信息 ──
+  function updateStats() {
+    const enabledCats = dialogState.categories.filter(c => c.enabled).length;
+    const totalCats = dialogState.categories.length;
+    const enabledBms = dialogState.categories.reduce((sum, c) =>
+      sum + c.bookmarks.filter(b => b.enabled).length, 0);
+    const totalBms = dialogState.categories.reduce((sum, c) => sum + c.bookmarks.length, 0);
+
+    const statsEl = dialog.querySelector('#dialogStats');
+    if (statsEl) {
+      statsEl.textContent = `已选 ${enabledCats}/${totalCats} 个分类，${enabledBms}/${totalBms} 个书签`;
+    }
+
+    // 更新左侧每个分类的计数
+    dialog.querySelectorAll('.cat-item').forEach(el => {
+      const idx = parseInt(el.dataset.idx);
+      const cat = dialogState.categories[idx];
+      if (cat) {
+        const countEl = el.querySelector('.cat-item-count');
+        const enabledCount = cat.bookmarks.filter(b => b.enabled).length;
+        if (countEl) countEl.textContent = `${enabledCount}/${cat.bookmarks.length}`;
+      }
+    });
+  }
+
+  // ── 生成对话框 HTML ──
   const dialog = document.createElement('div');
   dialog.className = 'confirm-dialog-overlay';
   dialog.innerHTML = `
-    <div class="confirm-dialog analysis-dialog">
+    <div class="confirm-dialog analysis-dialog-v2">
       <div class="dialog-header analysis-dialog-header">
         <h2><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M5 3l.75 2.25L8 6l-2.25.75L5 9l-.75-2.25L2 6l2.25-.75z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg>AI 整理建议</h2>
         <button class="dialog-close" id="dialogClose" aria-label="关闭">&times;</button>
       </div>
-      <div class="dialog-content analysis-dialog-content">
-        <!-- 概要指标 -->
-        <div class="analysis-summary">
-          <div class="analysis-summary-item">
-            <div class="analysis-summary-value">${summary.totalBookmarks}</div>
-            <div class="analysis-summary-label">个收藏</div>
+
+      <!-- 概要指标 -->
+      <div class="analysis-summary analysis-summary-v2">
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value">${summary.totalBookmarks}</div>
+          <div class="analysis-summary-label">个收藏</div>
+        </div>
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value primary">${categories.length}</div>
+          <div class="analysis-summary-label">
+            个分类${newCatCount > 0 ? ` <span class="analysis-summary-highlight">(${newCatCount} 新增)</span>` : ''}
           </div>
-          <div class="analysis-summary-item">
-            <div class="analysis-summary-value primary">${categories.length}</div>
-            <div class="analysis-summary-label">
-              个分类${newCatCount > 0 ? ` <span class="analysis-summary-highlight">(${newCatCount} 新增)</span>` : ''}
+        </div>
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value success">${uniqueTagNames.length}</div>
+          <div class="analysis-summary-label">个标签</div>
+        </div>
+        ${conflicts && conflicts.length > 0 ? `
+        <div class="analysis-summary-item">
+          <div class="analysis-summary-value warning">${conflicts.length}</div>
+          <div class="analysis-summary-label">个冲突</div>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- 左右分栏主体 -->
+      <div class="dialog-body-split">
+        <!-- 左侧：分类列表 -->
+        <div class="cat-panel">
+          <div class="cat-panel-header">
+            <label class="cat-select-all">
+              <input type="checkbox" id="catSelectAll" checked>
+              <span>全选分类</span>
+            </label>
+          </div>
+          <div class="cat-list" id="catList">
+            ${renderCatList()}
+          </div>
+          ${uniqueTagNames.length > 0 ? `
+          <div class="tag-section">
+            <details>
+              <summary class="tag-summary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                标签建议 (${uniqueTagNames.length})
+              </summary>
+              <div class="tag-list">
+                ${uniqueTagNames.map(name => `<span class="tag-item">${escapeHtml(name)}</span>`).join('')}
+              </div>
+            </details>
+          </div>
+          ` : ''}
+        </div>
+
+        <!-- 右侧：书签详情 -->
+        <div class="bm-panel">
+          <div class="bm-panel-header">
+            <span class="bm-panel-title" id="bmPanelTitle">${escapeHtml(sortedCats[0]?.name || '')}</span>
+            <div class="bm-search-box">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="bmSearchInput" placeholder="搜索书签..." value="${escapeHtml(dialogState.searchQuery)}">
             </div>
           </div>
-          <div class="analysis-summary-item">
-            <div class="analysis-summary-value success">${uniqueTagNames.length}</div>
-            <div class="analysis-summary-label">个标签建议</div>
+          <div class="bm-list" id="bmList">
+            ${renderBookmarkList()}
           </div>
         </div>
-
-        <!-- 分类方案 -->
-        <div class="analysis-categories-header"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>分类整理方案</div>
-        <div class="analysis-categories-list">
-          ${catRows || '<div class="analysis-empty-state">暂无分类建议</div>'}
-        </div>
-
-        ${tagsSection}
       </div>
-      <div class="dialog-footer">
-        <button class="btn btn-cancel" id="dialogCancel">取消</button>
-        <button class="btn btn-primary" id="dialogConfirm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>应用整理方案</button>
+
+      <!-- 底部 -->
+      <div class="dialog-footer dialog-footer-v2">
+        <span class="dialog-stats" id="dialogStats">已选 ${dialogState.categories.length}/${dialogState.categories.length} 个分类，${summary.totalBookmarks}/${summary.totalBookmarks} 个书签</span>
+        <div class="dialog-actions">
+          <button class="btn btn-cancel" id="dialogCancel">取消</button>
+          <button class="btn btn-primary" id="dialogConfirm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+            应用整理方案
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -2302,6 +2411,11 @@ function showAnalysisConfirmDialog(analysisResult) {
   const closeBtn = dialog.querySelector('#dialogClose');
   const cancelBtn = dialog.querySelector('#dialogCancel');
   const confirmBtn = dialog.querySelector('#dialogConfirm');
+  const catList = dialog.querySelector('#catList');
+  const bmList = dialog.querySelector('#bmList');
+  const bmPanelTitle = dialog.querySelector('#bmPanelTitle');
+  const bmSearchInput = dialog.querySelector('#bmSearchInput');
+  const catSelectAll = dialog.querySelector('#catSelectAll');
 
   const closeDialog = () => {
     dialog.classList.add('hide');
@@ -2313,14 +2427,137 @@ function showAnalysisConfirmDialog(analysisResult) {
   closeBtn.addEventListener('click', closeDialog);
   cancelBtn.addEventListener('click', closeDialog);
 
+  // ── 左侧：分类点击切换 ──
+  catList.addEventListener('click', async (e) => {
+    // 点击「应用此分类」按钮
+    const applyBtn = e.target.closest('.cat-apply-btn');
+    if (applyBtn) {
+      e.stopPropagation();
+      const idx = parseInt(applyBtn.dataset.idx);
+      if (isNaN(idx)) return;
+
+      const cat = dialogState.categories[idx];
+      if (!cat || cat.applied) return;
+
+      applyBtn.disabled = true;
+      applyBtn.textContent = '应用中...';
+
+      try {
+        const bookmarkIds = cat.bookmarks.filter(b => b.enabled).map(b => String(b.id));
+        if (bookmarkIds.length === 0) {
+          Toast.warning('该分类下没有可应用的书签');
+          return;
+        }
+
+        const response = await chrome.runtime.sendMessage({
+          type: 'APPLY_CATEGORIES',
+          categories: [{
+            name: cat.name,
+            confidence: cat.confidence,
+            isNew: cat.isNew,
+            bookmarkIds,
+            reason: cat.reason
+          }],
+          tags: []
+        });
+
+        if (response.error) throw new Error(response.error);
+        if (!response.success) throw new Error('应用失败');
+
+        cat.applied = true;
+        Toast.success(`已应用分类「${cat.name}」（${bookmarkIds.length} 个书签）`);
+        catList.innerHTML = renderCatList();
+
+        // 刷新书签列表，确保UI与浏览器同步
+        await loadBookmarks();
+      } catch (error) {
+        Toast.error(`应用失败: ${error.message}`);
+        applyBtn.disabled = false;
+        applyBtn.textContent = '应用';
+      }
+      return;
+    }
+
+    // 点击 checkbox 不切换右侧（checkbox 有自己的事件）
+    if (e.target.classList.contains('cat-checkbox')) return;
+
+    const catItem = e.target.closest('.cat-item');
+    if (!catItem) return;
+
+    const idx = parseInt(catItem.dataset.idx);
+    if (isNaN(idx)) return;
+
+    dialogState.selectedCatIndex = idx;
+    catList.innerHTML = renderCatList();
+    bmList.innerHTML = renderBookmarkList();
+    bmPanelTitle.textContent = dialogState.categories[idx]?.name || '';
+  });
+
+  // ── 左侧：分类 checkbox 切换 ──
+  catList.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('cat-checkbox')) return;
+    const idx = parseInt(e.target.dataset.idx);
+    if (isNaN(idx)) return;
+
+    dialogState.categories[idx].enabled = e.target.checked;
+    updateStats();
+    catList.innerHTML = renderCatList();
+  });
+
+  // ── 全选/全不选分类 ──
+  catSelectAll.addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    dialogState.categories.forEach(cat => cat.enabled = checked);
+    updateStats();
+    catList.innerHTML = renderCatList();
+  });
+
+  // ── 右侧：书签 checkbox 切换 ──
+  bmList.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('bm-checkbox')) return;
+    const bmId = e.target.dataset.id;
+    const cat = dialogState.categories[dialogState.selectedCatIndex];
+    if (!cat) return;
+
+    const bm = cat.bookmarks.find(b => String(b.id) === bmId);
+    if (bm) {
+      bm.enabled = e.target.checked;
+      updateStats();
+      catList.innerHTML = renderCatList();
+    }
+  });
+
+  // ── 搜索书签 ──
+  let searchTimer = null;
+  bmSearchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      dialogState.searchQuery = e.target.value.trim();
+      bmList.innerHTML = renderBookmarkList();
+    }, 200);
+  });
+
+  // ── 确认应用 ──
   confirmBtn.addEventListener('click', async () => {
     try {
       confirmBtn.disabled = true;
       confirmBtn.textContent = '整理中...';
 
+      // 构建用户筛选后的分类和书签
+      const filteredCategories = dialogState.categories
+        .filter(cat => cat.enabled)
+        .map(cat => ({
+          name: cat.name,
+          confidence: cat.confidence,
+          isNew: cat.isNew,
+          bookmarkIds: cat.bookmarks.filter(b => b.enabled).map(b => String(b.id)),
+          reason: cat.reason
+        }))
+        .filter(cat => cat.bookmarkIds.length > 0); // 移除空分类
+
       const response = await chrome.runtime.sendMessage({
         type: 'APPLY_CATEGORIES',
-        categories: analysisResult.categories,
+        categories: filteredCategories,
         tags: analysisResult.tags || []
       });
 
@@ -2332,19 +2569,15 @@ function showAnalysisConfirmDialog(analysisResult) {
         throw new Error('应用分类失败');
       }
 
-      // 使用后端返回的所有分类（包括中间层级）
       if (response.categories) {
         state.categories = response.categories;
       }
 
       const tagCount = analysisResult.tags?.length || 0;
-      const categoryCount = response.categories?.length || analysisResult.categories.length;
-      Toast.success(`整理完成！已应用 ${categoryCount} 个分类${tagCount > 0 ? `，${tagCount} 个标签` : ''}`);
+      const appliedBmCount = filteredCategories.reduce((sum, c) => sum + c.bookmarkIds.length, 0);
+      Toast.success(`整理完成！已应用 ${filteredCategories.length} 个分类，${appliedBmCount} 个书签${tagCount > 0 ? `，${tagCount} 个标签` : ''}`);
 
-      // 重新加载书签（确保书签关联正确）
       await loadBookmarks();
-
-      // 关闭对话框
       closeDialog();
     } catch (error) {
       console.error('[应用分类] 失败:', error);
@@ -2353,9 +2586,6 @@ function showAnalysisConfirmDialog(analysisResult) {
       Toast.error(`应用失败: ${error.message}`);
     }
   });
-
-  // 注意：移除了点击遮罩关闭的功能，防止误关闭
-  // 用户必须明确点击"取消"或"✓"按钮才能关闭
 
   setTimeout(() => dialog.classList.add('show'), 10);
 }

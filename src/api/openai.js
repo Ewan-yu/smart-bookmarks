@@ -64,6 +64,7 @@ export async function analyzeBookmarks(
 
   const allCategories = new Map();
   const allTags = [];
+  const allConflicts = [];
   const batchLogs = [];
 
   /**
@@ -126,7 +127,14 @@ export async function analyzeBookmarks(
     }
 
     // 🔄 传入累积的分类列表（用户原有 + 前面批次生成的）
-    const prompt = buildAnalysisPrompt(batch, accumulatedCategories);
+    const userCategoryPaths = categories.map(c => {
+      const tree = buildCategoryTree([c]);
+      return tree[0]?.path || c.name;
+    });
+    const prompt = buildAnalysisPrompt(batch, accumulatedCategories, {
+      accumulatedCategories,
+      userCategoryPaths
+    });
     const batchStartTime = Date.now();
 
     try {
@@ -157,6 +165,20 @@ export async function analyzeBookmarks(
       });
 
       mergeBatch(validatedParsed.categories, validatedParsed.tags);
+
+      // 收集本批次的冲突信息
+      if (validatedParsed.conflicts && validatedParsed.conflicts.length > 0) {
+        validatedParsed.conflicts.forEach(conflict => {
+          // 去重：避免同一批次或不同批次重复添加
+          const exists = allConflicts.some(c =>
+            c.aiCategory === conflict.aiCategory &&
+            c.suggestedMerge === conflict.suggestedMerge
+          );
+          if (!exists) {
+            allConflicts.push(conflict);
+          }
+        });
+      }
 
       const batchLog = {
         batchIndex: i,
@@ -206,6 +228,36 @@ export async function analyzeBookmarks(
     console.log(`[AI] 后处理最终分类数: ${postProcessedCategories.length}`);
   }
 
+  // ── 后处理：自动合并"已导入"路径到简洁分类 ──────────────────────────────────────────
+  const importedMergedCategories = mergeImportedPaths(postProcessedCategories);
+  console.log(`[AI] 已导入合并后: ${importedMergedCategories.length} 个分类`);
+
+  // ── 后处理：自动合并小分类（少于 MIN_BOOKMARKS_PER_CATEGORY 个书签的分类）─────────
+  const MIN_BOOKMARKS_PER_CATEGORY = 2;
+  const MAX_CATEGORIES = 15;
+  let finalCategories = mergeSmallCategories(importedMergedCategories, MIN_BOOKMARKS_PER_CATEGORY);
+  console.log(`[AI] 小分类合并后: ${finalCategories.length} 个分类`);
+
+  // ── 后处理：如果分类数仍然超过上限，按书签数排序保留前 N 个 ──────────────────────
+  if (finalCategories.length > MAX_CATEGORIES) {
+    // 按书签数降序排序
+    finalCategories.sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
+    // 保留前 MAX_CATEGORIES 个，多余的合并到最后一个保留的分类
+    const kept = finalCategories.slice(0, MAX_CATEGORIES);
+    const overflow = finalCategories.slice(MAX_CATEGORIES);
+    if (overflow.length > 0) {
+      // 将溢出分类的书签合并到最后一个保留的分类
+      const lastKept = kept[kept.length - 1];
+      for (const cat of overflow) {
+        lastKept.bookmarkIds.push(...cat.bookmarkIds);
+        lastKept.confidence = Math.min(lastKept.confidence, cat.confidence);
+      }
+      console.log(`[AI] 数量限制: ${overflow.length} 个溢出分类合并到最后一个分类 "${lastKept.name}"`);
+    }
+    finalCategories = kept;
+    console.log(`[AI] 最终分类数: ${finalCategories.length}`);
+  }
+
   // 记录聚合日志到 batchLogs
   if (mergeResult.report.mergedGroups > 0) {
     batchLogs.push({
@@ -231,11 +283,12 @@ export async function analyzeBookmarks(
   // 在摘要中添加聚合信息
   summary.mergeReport = mergeResult.report;
 
-  console.log(`[AI] 最终结果: ${postProcessedCategories.length} 个分类, ${allTags.length} 个标签`);
+  console.log(`[AI] 最终结果: ${postProcessedCategories.length} 个分类, ${allTags.length} 个标签, ${allConflicts.length} 个冲突`);
 
   return {
     categories: postProcessedCategories,
     tags: allTags,
+    conflicts: allConflicts,
     summary,
     batchLogs
   };
@@ -389,7 +442,7 @@ function buildCategoryTree(categories) {
   const categoryMap = new Map(categories.map(c => [c.id, c]));
 
   // 浏览器根目录名称（需要从path中排除）
-  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks']);
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', '收藏夹', 'Favorites', '导航栏']);
 
   // 为每个分类添加path字段
   const addPath = (category) => {
@@ -413,6 +466,43 @@ function buildCategoryTree(categories) {
 }
 
 /**
+ * 将扁平分类列表转换为层级缩进文本（用于 prompt 中体现父子关系）
+ * @param {Array} categories - 带 path 字段的分类数组
+ * @returns {string} 缩进层级文本
+ */
+function buildHierarchicalCategoryText(categories) {
+  if (!categories || categories.length === 0) return '';
+
+  // 按路径排序
+  const sorted = [...categories].sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
+
+  const lines = [];
+  let lastParent = '';
+
+  for (const cat of sorted) {
+    const parts = cat.path.split('/');
+    const depth = parts.length - 1;
+    const indent = '  '.repeat(depth);
+    const name = parts[parts.length - 1];
+
+    // 如果有子分类，父级显示时加上括号说明
+    const hasChildren = sorted.some(other => other.path !== cat.path && other.path.startsWith(cat.path + '/'));
+    if (!hasChildren && depth > 0) {
+      // 叶子节点：显示完整路径
+      lines.push(`${indent}- ${cat.path}`);
+    } else if (depth === 0) {
+      // 根级分类
+      lines.push(`- ${name}`);
+    } else {
+      // 中间层级
+      lines.push(`${indent}- ${cat.path}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * 获取书签当前分类信息
  * @param {string} categoryId - 分类ID
  * @param {Array} categories - 分类数组
@@ -425,7 +515,7 @@ function getCategoryInfo(categoryId, categories) {
   if (!category) return null;
 
   // 浏览器根目录名称（需要从path中排除）
-  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks']);
+  const ROOT_FOLDERS = new Set(['书签栏', '其他书签', 'Bookmarks Bar', 'Other Bookmarks', '收藏夹', 'Favorites', '导航栏']);
 
   // 构建完整路径
   const path = [];
@@ -517,9 +607,12 @@ const MAX_BOOKMARK_PROMPT_CHARS = 300;
  * 构建分析提示词（使用JSON结构化输入）
  * @param {Array} bookmarks - 书签数组（可携带 _summary）
  * @param {Array} existingCategories - 现有分类列表（包含id和name）
+ * @param {Object} [options] - 额外选项
+ * @param {Array} [options.accumulatedCategories] - 前序批次累积的分类列表（含用户原有 + AI新建）
+ * @param {Array} [options.userCategoryPaths] - 用户原始分类路径列表（用于区分用户/AI）
  * @returns {string}
  */
-function buildAnalysisPrompt(bookmarks, existingCategories) {
+function buildAnalysisPrompt(bookmarks, existingCategories, options = {}) {
   // 构建结构化输入数据
   const inputData = buildStructuredInput(bookmarks, existingCategories);
 
@@ -548,10 +641,8 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
     };
     const inputJson = JSON.stringify(filteredInputData, null, 2);
 
-    // 构建分类路径清单（优先展示，不含兜底分类）
-    const pathList = specificCategories
-      .map(c => `  - "${c.path}"`)
-      .join('\n');
+    // 构建分类路径清单（使用层级缩进格式，体现父子关系）
+    const pathList = buildHierarchicalCategoryText(specificCategories);
 
     const catchAllNote = catchAllCategories.length > 0
       ? `\n**禁止使用的兜底分类**（不得将书签归入这些分类）：\n${catchAllCategories.map(c => `  - "${c.path}"`).join('\n')}`
@@ -561,19 +652,90 @@ function buildAnalysisPrompt(bookmarks, existingCategories) {
       ? `\n**特别说明**："已导入/xxx" 是从浏览器批量导入时自动生成的旧目录结构。你可以：\n  1. 将书签归入这些现有分类（名称必须与上方列表完全一致）\n  2. **推荐**：为内容明确的书签新建不含"已导入/"前缀的更合理分类（如 "技术/前端"、"设计/UI" 等）`
       : '';
 
-    return `## 你的任务
-分析下方每个书签是否在合适的分类中，将其归入最佳分类。
+    // ── 前序批次上下文：区分用户分类和AI创建的分类 ──
+    let accumulatedContext = '';
+    const { accumulatedCategories, userCategoryPaths } = options;
 
-## 用户现有分类（共 ${specificCategories.length} 个，优先使用）
+    if (accumulatedCategories && accumulatedCategories.length > 0 && userCategoryPaths) {
+      const userPathSet = new Set(userCategoryPaths.map(p => p.toLowerCase()));
+      const aiCreated = accumulatedCategories.filter(c => {
+        const catPath = c.path || c.name;
+        return !userPathSet.has(catPath.toLowerCase());
+      });
+
+      if (aiCreated.length > 0) {
+        const aiCatLines = aiCreated.map(c => {
+          const path = c.path || c.name;
+          // 尝试匹配用户已有分类
+          const matchSuggestion = findBestMergeTarget(path, userCategoryPaths);
+          if (matchSuggestion) {
+            return `  - "${path}" → 建议合并到 "${matchSuggestion}"`;
+          }
+          return `  - "${path}"`;
+        }).join('\n');
+
+        accumulatedContext = `\n\n## 前序批次已确定的分类（供参考，优先合并到用户现有分类）
+以下分类是前序批次中 AI 创建的，仅供参考。
+如果它们与用户现有分类语义重叠，**必须**优先使用用户现有分类，将书签归入用户已有分类。
+- "AI工具" → 建议合并到 "人工智能/工具"
+- "AI教程" → 建议合并到 "人工智能/教程"
+
+前序批次 AI 创建的分类：
+${aiCatLines}`;
+      }
+    }
+
+    return `## 你的任务
+分析下方每个书签，为其推荐最合适的分类。**关键：你要主动精简和合并分类，而不是罗列所有现有分类。**
+
+## 用户现有分类（共 ${specificCategories.length} 个）
+以下是用户自定义的分类体系。**不要机械保留所有分类，要主动合并语义相近的。**
 ${pathList}
-${catchAllNote}${importedNote}
+${catchAllNote}${importedNote}${accumulatedContext}
+
+## ⚠️ 书签当前分类是最重要的参考信号
+- 每个书签的 currentCategory 字段表示它当前所在的分类
+- **如果书签已经在合适的分类中，不要移动它**
+- 只有当书签明显放错分类时，才建议移动
+- 例如：书签在"人工智能/工具"中，且内容确实是 AI 工具 → 保持不动
+- 例如：书签在"人工智能/教程"中，且内容确实是 AI 教程 → 保持不动
+- **不要把已经在正确分类中的书签移到其他分类**
+
+## 分类数量约束（硬性要求）
+- **最终分类数必须控制在 5-15 个**
+- 如果用户现有分类超过 15 个，你必须合并语义相近的分类
+- 少于 3 个书签的分类应该合并到最相近的分类
+- 你的目标是"精选"，不是"罗列"
+
+## 分类合并策略（必须执行）
+
+### "已导入"分类的处理
+- "已导入/xxx" 格式是从浏览器批量导入的旧目录，**应该被精简合并**
+- 例如："已导入/best/编程技术/前端攻城狮/React" → 合并到 "技术/前端"
+- 例如："已导入/best/编程技术/.net core" → 合并到 "技术/.NET"
+- 不要保留 "已导入/" 前缀的路径，应该创建更简洁的新分类
+
+### 小分类合并规则
+- 少于 3 个书签的分类，必须合并到最相近的分类
+- 合并优先级：同级相邻分类 > 上级分类 > 语义相近分类
+
+### 语义相近分类合并
+- "容器"(6) 和 "容器化"(8) → 合并为一个
+- "SQL 数据库优化" 出现在多处 → 合并为一个
+
+## 父子分类语义约束
+- 当书签被分配到子分类时，**必须确保其内容与父分类的主题相关**
+- 例如："人工智能/工具"下的书签必须与 AI 相关，不能是任意工具
+- 如果书签与父分类主题不匹配，应寻找其他更合适的分类
 
 ## 使用规则
-1. **name 字段必须与上方列表中的路径字符串完全一致**（如 "前端"、"技术/前端"），不要改写
+1. **name 字段必须与上方列表中的路径字符串完全一致**，或使用大类/小类格式的新分类
 2. 优先将书签归入现有具体分类；没有合适的再新建
 3. **严格禁止**：不得新建或使用任何名称含"其他"、"未分类"、"待整理"、"杂项"的分类
-4. 新建分类禁止单级根目录（如 "Docker"），至少两级（"开发工具/Docker"），允许三级（"技术/前端/React"）
-5. 斜杠最多两个（三级），禁止四级及以上
+4. 新建分类禁止单级根目录，至少两级，允许三级
+5. 前序批次新建的分类如果与用户现有分类语义重叠，应优先使用用户现有分类
+6. **禁止**保留少于 2 个书签的分类（必须合并）
+7. **禁止**将已经在正确分类中的书签移到其他分类
 
 ## 输入数据
 \`\`\`json
@@ -584,7 +746,8 @@ ${inputJson}
 - 每个书签仅归入一个最匹配的分类
 - 若书签当前分类有误，在 reason 中注明：建议从[当前分类]移动到[推荐分类]
 - 为每个书签提取 2-5 个标签
-- 分类总数 5-15 个，每个分类至少 2 个书签
+- **分类总数 5-15 个**，每个分类至少 2 个书签
+- 如果发现 AI 新建的分类与用户现有分类语义重叠，在 conflicts 中列出
 
 \`\`\`json
 {
@@ -596,7 +759,15 @@ ${inputJson}
       "reason": "归类理由"
     }
   ],
-  "tags": [{"name": "标签名", "bookmarkId": "id1"}]
+  "tags": [{"name": "标签名", "bookmarkId": "id1"}],
+  "conflicts": [
+    {
+      "aiCategory": "AI新建的分类名",
+      "suggestedMerge": "应合并到的用户现有分类路径",
+      "reason": "语义重叠的原因",
+      "bookmarkIds": ["受影响的书签ID"]
+    }
+  ]
 }
 \`\`\``;
   }
@@ -628,6 +799,59 @@ ${inputJson}
   "tags": [{"name": "标签名", "bookmarkId": "id1"}]
 }
 \`\`\``;
+}
+
+/**
+ * 查找最佳合并目标：将 AI 新建的分类路径匹配到用户已有分类
+ * @param {string} aiPath - AI 新建的分类路径（如 "AI工具"）
+ * @param {Array<string>} userPaths - 用户已有分类路径列表
+ * @returns {string|null} 最佳匹配的用户分类路径
+ */
+function findBestMergeTarget(aiPath, userPaths) {
+  if (!aiPath || !userPaths || userPaths.length === 0) return null;
+
+  const aiLower = aiPath.toLowerCase();
+  const aiParts = aiLower.split('/');
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const userPath of userPaths) {
+    const userLower = userPath.toLowerCase();
+    const userParts = userLower.split('/');
+
+    // 计算匹配分数
+    let score = 0;
+
+    // 完全匹配
+    if (aiLower === userLower) {
+      return userPath;
+    }
+
+    // AI 路径是用户路径的子集（如 "工具" vs "人工智能/工具"）
+    if (userLower.includes(aiLower) || aiLower.includes(userLower)) {
+      score += 3;
+    }
+
+    // 逐部分匹配
+    for (const aiPart of aiParts) {
+      for (const userPart of userParts) {
+        if (aiPart === userPart) {
+          score += 2;
+        } else if (userPart.includes(aiPart) || aiPart.includes(userPart)) {
+          score += 1;
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = userPath;
+    }
+  }
+
+  // 只有分数足够高才返回（避免误匹配）
+  return bestScore >= 2 ? bestMatch : null;
 }
 
 /**
@@ -735,6 +959,27 @@ function validateAIResult(parsed, inputBookmarkIds) {
 
   if (!parsed.tags || !Array.isArray(parsed.tags)) {
     parsed.tags = [];
+  }
+
+  // 处理 conflicts 字段（可选）
+  if (parsed.conflicts && Array.isArray(parsed.conflicts)) {
+    for (const conflict of parsed.conflicts) {
+      if (!conflict.aiCategory || typeof conflict.aiCategory !== 'string') {
+        continue; // 跳过无效的 conflict
+      }
+      if (!conflict.suggestedMerge || typeof conflict.suggestedMerge !== 'string') {
+        conflict.suggestedMerge = null;
+      }
+      if (!conflict.reason || typeof conflict.reason !== 'string') {
+        conflict.reason = '语义重叠';
+      }
+      if (!conflict.bookmarkIds || !Array.isArray(conflict.bookmarkIds)) {
+        conflict.bookmarkIds = [];
+      }
+      conflict.bookmarkIds = conflict.bookmarkIds.map(String);
+    }
+  } else {
+    parsed.conflicts = [];
   }
 
   return { result: parsed, warnings };
@@ -1102,4 +1347,184 @@ function calculateSimilarity(name1, name2) {
   const union = new Set([...set1, ...set2]);
 
   return intersection.size / union.size;
+}
+
+/**
+ * 自动合并小分类：少于 minBookmarks 个书签的分类合并到最相近的分类
+ * @param {Array} categories - 分类列表
+ * @param {number} minBookmarks - 最少书签数
+ * @returns {Array} 合并后的分类列表
+ */
+function mergeSmallCategories(categories, minBookmarks = 2) {
+  if (categories.length <= 1) return categories;
+
+  // 按书签数降序排序
+  const sorted = [...categories].sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
+
+  const smallCats = sorted.filter(c => c.bookmarkIds.length < minBookmarks);
+  const bigCats = sorted.filter(c => c.bookmarkIds.length >= minBookmarks);
+
+  if (smallCats.length === 0) return categories;
+
+  for (const small of smallCats) {
+    // 查找最相近的大分类进行合并
+    let bestTarget = null;
+    let bestScore = -1;
+
+    for (const big of bigCats) {
+      const score = calculateCategoryMergeScore(small, big);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = big;
+      }
+    }
+
+    if (bestTarget && bestScore > 0) {
+      // 合并
+      const uniqueIds = new Set([...bestTarget.bookmarkIds, ...small.bookmarkIds]);
+      bestTarget.bookmarkIds = Array.from(uniqueIds);
+      console.log(`[后处理] 小分类合并: "${small.name}"(${small.bookmarkIds.length}) → "${bestTarget.name}"(${bestTarget.bookmarkIds.length})`);
+    } else {
+      // 没找到合适的合并目标，保留
+      bigCats.push(small);
+    }
+  }
+
+  return bigCats;
+}
+
+/**
+ * 计算两个分类的合并匹配分数
+ * @param {Object} source - 源分类（小分类）
+ * @param {Object} target - 目标分类（大分类）
+ * @returns {number} 匹配分数（越高越适合合并）
+ */
+function calculateCategoryMergeScore(source, target) {
+  const sourceName = source.name.toLowerCase();
+  const targetName = target.name.toLowerCase();
+  let score = 0;
+
+  // 1. 父子路径关系（最高优先级）
+  // 如果 source 是 target 的子路径，如 "技术/前端/React" vs "技术/前端"
+  if (sourceName.startsWith(targetName + '/')) {
+    score += 10;
+  }
+  // 如果 target 是 source 的子路径
+  else if (targetName.startsWith(sourceName + '/')) {
+    score += 8;
+  }
+  // 2. 同一大类下的子分类（如 "技术/前端" vs "技术/后端"）
+  else {
+    const sourceParts = sourceName.split('/');
+    const targetParts = targetName.split('/');
+    // 比较根级分类
+    if (sourceParts[0] === targetParts[0]) {
+      score += 5;
+    }
+    // 比较是否有共同的上级
+    for (let i = 0; i < Math.min(sourceParts.length, targetParts.length); i++) {
+      if (sourceParts[i] === targetParts[i]) {
+        score += 3;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // 3. 名称相似度
+  const nameSim = calculateSimilarity(sourceName, targetName);
+  score += nameSim * 4;
+
+  // 4. "已导入"路径惩罚（优先合并掉）
+  if (sourceName.includes('已导入')) {
+    score += 2;
+  }
+
+  return score;
+}
+
+/**
+ * 自动合并"已导入"路径的分类到简洁分类
+ * 规则：
+ * - "已导入/best/编程技术/前端攻城狮/React" → "技术/前端"
+ * - "已导入/best/编程技术/.net core" → "技术/.NET"
+ * - "已导入/best/编程技术/容器" → "技术/容器化"
+ * @param {Array} categories - 分类列表
+ * @returns {Array} 合并后的分类列表
+ */
+function mergeImportedPaths(categories) {
+  // "已导入"路径到简洁分类的映射规则
+  const IMPORTED_MERGE_RULES = [
+    // 前端相关
+    { pattern: /前端|html|css|javascript|react|vue|angular|webpack|node/i, target: '技术/前端' },
+    // 后端相关
+    { pattern: /\.net|csharp|java|python|go|ruby|php|spring/i, target: '技术/后端' },
+    // 数据库相关
+    { pattern: /sql|database|oracle|mysql|mongo|redis|数据/i, target: '技术/数据库' },
+    // 容器/运维
+    { pattern: /docker|container|容器|kubernetes|k8s|运维|部署/i, target: '技术/运维' },
+    // 移动开发
+    { pattern: /android|ios|app|混合app|小程序|移动/i, target: '技术/移动开发' },
+    // AI/机器学习
+    { pattern: /ai|人工智能|machine|learning|深度学习|神经/i, target: '人工智能' },
+    // 设计相关
+    { pattern: /设计|ui|ux|艺术|摄影|墙纸|视觉/i, target: '设计' },
+    // 下载/工具
+    { pattern: /下载|工具|发现/i, target: '工具' },
+  ];
+
+  const importedCats = categories.filter(c => c.name.includes('已导入'));
+  const nonImportedCats = categories.filter(c => !c.name.includes('已导入'));
+
+  if (importedCats.length === 0) return categories;
+
+  console.log(`[后处理] 发现 ${importedCats.length} 个"已导入"路径分类，开始合并...`);
+
+  // 为每个已导入分类找到目标分类
+  const mergedTargets = new Map(); // target → [source categories]
+
+  for (const cat of importedCats) {
+    let merged = false;
+    for (const rule of IMPORTED_MERGE_RULES) {
+      if (rule.pattern.test(cat.name)) {
+        const target = rule.target;
+        if (!mergedTargets.has(target)) {
+          mergedTargets.set(target, []);
+        }
+        mergedTargets.get(target).push(cat);
+        merged = true;
+        console.log(`[后处理] 合并 "${cat.name}" → "${target}"`);
+        break;
+      }
+    }
+    if (!merged) {
+      // 没有匹配规则的，保留原分类
+      nonImportedCats.push(cat);
+    }
+  }
+
+  // 将合并的书签添加到目标分类
+  for (const [targetName, sources] of mergedTargets) {
+    // 查找是否已有目标分类
+    let targetCat = nonImportedCats.find(c => c.name === targetName);
+    if (!targetCat) {
+      // 创建新分类
+      targetCat = {
+        name: targetName,
+        confidence: 0.8,
+        isNew: true,
+        bookmarkIds: [],
+        reason: '从已导入路径合并'
+      };
+      nonImportedCats.push(targetCat);
+    }
+    // 合并书签
+    for (const source of sources) {
+      const uniqueIds = new Set([...targetCat.bookmarkIds, ...source.bookmarkIds]);
+      targetCat.bookmarkIds = Array.from(uniqueIds);
+    }
+  }
+
+  console.log(`[后处理] 已导入合并完成: ${importedCats.length} → ${mergedTargets.size} 个新分类`);
+  return nonImportedCats;
 }
