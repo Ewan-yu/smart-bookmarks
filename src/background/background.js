@@ -600,6 +600,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'CLEAR_ANALYSIS_SESSION':
+      // 同时取消正在运行的分析（如果有的话）
+      if (currentAnalysisCancelToken) {
+        currentAnalysisCancelToken.cancelled = true;
+        currentAnalysisCancelToken = null;
+      }
       chrome.storage.local.remove('analysisSession').then(() => {
         sendResponse({ success: true });
       });
@@ -969,8 +974,16 @@ async function handleCheckBrokenLinks(request, sendResponse) {
 async function handleAIAnalyze(request, sendResponse) {
   // 防止重复启动
   if (currentAnalysisCancelToken !== null) {
-    sendResponse({ error: '分析正在进行中，请稍候' });
-    return;
+    if (request.forceRestart) {
+      // 强制重启：取消正在运行的分析
+      currentAnalysisCancelToken.cancelled = true;
+      currentAnalysisCancelToken = null;
+      // 等待短暂时间让旧分析任务响应取消信号
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } else {
+      sendResponse({ error: '分析正在进行中，请稍候' });
+      return;
+    }
   }
 
   try {
@@ -1009,9 +1022,6 @@ async function handleAIAnalyze(request, sendResponse) {
 
     // 创建取消令牌（在开始分析前创建，确保后续操作可以取消）
     currentAnalysisCancelToken = { cancelled: false };
-
-    // 验证通过后立即响应，避免长时间任务导致消息通道关闭（MV3 Service Worker 限制）
-    sendResponse({ started: true });
 
     const BATCH_SIZE = 50;
     const totalBatches = Math.ceil(bookmarksToAnalyze.length / BATCH_SIZE);
